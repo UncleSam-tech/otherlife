@@ -3,9 +3,9 @@ use otherlife_simulation::{SidebarStateDTO, SimulationEngine, StepResult};
 use otherlife_world::NewLifeConfig;
 use serde::{Deserialize, Serialize};
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::Mutex;
-use tauri::State;
+use tauri::{AppHandle, Manager, State};
 
 pub struct AppState {
     pub engine: Mutex<SimulationEngine>,
@@ -90,18 +90,29 @@ pub struct RegistriesDTO {
     pub companies: serde_json::Value,
 }
 
-fn read_json_data(rel: &str) -> serde_json::Value {
-    let p1 = Path::new(rel);
+fn read_json_data(base: &Path, rel: &str) -> serde_json::Value {
+    // 1. Try from resource dir (packaged .app / .dmg)
+    let p1 = base.join(rel);
     if p1.exists() {
-        if let Ok(s) = fs::read_to_string(p1) {
+        if let Ok(s) = fs::read_to_string(&p1) {
             if let Ok(v) = serde_json::from_str(&s) {
                 return v;
             }
         }
     }
-    let p2 = Path::new("../../").join(rel);
+    // 2. Dev fallback: relative from cwd (cargo run / tauri dev)
+    let p2 = PathBuf::from(rel);
     if p2.exists() {
         if let Ok(s) = fs::read_to_string(&p2) {
+            if let Ok(v) = serde_json::from_str(&s) {
+                return v;
+            }
+        }
+    }
+    // 3. Monorepo root fallback (two levels up from src-tauri)
+    let p3 = PathBuf::from("../../").join(rel);
+    if p3.exists() {
+        if let Ok(s) = fs::read_to_string(&p3) {
             if let Ok(v) = serde_json::from_str(&s) {
                 return v;
             }
@@ -111,18 +122,24 @@ fn read_json_data(rel: &str) -> serde_json::Value {
 }
 
 #[tauri::command]
-fn get_registries() -> Result<RegistriesDTO, String> {
+fn get_registries(app: AppHandle) -> Result<RegistriesDTO, String> {
+    // Resolve resource base: works in both dev and packaged builds
+    let resource_base = app
+        .path()
+        .resource_dir()
+        .unwrap_or_else(|_| PathBuf::from("."));
+
     Ok(RegistriesDTO {
-        countries: read_json_data("real_world_data/geography/countries.json"),
-        locations: read_json_data("real_world_data/geography/cities.json"),
-        skills: read_json_data("real_world_data/registries/skills.json"),
-        traits: read_json_data("real_world_data/registries/traits.json"),
-        interests: read_json_data("real_world_data/registries/interests.json"),
-        goals: read_json_data("real_world_data/registries/goals.json"),
-        clubs: read_json_data("real_world_data/football/clubs.json"),
-        parties: read_json_data("real_world_data/politics/parties.json"),
-        universities: read_json_data("real_world_data/education/universities.json"),
-        companies: read_json_data("real_world_data/companies/corporations.json"),
+        countries:   read_json_data(&resource_base, "real_world_data/geography/countries.json"),
+        locations:   read_json_data(&resource_base, "real_world_data/geography/cities.json"),
+        skills:      read_json_data(&resource_base, "real_world_data/registries/skills.json"),
+        traits:      read_json_data(&resource_base, "real_world_data/registries/traits.json"),
+        interests:   read_json_data(&resource_base, "real_world_data/registries/interests.json"),
+        goals:       read_json_data(&resource_base, "real_world_data/registries/goals.json"),
+        clubs:       read_json_data(&resource_base, "real_world_data/football/clubs.json"),
+        parties:     read_json_data(&resource_base, "real_world_data/politics/parties.json"),
+        universities:read_json_data(&resource_base, "real_world_data/education/universities.json"),
+        companies:   read_json_data(&resource_base, "real_world_data/companies/corporations.json"),
     })
 }
 

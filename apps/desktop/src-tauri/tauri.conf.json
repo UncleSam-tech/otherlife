@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "title": "OTHERLIFE — Operating System for Another Life",
+        "title": "OTHERLIFE — Live Another Life",
         "width": 1280,
         "height": 840,
         "resizable": true,
@@ -26,6 +26,9 @@
   "bundle": {
     "active": true,
     "targets": "all",
+    "resources": {
+      "../../../real_world_data/**/*": "real_world_data/"
+    },
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
