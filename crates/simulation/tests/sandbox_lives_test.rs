@@ -28,7 +28,7 @@ fn test_scenario_a_nigeria_music_16yo() {
     let player = engine.persons.get("person:sim:player").unwrap();
 
     assert_eq!(player.identity.first_name, "Tunde");
-    assert_eq!(player.identity.country_id, "country:real:nigeria");
+    assert!(player.identity.nationalities.contains(&"country:real:nigeria".to_string()));
     assert_eq!(player.location_id, "city:real:lagos");
     assert!(player.interests.contains("music"));
     assert!(!player.interests.contains("football")); // Zero football bias

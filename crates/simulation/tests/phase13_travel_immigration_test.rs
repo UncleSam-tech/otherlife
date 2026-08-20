@@ -88,6 +88,6 @@ fn test_cross_border_relocation() {
 
     let player = engine.persons.get("person:sim:player").unwrap();
     assert_eq!(player.location_id, "city:real:paris");
-    assert_eq!(player.identity.country_id, "country:real:france");
+    assert!(player.identity.nationalities.contains(&"country:real:france".to_string()));
     assert!(engine.events.iter().any(|e| e.event_type == "CROSS_BORDER_RELOCATION"));
 }

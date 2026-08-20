@@ -18,6 +18,60 @@
     "districts": ["Camden", "Islington", "Kensington", "Hackney", "Greenwich"]
   },
   {
+    "id": "city:real:manchester",
+    "name": "Manchester",
+    "country_id": "country:real:united_kingdom",
+    "region_id": "region:real:england",
+    "population": 553000,
+    "cost_of_living_index": 1.25,
+    "districts": ["Deansgate", "Northern Quarter", "Ancoats", "Salford", "Didsbury"]
+  },
+  {
+    "id": "city:real:newcastle",
+    "name": "Newcastle",
+    "country_id": "country:real:united_kingdom",
+    "region_id": "region:real:england",
+    "population": 300000,
+    "cost_of_living_index": 1.05,
+    "districts": ["City Centre", "Jesmond", "Gosforth", "Ouseburn"]
+  },
+  {
+    "id": "city:real:lagos",
+    "name": "Lagos",
+    "country_id": "country:real:nigeria",
+    "region_id": "region:real:lagos_state",
+    "population": 15400000,
+    "cost_of_living_index": 0.85,
+    "districts": ["Ikeja", "Victoria Island", "Lekki", "Surulere", "Yaba"]
+  },
+  {
+    "id": "city:real:abuja",
+    "name": "Abuja",
+    "country_id": "country:real:nigeria",
+    "region_id": "region:real:fct",
+    "population": 3600000,
+    "cost_of_living_index": 0.90,
+    "districts": ["Maitama", "Asokoro", "Garki", "Wuse"]
+  },
+  {
+    "id": "city:real:new_york",
+    "name": "New York",
+    "country_id": "country:real:united_states",
+    "region_id": "region:real:new_york_state",
+    "population": 8330000,
+    "cost_of_living_index": 1.80,
+    "districts": ["Manhattan", "Brooklyn", "Queens", "Bronx", "Staten Island"]
+  },
+  {
+    "id": "city:real:paris",
+    "name": "Paris",
+    "country_id": "country:real:france",
+    "region_id": "region:real:ile_de_france",
+    "population": 2160000,
+    "cost_of_living_index": 1.50,
+    "districts": ["Le Marais", "Montmartre", "Latin Quarter", "Élysée"]
+  },
+  {
     "id": "city:real:madrid",
     "name": "Madrid",
     "country_id": "country:real:spain",

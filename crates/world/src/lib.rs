@@ -751,6 +751,93 @@ pub struct FootballLeague {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CountrySeed {
+    pub id: String,
+    pub name: String,
+    pub code: String,
+    pub currency: String,
+    pub currency_symbol: String,
+    pub cost_of_living_index: f32,
+    pub primary_language: String,
+    pub capital_city_id: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CitySeed {
+    pub id: String,
+    pub name: String,
+    pub country_id: String,
+    pub region_id: String,
+    pub population: u64,
+    pub cost_of_living_index: f32,
+    pub districts: Vec<String>,
+}
+
+pub struct WorldDataValidator;
+
+impl WorldDataValidator {
+    pub fn validate_seed_data(
+        countries: &[CountrySeed],
+        cities: &[CitySeed],
+        clubs: &[FootballClub],
+        companies: &[Company],
+        universities: &[University],
+        parties: &[PoliticalParty],
+    ) -> Result<(), String> {
+        let mut country_ids = HashSet::new();
+        for c in countries {
+            if !country_ids.insert(c.id.clone()) {
+                return Err(format!("Duplicate country ID: {}", c.id));
+            }
+        }
+
+        let mut city_ids = HashSet::new();
+        for c in cities {
+            if !city_ids.insert(c.id.clone()) {
+                return Err(format!("Duplicate city ID: {}", c.id));
+            }
+            if !country_ids.contains(&c.country_id) {
+                return Err(format!("City {} references invalid country_id {}", c.id, c.country_id));
+            }
+        }
+
+        let mut club_ids = HashSet::new();
+        for club in clubs {
+            if !club_ids.insert(club.id.clone()) {
+                return Err(format!("Duplicate club ID: {}", club.id));
+            }
+            if !city_ids.contains(&club.city_id) {
+                return Err(format!("Club {} references invalid city_id {}", club.id, club.city_id));
+            }
+
+            if club.id.contains("manchester_united") && club.city_id != "city:real:manchester" {
+                return Err(format!("Club {} has incorrect city_id {} (expected city:real:manchester)", club.id, club.city_id));
+            }
+        }
+
+        for comp in companies {
+            if !country_ids.contains(&comp.country_id) {
+                return Err(format!("Company {} references invalid country_id {}", comp.id, comp.country_id));
+            }
+        }
+
+        for uni in universities {
+            if !city_ids.contains(&uni.city_id) {
+                return Err(format!("University {} references invalid city_id {}", uni.id, uni.city_id));
+            }
+        }
+
+        for p in parties {
+            if !country_ids.contains(&p.country_id) {
+                return Err(format!("Political party {} references invalid country_id {}", p.id, p.country_id));
+            }
+        }
+
+        Ok(())
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FootballClub {
     pub id: EntityId,
     pub name: String,
@@ -977,6 +1064,24 @@ pub struct WorldNewsItem {
     pub source_event_id: String,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
+pub enum Capability {
+    CanWalk,
+    CanSpeak,
+    CanTravelAlone,
+    CanAttendSchool,
+    CanWork,
+    CanSignContract,
+    CanOpenBankAccount,
+    CanDrive,
+    CanMarry,
+    CanVote,
+    CanRunForOffice,
+    CanEnlist,
+    CanOwnBusiness,
+    CanPlayProFootball,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SimTime {
     pub year: i32,
@@ -988,7 +1093,34 @@ pub struct SimTime {
 
 impl SimTime {
     pub fn new(year: i32, month: u32, day: u32, hour: u32, minute: u32) -> Self {
-        Self { year, month, day, hour, minute }
+        Self {
+            year,
+            month: month.clamp(1, 12),
+            day: day.clamp(1, 31),
+            hour: hour.clamp(0, 23),
+            minute: minute.clamp(0, 59),
+        }
+    }
+
+    pub fn is_leap_year(year: i32) -> bool {
+        (year % 4 == 0 && year % 100 != 0) || (year % 400 == 0)
+    }
+
+    pub fn days_in_month(year: i32, month: u32) -> u32 {
+        match month {
+            1 | 3 | 5 | 7 | 8 | 10 | 12 => 31,
+            4 | 6 | 9 | 11 => 30,
+            2 => if Self::is_leap_year(year) { 29 } else { 28 },
+            _ => 30,
+        }
+    }
+
+    pub fn compute_age(&self, birth_year: i32, birth_month: u32, birth_day: u32) -> u32 {
+        let mut age = self.year - birth_year;
+        if self.month < birth_month || (self.month == birth_month && self.day < birth_day) {
+            age -= 1;
+        }
+        if age < 0 { 0 } else { age as u32 }
     }
 
     pub fn formatted(&self) -> String {
@@ -1002,13 +1134,26 @@ impl SimTime {
 
     pub fn advance_days(&mut self, days: u32) {
         self.day += days;
-        while self.day > 28 {
-            self.day -= 28;
+        loop {
+            let max_days = Self::days_in_month(self.year, self.month);
+            if self.day <= max_days {
+                break;
+            }
+            self.day -= max_days;
             self.month += 1;
             if self.month > 12 {
                 self.month = 1;
                 self.year += 1;
             }
+        }
+    }
+
+    pub fn advance_hours(&mut self, hours: u32) {
+        self.hour += hours;
+        if self.hour >= 24 {
+            let days = self.hour / 24;
+            self.hour %= 24;
+            self.advance_days(days);
         }
     }
 }
@@ -1021,7 +1166,10 @@ pub struct IdentityComponent {
     pub birth_month: u32,
     pub birth_day: u32,
     pub sex: String,
-    pub country_id: String,
+    pub birth_location_id: String,
+    pub current_location_id: String,
+    pub nationalities: Vec<String>,
+    pub citizenships: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -1066,6 +1214,19 @@ pub struct EducationComponent {
     pub attendance_rate: f32,
     pub qualifications: Vec<Qualification>,
     pub degree_program: Option<String>,
+}
+
+impl Default for EducationComponent {
+    fn default() -> Self {
+        Self {
+            school_id: None,
+            grade_level: 0,
+            academic_performance: 70.0,
+            attendance_rate: 100.0,
+            qualifications: Vec::new(),
+            degree_program: None,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -1260,6 +1421,42 @@ pub struct EventRecord {
     pub causality_parent_id: Option<String>,
 }
 
+impl Person {
+    pub fn get_life_stage(&self, current_year: i32, current_month: u32, current_day: u32) -> LifeStage {
+        let age = SimTime::new(current_year, current_month, current_day, 0, 0).compute_age(
+            self.identity.birth_year,
+            self.identity.birth_month,
+            self.identity.birth_day,
+        );
+        LifeStage::from_age(age, self.is_alive)
+    }
+
+    pub fn has_capability(&self, capability: Capability, current_year: i32, current_month: u32, current_day: u32) -> bool {
+        let age = SimTime::new(current_year, current_month, current_day, 0, 0).compute_age(
+            self.identity.birth_year,
+            self.identity.birth_month,
+            self.identity.birth_day,
+        );
+
+        match capability {
+            Capability::CanWalk => age >= 1,
+            Capability::CanSpeak => age >= 2,
+            Capability::CanTravelAlone => age >= 12,
+            Capability::CanAttendSchool => age >= 5,
+            Capability::CanWork => age >= 16,
+            Capability::CanSignContract => age >= 18,
+            Capability::CanOpenBankAccount => age >= 16,
+            Capability::CanDrive => age >= 17,
+            Capability::CanMarry => age >= 18,
+            Capability::CanVote => age >= 18,
+            Capability::CanRunForOffice => age >= 21,
+            Capability::CanEnlist => age >= 18,
+            Capability::CanOwnBusiness => age >= 18,
+            Capability::CanPlayProFootball => age >= 16,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WorldConfig {
     pub start_date: String,
@@ -1286,3 +1483,4 @@ pub struct NewLifeConfig {
     pub interests: Vec<String>,
     pub goals: Vec<String>,
 }
+

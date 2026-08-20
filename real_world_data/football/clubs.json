@@ -26,10 +26,26 @@
   {
     "id": "club:real:manchester_united",
     "name": "Manchester United",
-    "city_id": "city:real:london",
+    "city_id": "city:real:manchester",
     "league_id": "league:real:english_premier_league",
     "stadium_name": "Old Trafford",
     "reputation": 90.0
+  },
+  {
+    "id": "club:real:manchester_city",
+    "name": "Manchester City",
+    "city_id": "city:real:manchester",
+    "league_id": "league:real:english_premier_league",
+    "stadium_name": "Etihad Stadium",
+    "reputation": 92.0
+  },
+  {
+    "id": "club:real:newcastle_united",
+    "name": "Newcastle United",
+    "city_id": "city:real:newcastle",
+    "league_id": "league:real:english_premier_league",
+    "stadium_name": "St James' Park",
+    "reputation": 84.0
   },
   {
     "id": "club:real:real_madrid",

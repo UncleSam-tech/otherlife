@@ -41,7 +41,7 @@ export const LifeFeed: React.FC<LifeFeedProps> = ({ events, onInspectCausality, 
           textAlign: 'center',
           backgroundColor: 'var(--bg-surface-1)',
           borderRadius: 'var(--radius-lg)',
-          border: '1px border var(--border-subtle)',
+          border: '1px solid var(--border-subtle)',
           color: 'var(--text-muted)'
         }}>
           No events recorded yet. Type an action below to begin living your alternate life.
@@ -71,24 +71,26 @@ export const LifeFeed: React.FC<LifeFeedProps> = ({ events, onInspectCausality, 
                 </span>
               </div>
 
-              <button
-                onClick={() => onInspectCausality(ev)}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '4px',
-                  backgroundColor: 'transparent',
-                  border: 'none',
-                  color: 'var(--accent-indigo)',
-                  cursor: 'pointer',
-                  fontSize: '12px',
-                  fontWeight: 600,
-                }}
-              >
-                <HelpCircle size={14} />
-                <span>Why did this happen?</span>
-                <ChevronRight size={14} />
-              </button>
+              {devMode && (
+                <button
+                  onClick={() => onInspectCausality(ev)}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    backgroundColor: 'transparent',
+                    border: 'none',
+                    color: 'var(--accent-indigo)',
+                    cursor: 'pointer',
+                    fontSize: '12px',
+                    fontWeight: 600,
+                  }}
+                >
+                  <HelpCircle size={14} />
+                  <span>Why did this happen?</span>
+                  <ChevronRight size={14} />
+                </button>
+              )}
             </div>
 
             <p style={{

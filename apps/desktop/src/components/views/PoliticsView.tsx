@@ -2,22 +2,25 @@ import React from 'react';
 import { Landmark, Vote, Flag, Sparkles } from 'lucide-react';
 
 interface PoliticsViewProps {
-  partyName: string;
-  officeTitle: string;
-  isCampaigning: boolean;
-  pollingPct: number;
-  onLaunchCampaign: () => void;
-  onHoldRally: () => void;
+  partyName?: string;
+  officeTitle?: string;
+  isCampaigning?: boolean;
+  pollingPct?: number;
+  onLaunchCampaign?: () => void;
+  onHoldRally?: () => void;
 }
 
 export const PoliticsView: React.FC<PoliticsViewProps> = ({
-  partyName,
-  officeTitle,
-  isCampaigning,
-  pollingPct,
+  partyName = 'Unaffiliated',
+  officeTitle = 'No Active Office',
+  isCampaigning = false,
+  pollingPct = 0,
   onLaunchCampaign,
   onHoldRally,
 }) => {
+  const hasParty = partyName && partyName !== 'Unaffiliated' && partyName !== 'None';
+  const hasOffice = officeTitle && officeTitle !== 'No Active Office' && officeTitle !== 'None';
+
   return (
     <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px', overflowY: 'auto' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -76,22 +79,22 @@ export const PoliticsView: React.FC<PoliticsViewProps> = ({
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px' }}>
         <div style={{ backgroundColor: 'var(--bg-surface-1)', padding: '16px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-subtle)' }}>
           <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '4px' }}>PARTY AFFILIATION</div>
-          <div style={{ fontSize: '18px', fontWeight: 700, color: 'var(--accent-indigo)' }}>
-            {partyName}
+          <div style={{ fontSize: '18px', fontWeight: 700, color: hasParty ? 'var(--accent-indigo)' : 'var(--text-muted)' }}>
+            {hasParty ? partyName : 'Unaffiliated'}
           </div>
         </div>
 
         <div style={{ backgroundColor: 'var(--bg-surface-1)', padding: '16px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-subtle)' }}>
           <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '4px' }}>ACTIVE PUBLIC OFFICE</div>
-          <div style={{ fontSize: '18px', fontWeight: 700, color: 'var(--accent-emerald)' }}>
-            {officeTitle}
+          <div style={{ fontSize: '18px', fontWeight: 700, color: hasOffice ? 'var(--accent-emerald)' : 'var(--text-muted)' }}>
+            {hasOffice ? officeTitle : 'No Active Office'}
           </div>
         </div>
 
         <div style={{ backgroundColor: 'var(--bg-surface-1)', padding: '16px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-subtle)' }}>
           <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '4px' }}>POLLING STANDING</div>
-          <div style={{ fontSize: '18px', fontWeight: 700, color: 'var(--accent-amber)' }}>
-            {pollingPct.toFixed(1)}%
+          <div style={{ fontSize: '18px', fontWeight: 700, color: isCampaigning ? 'var(--accent-amber)' : 'var(--text-muted)' }}>
+            {isCampaigning ? `${pollingPct.toFixed(1)}%` : 'N/A'}
           </div>
         </div>
       </div>
@@ -102,7 +105,9 @@ export const PoliticsView: React.FC<PoliticsViewProps> = ({
           <span>Legislative Agenda & Policy Track Record</span>
         </div>
         <p style={{ fontSize: '13px', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
-          No policy proposals sponsored in parliament or local council yet. Participate in constituency debates and host campaign rallies to build electorate support.
+          {hasOffice
+            ? 'Active in legislative council. Sponsor policy proposals to impact economy and governance.'
+            : 'No active political office held. Join a political party or launch an independent campaign to enter governance.'}
         </p>
       </div>
     </div>

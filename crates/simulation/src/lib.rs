@@ -49,6 +49,67 @@ pub struct SidebarStateDTO {
     pub stress: f32,
 }
 
+pub struct SimulationInvariantValidator;
+
+impl SimulationInvariantValidator {
+    pub fn validate(engine: &SimulationEngine) -> Result<(), String> {
+        for (person_id, person) in &engine.persons {
+            let age = engine.time.compute_age(
+                person.identity.birth_year,
+                person.identity.birth_month,
+                person.identity.birth_day,
+            );
+
+            // Invariant 1: Age 0 cannot work or earn a salary
+            if age == 0 {
+                if let Some(ref title) = person.employment.job_title {
+                    if title != "Unemployed / Infant" && title != "Unemployed / Student" && title != "Unemployed" {
+                        return Err(format!(
+                            "Invariant Failure: Person {} at age 0 has active job_title '{}'",
+                            person_id, title
+                        ));
+                    }
+                }
+                if person.employment.monthly_salary > 0.0 {
+                    return Err(format!(
+                        "Invariant Failure: Person {} at age 0 has positive salary {}",
+                        person_id, person.employment.monthly_salary
+                    ));
+                }
+            }
+
+            // Invariant 2: Age 0 cannot hold contracts or adult football roles
+            if age == 0 {
+                if person.football_role != FootballRole::None {
+                    return Err(format!(
+                        "Invariant Failure: Person {} at age 0 has football_role {:?}",
+                        person_id, person.football_role
+                    ));
+                }
+                if person.football_contract.is_some() {
+                    return Err(format!(
+                        "Invariant Failure: Person {} at age 0 has football_contract",
+                        person_id
+                    ));
+                }
+            }
+
+            // Invariant 3: Skills must satisfy 0.0 <= skill <= 100.0
+            for (skill_name, skill_val) in &person.skills {
+                if *skill_val < 0.0 || *skill_val > 100.0 {
+                    return Err(format!(
+                        "Invariant Failure: Person {} skill '{}' value {:.2} out of range [0, 100]",
+                        person_id, skill_name, skill_val
+                    ));
+                }
+            }
+        }
+
+        Ok(())
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SimulationEngine {
     pub time: SimTime,
     pub rng: WorldRng,
@@ -81,7 +142,6 @@ impl SimulationEngine {
         let time = SimTime::new(config.starting_year, 10, 12, 09, 00);
 
         let player_id = "person:sim:player".to_string();
-        let mum_id = "person:sim:mum".to_string();
 
         let birth_year = config.starting_year - (config.starting_age as i32);
         let first_name = config.first_name.unwrap_or_else(|| "Alex".to_string());
@@ -89,14 +149,20 @@ impl SimulationEngine {
         let sex = config.sex.unwrap_or_else(|| "Non-binary".to_string());
         let income_tier = config.household_income_tier.unwrap_or_else(|| "MIDDLE".to_string());
 
-        let starting_cash = match income_tier.as_str() {
-            "HIGH" => 2500.0,
-            "LOW" => 15.0,
-            _ => 150.0,
+        let starting_cash = if config.starting_age == 0 {
+            0.0
+        } else {
+            match income_tier.as_str() {
+                "HIGH" => 2500.0,
+                "LOW" => 15.0,
+                _ => 150.0,
+            }
         };
 
         let mut skills = config.skills;
-        if skills.is_empty() {
+        if config.starting_age == 0 {
+            skills.clear();
+        } else if skills.is_empty() {
             skills.insert("communication".to_string(), 45.0);
             skills.insert("reading".to_string(), 50.0);
         }
@@ -106,30 +172,9 @@ impl SimulationEngine {
             interests_set.insert(int_str.clone());
         }
 
-        let is_footballer = interests_set.contains("football");
-        let football_role = if is_footballer {
-            if config.starting_age < 18 {
-                FootballRole::AcademyProspect
-            } else {
-                FootballRole::Player
-            }
-        } else {
-            FootballRole::None
-        };
-
-        let football_contract = if is_footballer && config.starting_age >= 16 {
-            Some(FootballContract {
-                club_id: "club:real:celtic".to_string(),
-                club_name: "Celtic FC".to_string(),
-                weekly_wage: 450.0,
-                years_remaining: 3,
-                release_clause: 500000.0,
-                goal_bonus: 250.0,
-                agent_id: None,
-            })
-        } else {
-            None
-        };
+        // NO AUTOMATIC CAREER/CONTRACT ASSIGNMENT FROM INTEREST!
+        let football_role = FootballRole::None;
+        let football_contract = None;
 
         let housing = if config.starting_age >= 18 {
             HousingComponent {
@@ -141,7 +186,15 @@ impl SimulationEngine {
             HousingComponent::default()
         };
 
-        let employment = if config.starting_age >= 22 {
+        let employment = if config.starting_age == 0 {
+            EmploymentComponent {
+                job_title: Some("Unemployed / Infant".to_string()),
+                employer_org_id: None,
+                monthly_salary: 0.0,
+                job_performance: 0.0,
+                years_in_role: 0,
+            }
+        } else if config.starting_age >= 22 {
             EmploymentComponent {
                 job_title: Some("Junior Associate".to_string()),
                 employer_org_id: Some("org:sim:local_company".to_string()),
@@ -162,6 +215,28 @@ impl SimulationEngine {
             });
         }
 
+        // Resolve country geography from location_id or default to country_id
+        let country_id = if config.location_id.contains("glasgow") || config.location_id.contains("london") || config.location_id.contains("manchester") {
+            "country:real:united_kingdom".to_string()
+        } else if config.location_id.contains("lagos") || config.location_id.contains("abuja") {
+            "country:real:nigeria".to_string()
+        } else if config.location_id.contains("new_york") {
+            "country:real:united_states".to_string()
+        } else if config.location_id.contains("paris") {
+            "country:real:france".to_string()
+        } else if config.location_id.contains("madrid") {
+            "country:real:spain".to_string()
+        } else {
+            config.country_id.clone()
+        };
+
+        // Generate parent/guardian dynamically if starting age < 18
+        let parent_id = if config.starting_age < 18 {
+            Some(format!("person:sim:parent_{}", seed % 10000))
+        } else {
+            None
+        };
+
         let player = Person {
             id: player_id.clone(),
             is_player: true,
@@ -180,7 +255,10 @@ impl SimulationEngine {
                 birth_month: 4,
                 birth_day: 12,
                 sex,
-                country_id: config.country_id.clone(),
+                birth_location_id: config.location_id.clone(),
+                current_location_id: config.location_id.clone(),
+                nationalities: vec![country_id.clone()],
+                citizenships: vec![country_id.clone()],
             },
             personality: PersonalityComponent {
                 openness: *config.traits.get("creativity").unwrap_or(&0.5),
@@ -196,7 +274,11 @@ impl SimulationEngine {
             interests: interests_set,
             goals: config.goals.clone(),
             education: EducationComponent {
-                school_id: Some("school:sim:local_school".to_string()),
+                school_id: if config.starting_age >= 5 && config.starting_age <= 18 {
+                    Some("school:sim:local_school".to_string())
+                } else {
+                    None
+                },
                 grade_level: (config.starting_age as u32).saturating_sub(5),
                 academic_performance: 65.0,
                 attendance_rate: 92.0,
@@ -209,9 +291,9 @@ impl SimulationEngine {
             romance: RomanceComponent::default(),
             finances: FinancesComponent {
                 cash: starting_cash,
-                monthly_allowance: 25.0,
+                monthly_allowance: if config.starting_age < 18 && config.starting_age > 5 { 10.0 } else { 0.0 },
                 household_income_tier: income_tier.clone(),
-                monthly_expenses: 50.0,
+                monthly_expenses: if config.starting_age < 18 { 0.0 } else { 50.0 },
             },
             football_role,
             football_attributes: FootballPlayerAttributes::default(),
@@ -245,7 +327,7 @@ impl SimulationEngine {
             mind_uploads: Vec::new(),
             cosmic_megastructures: Vec::new(),
             location_id: config.location_id.clone(),
-            parent_ids: vec![mum_id.clone()],
+            parent_ids: parent_id.clone().into_iter().collect(),
             child_ids: Vec::new(),
             active_roles: Vec::new(),
             knowledge: HashSet::new(),
@@ -253,114 +335,103 @@ impl SimulationEngine {
             memories: Vec::new(),
         };
 
-        let mum = Person {
-            id: mum_id.clone(),
-            is_player: false,
-            is_alive: true,
-            tier: NpcTier::TierA,
-            schedule: NpcSchedule {
-                current_activity: ActivityType::Work,
-                work_start_hour: 8,
-                work_end_hour: 16,
-                primary_location_id: config.location_id.clone(),
-            },
-            identity: IdentityComponent {
-                first_name: "Eleanor".to_string(),
-                last_name: last_name.clone(),
-                birth_year: birth_year - 28,
-                birth_month: 8,
-                birth_day: 24,
-                sex: "Female".to_string(),
-                country_id: config.country_id.clone(),
-            },
-            personality: PersonalityComponent::default(),
-            skills: HashMap::new(),
-            interests: HashSet::new(),
-            goals: Vec::new(),
-            education: EducationComponent {
-                school_id: None,
-                grade_level: 0,
-                academic_performance: 80.0,
-                attendance_rate: 100.0,
-                qualifications: Vec::new(),
-                degree_program: None,
-            },
-            employment: EmploymentComponent {
-                job_title: Some("Senior Administrator".to_string()),
-                employer_org_id: Some("org:sim:city_admin".to_string()),
-                monthly_salary: 3200.0,
-                job_performance: 75.0,
-                years_in_role: 6,
-            },
-            housing: HousingComponent::default(),
-            health: HealthComponent::default(),
-            romance: RomanceComponent {
-                marital_status: "Married".to_string(),
-                partner_id: None,
-                relationship_satisfaction: 70.0,
-            },
-            finances: FinancesComponent {
-                cash: starting_cash * 10.0,
-                monthly_allowance: 0.0,
-                household_income_tier: income_tier,
-                monthly_expenses: 200.0,
-            },
-            football_role: FootballRole::None,
-            football_attributes: FootballPlayerAttributes::default(),
-            football_contract: None,
-            owned_business_ids: Vec::new(),
-            political_party_id: None,
-            political_office_title: None,
-            active_campaign: None,
-            fame: FameComponent::default(),
-            creative_releases: Vec::new(),
-            legal_status: LegalStatus::Clean,
-            criminal_records: Vec::new(),
-            prison_sentence: None,
-            academic_degrees: Vec::new(),
-            research_projects: Vec::new(),
-            patents: Vec::new(),
-            belief: BeliefComponent::default(),
-            founded_movements: Vec::new(),
-            passports: Vec::new(),
-            visas: Vec::new(),
-            travel_history: Vec::new(),
-            military_record: None,
-            medical_history: Vec::new(),
-            surgical_history: Vec::new(),
-            will_and_testament: None,
-            social_media_accounts: Vec::new(),
-            digital_posts: Vec::new(),
-            secret_memberships: Vec::new(),
-            space_missions: Vec::new(),
-            cybernetic_implants: Vec::new(),
-            mind_uploads: Vec::new(),
-            cosmic_megastructures: Vec::new(),
-            location_id: config.location_id,
-            parent_ids: Vec::new(),
-            child_ids: vec![player_id.clone()],
-            active_roles: vec!["Parent".to_string()],
-            knowledge: HashSet::new(),
-            secrets: vec![KnowledgeRecord {
-                topic_id: "secret:family_inheritance".to_string(),
-                description: "Family estate trust fund savings.".to_string(),
-                certainty: 1.0,
-                is_secret: true,
-                known_by_ids: vec![mum_id.clone()].into_iter().collect(),
-            }],
-            memories: Vec::new(),
-        };
-
         let mut persons = HashMap::new();
         persons.insert(player_id.clone(), player);
-        persons.insert(mum_id.clone(), mum);
 
         let mut relationships = RelationshipMatrix::new();
-        relationships.set_link(
-            mum_id,
-            player_id,
-            RelationshipVector::new_parent_child(),
-        );
+
+        if let Some(ref pid) = parent_id {
+            let parent_person = Person {
+                id: pid.clone(),
+                is_player: false,
+                is_alive: true,
+                tier: NpcTier::TierA,
+                schedule: NpcSchedule {
+                    current_activity: ActivityType::Work,
+                    work_start_hour: 8,
+                    work_end_hour: 16,
+                    primary_location_id: config.location_id.clone(),
+                },
+                identity: IdentityComponent {
+                    first_name: "Sarah".to_string(),
+                    last_name: last_name.clone(),
+                    birth_year: birth_year - 28,
+                    birth_month: 8,
+                    birth_day: 24,
+                    sex: "Female".to_string(),
+                    birth_location_id: config.location_id.clone(),
+                    current_location_id: config.location_id.clone(),
+                    nationalities: vec![country_id.clone()],
+                    citizenships: vec![country_id.clone()],
+                },
+                personality: PersonalityComponent::default(),
+                skills: HashMap::new(),
+                interests: HashSet::new(),
+                goals: Vec::new(),
+                education: EducationComponent::default(),
+                employment: EmploymentComponent {
+                    job_title: Some("Civil Servant".to_string()),
+                    employer_org_id: Some("org:sim:local_gov".to_string()),
+                    monthly_salary: 2800.0,
+                    job_performance: 75.0,
+                    years_in_role: 5,
+                },
+                housing: HousingComponent::default(),
+                health: HealthComponent::default(),
+                romance: RomanceComponent::default(),
+                finances: FinancesComponent {
+                    cash: 5000.0,
+                    monthly_allowance: 0.0,
+                    household_income_tier: income_tier.clone(),
+                    monthly_expenses: 500.0,
+                },
+                football_role: FootballRole::None,
+                football_attributes: FootballPlayerAttributes::default(),
+                football_contract: None,
+                owned_business_ids: Vec::new(),
+                political_party_id: None,
+                political_office_title: None,
+                active_campaign: None,
+                fame: FameComponent::default(),
+                creative_releases: Vec::new(),
+                legal_status: LegalStatus::Clean,
+                criminal_records: Vec::new(),
+                prison_sentence: None,
+                academic_degrees: Vec::new(),
+                research_projects: Vec::new(),
+                patents: Vec::new(),
+                belief: BeliefComponent::default(),
+                founded_movements: Vec::new(),
+                passports: Vec::new(),
+                visas: Vec::new(),
+                travel_history: Vec::new(),
+                military_record: None,
+                medical_history: Vec::new(),
+                surgical_history: Vec::new(),
+                will_and_testament: None,
+                social_media_accounts: Vec::new(),
+                digital_posts: Vec::new(),
+                secret_memberships: Vec::new(),
+                space_missions: Vec::new(),
+                cybernetic_implants: Vec::new(),
+                mind_uploads: Vec::new(),
+                cosmic_megastructures: Vec::new(),
+                location_id: config.location_id.clone(),
+                parent_ids: Vec::new(),
+                child_ids: vec![player_id.clone()],
+                active_roles: vec!["Parent".to_string()],
+                knowledge: HashSet::new(),
+                secrets: Vec::new(),
+                memories: Vec::new(),
+            };
+
+            persons.insert(pid.clone(), parent_person);
+            relationships.set_link(
+                pid.clone(),
+                player_id.clone(),
+                RelationshipVector::new_parent_child(),
+            );
+        }
 
         let mut resolver = WorldEntityResolver::new();
 
@@ -539,6 +610,11 @@ impl SimulationEngine {
         }
 
         engine
+    }
+
+    pub fn step_time_forward(&mut self, days: u32) {
+        self.time.advance_days(days);
+        SimulationInvariantValidator::validate(self).expect("Simulation invariants broken during time advance");
     }
 
     pub fn resolve_role_for_person(&self, role_title: &str) -> Option<String> {
@@ -1624,7 +1700,10 @@ impl SimulationEngine {
     pub fn relocate_residence(&mut self, dest_city_id: &str, dest_country_id: &str) {
         let player = self.persons.get_mut("person:sim:player").unwrap();
         player.location_id = dest_city_id.to_string();
-        player.identity.country_id = dest_country_id.to_string();
+        player.identity.current_location_id = dest_city_id.to_string();
+        if !player.identity.nationalities.contains(&dest_country_id.to_string()) {
+            player.identity.nationalities.push(dest_country_id.to_string());
+        }
 
         self.events.push(EventRecord {
             id: uuid::Uuid::new_v4().to_string(),

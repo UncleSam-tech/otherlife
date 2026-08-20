@@ -69,7 +69,7 @@ fn test_alternate_timeline_divergence() {
     let engine = SimulationEngine::new_game(config, 5555);
 
     let player = engine.persons.get("person:sim:player").unwrap();
-    assert_eq!(player.identity.country_id, "country:real:united_kingdom");
+    assert!(player.identity.nationalities.contains(&"country:real:united_kingdom".to_string()));
     assert_eq!(player.location_id, "city:real:glasgow");
 
     // Divergent timeline start

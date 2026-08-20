@@ -86,6 +86,16 @@ export const CreationWizard: React.FC<CreationWizardProps> = ({ registries, onCl
     });
   };
 
+  const handleCountryChange = (newCountryId: string) => {
+    const validLocs = locations.filter((loc: any) => loc.country_id === newCountryId);
+    const firstLocId = validLocs.length > 0 ? validLocs[0].id : '';
+    setFormState((prev) => ({
+      ...prev,
+      countryId: newCountryId,
+      locationId: firstLocId,
+    }));
+  };
+
   const countries = registries?.countries || [];
   const locations = registries?.locations || [];
   const skillsList = registries?.skills || [];
@@ -99,54 +109,44 @@ export const CreationWizard: React.FC<CreationWizardProps> = ({ registries, onCl
       position: 'fixed',
       top: 0,
       left: 0,
-      width: '100vw',
-      height: '100vh',
-      backgroundColor: 'rgba(0, 0, 0, 0.75)',
-      backdropFilter: 'blur(6px)',
+      right: 0,
+      bottom: 0,
+      backgroundColor: 'rgba(0,0,0,0.85)',
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
-      zIndex: 200,
+      zIndex: 1000,
     }}>
       <div style={{
         backgroundColor: 'var(--bg-surface-1)',
-        border: '1px solid var(--border-strong)',
-        borderRadius: 'var(--radius-lg)',
-        width: '780px',
-        maxWidth: '92vw',
-        height: '620px',
+        width: '640px',
         maxHeight: '90vh',
+        borderRadius: 'var(--radius-lg)',
+        border: '1px solid var(--border-strong)',
         display: 'flex',
         flexDirection: 'column',
-        boxShadow: 'var(--shadow-lg)',
         overflow: 'hidden',
       }}>
-        {/* Modal Header */}
         <div style={{
-          padding: '16px 24px',
-          backgroundColor: 'var(--bg-surface-2)',
+          padding: '16px 20px',
           borderBottom: '1px solid var(--border-subtle)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <Sparkles size={18} color="var(--accent-indigo)" />
-            <h3 style={{ fontSize: '16px', fontWeight: 700, fontFamily: 'var(--font-serif)', color: 'var(--text-primary)' }}>
-              NEW LIFE CREATOR — Step {step} of 9
-            </h3>
+            <Sparkles size={18} color="var(--accent-amber)" />
+            <h3 style={{ fontSize: '16px', fontWeight: 700 }}>Initialize Alternate Timeline</h3>
           </div>
-          <button onClick={onClose} style={{ backgroundColor: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}>
             <X size={18} />
           </button>
         </div>
 
-        {/* Modal Body */}
-        <div style={{ flex: 1, padding: '24px', overflowY: 'auto' }}>
+        <div style={{ padding: '20px', flex: 1, overflowY: 'auto' }}>
           {step === 1 && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-              <h4 style={{ fontSize: '15px', fontWeight: 600 }}>Quick Start Presets or Custom Setup</h4>
-              <p style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
+              <p style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
                 Choose a pre-configured starting life persona or customize every aspect of your new timeline.
               </p>
               <QuickStartPresets onSelectPreset={handleSelectPreset} />
@@ -178,7 +178,7 @@ export const CreationWizard: React.FC<CreationWizardProps> = ({ registries, onCl
                   <label style={{ fontSize: '12px', color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>Country</label>
                   <select
                     value={formState.countryId}
-                    onChange={(e) => setFormState({ ...formState, countryId: e.target.value })}
+                    onChange={(e) => handleCountryChange(e.target.value)}
                     style={{ width: '100%', padding: '10px', backgroundColor: 'var(--bg-app)', border: '1px solid var(--border-strong)', color: '#FFF', borderRadius: 'var(--radius-sm)' }}
                   >
                     {countries.map((c: any) => (

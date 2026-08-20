@@ -77,6 +77,21 @@ impl ActionValidator {
         }
 
         match action.action {
+            ActionPrimitive::Work | ActionPrimitive::WorkShift => {
+                if let Some(ref title) = actor.employment.job_title {
+                    if title == "Unemployed / Infant" || title == "Unemployed / Student" || title == "Unemployed" {
+                        return ValidationResult {
+                            is_valid: false,
+                            reason: Some("Unemployed characters and infants cannot complete work shifts.".to_string()),
+                        };
+                    }
+                } else {
+                    return ValidationResult {
+                        is_valid: false,
+                        reason: Some("Cannot execute work action without active employment.".to_string()),
+                    };
+                }
+            }
             ActionPrimitive::Deceive => {
                 if action.target_id.is_none() {
                     return ValidationResult {

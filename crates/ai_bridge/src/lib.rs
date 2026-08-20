@@ -75,6 +75,7 @@ impl BiographyWriter {
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AIBridge {
     pub config: AIBridgeConfig,
 }
