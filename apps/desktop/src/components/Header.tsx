@@ -1,5 +1,5 @@
 import React from 'react';
-import { Calendar, User, Wallet, MapPin, Code2 } from 'lucide-react';
+import { Calendar, User, Wallet, MapPin, Code2, Home } from 'lucide-react';
 
 interface HeaderProps {
   timeFormatted: string;
@@ -7,9 +7,10 @@ interface HeaderProps {
   cash: number;
   location: string;
   playerName: string;
+  currencySymbol?: string;
   devMode: boolean;
   onToggleDevMode: () => void;
-  onOpenNewLifeWizard: () => void;
+  onReturnToMainMenu: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -18,9 +19,10 @@ export const Header: React.FC<HeaderProps> = ({
   cash,
   location,
   playerName,
+  currencySymbol = '£',
   devMode,
   onToggleDevMode,
-  onOpenNewLifeWizard,
+  onReturnToMainMenu,
 }) => {
   return (
     <header style={{
@@ -28,44 +30,41 @@ export const Header: React.FC<HeaderProps> = ({
       alignItems: 'center',
       justifyContent: 'space-between',
       padding: '0 20px',
+      height: '52px',
       backgroundColor: 'var(--bg-surface-1)',
       borderBottom: '1px solid var(--border-subtle)',
     }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-        <h1 style={{
-          fontSize: '16px',
-          fontWeight: 800,
-          letterSpacing: '0.12em',
-          color: 'var(--text-primary)',
-          fontFamily: 'var(--font-mono)'
-        }}>
-          OTHERLIFE
-        </h1>
+        <button
+          onClick={onReturnToMainMenu}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            backgroundColor: 'transparent',
+            border: 'none',
+            color: 'var(--text-primary)',
+            fontSize: '15px',
+            fontWeight: 800,
+            letterSpacing: '0.12em',
+            fontFamily: 'var(--font-mono)',
+            cursor: 'pointer',
+          }}
+          title="Return to Main Menu"
+        >
+          <Home size={16} color="var(--accent-indigo)" />
+          <span>OTHERLIFE</span>
+        </button>
+
         <span style={{ color: 'var(--border-strong)' }}>|</span>
+
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', color: 'var(--text-secondary)' }}>
           <User size={14} />
           <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{playerName}</span>
         </div>
-
-        <button
-          onClick={onOpenNewLifeWizard}
-          style={{
-            backgroundColor: 'var(--accent-indigo)',
-            color: '#FFF',
-            border: 'none',
-            borderRadius: 'var(--radius-sm)',
-            padding: '4px 10px',
-            fontSize: '12px',
-            fontWeight: 600,
-            cursor: 'pointer',
-            marginLeft: '8px',
-          }}
-        >
-          + New Life
-        </button>
       </div>
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: '24px', fontSize: '13px', fontFamily: 'var(--font-mono)' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '20px', fontSize: '13px', fontFamily: 'var(--font-mono)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--text-secondary)' }}>
           <Calendar size={14} color="var(--accent-indigo)" />
           <span>{timeFormatted}</span>
@@ -78,7 +77,7 @@ export const Header: React.FC<HeaderProps> = ({
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--text-secondary)' }}>
           <Wallet size={14} color="var(--accent-emerald)" />
-          <span style={{ fontWeight: 700, color: 'var(--accent-emerald)' }}>£{cash.toFixed(0)}</span>
+          <span style={{ fontWeight: 700, color: 'var(--accent-emerald)' }}>{currencySymbol}{cash.toFixed(0)}</span>
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--text-secondary)' }}>
