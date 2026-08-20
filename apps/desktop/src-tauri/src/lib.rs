@@ -100,7 +100,7 @@ fn read_json_data(base: &Path, rel: &str) -> serde_json::Value {
             }
         }
     }
-    // 2. Dev fallback: relative from cwd (cargo run / tauri dev)
+    // 2. Dev fallback: relative from cwd
     let p2 = PathBuf::from(rel);
     if p2.exists() {
         if let Ok(s) = fs::read_to_string(&p2) {
@@ -109,13 +109,24 @@ fn read_json_data(base: &Path, rel: &str) -> serde_json::Value {
             }
         }
     }
-    // 3. Monorepo root fallback (two levels up from src-tauri)
+    // 3. Monorepo root fallback
     let p3 = PathBuf::from("../../").join(rel);
     if p3.exists() {
         if let Ok(s) = fs::read_to_string(&p3) {
             if let Ok(v) = serde_json::from_str(&s) {
                 return v;
             }
+        }
+    }
+    serde_json::json!([])
+}
+
+/// Try multiple candidate paths in order, return first found.
+fn read_json_data_multi(base: &Path, candidates: &[&str]) -> serde_json::Value {
+    for rel in candidates {
+        let v = read_json_data(base, rel);
+        if v != serde_json::json!([]) {
+            return v;
         }
     }
     serde_json::json!([])
@@ -129,17 +140,49 @@ fn get_registries(app: AppHandle) -> Result<RegistriesDTO, String> {
         .resource_dir()
         .unwrap_or_else(|_| PathBuf::from("."));
 
+    // In the packaged .app, Tauri flattens subdirs into real_world_data/
+    // so paths are e.g. real_world_data/countries.json (not geography/countries.json)
     Ok(RegistriesDTO {
-        countries:   read_json_data(&resource_base, "real_world_data/geography/countries.json"),
-        locations:   read_json_data(&resource_base, "real_world_data/geography/cities.json"),
-        skills:      read_json_data(&resource_base, "real_world_data/registries/skills.json"),
-        traits:      read_json_data(&resource_base, "real_world_data/registries/traits.json"),
-        interests:   read_json_data(&resource_base, "real_world_data/registries/interests.json"),
-        goals:       read_json_data(&resource_base, "real_world_data/registries/goals.json"),
-        clubs:       read_json_data(&resource_base, "real_world_data/football/clubs.json"),
-        parties:     read_json_data(&resource_base, "real_world_data/politics/parties.json"),
-        universities:read_json_data(&resource_base, "real_world_data/education/universities.json"),
-        companies:   read_json_data(&resource_base, "real_world_data/companies/corporations.json"),
+        countries:    read_json_data_multi(&resource_base, &[
+            "real_world_data/countries.json",
+            "real_world_data/geography/countries.json",
+        ]),
+        locations:    read_json_data_multi(&resource_base, &[
+            "real_world_data/cities.json",
+            "real_world_data/geography/cities.json",
+        ]),
+        skills:       read_json_data_multi(&resource_base, &[
+            "real_world_data/skills.json",
+            "real_world_data/registries/skills.json",
+        ]),
+        traits:       read_json_data_multi(&resource_base, &[
+            "real_world_data/traits.json",
+            "real_world_data/registries/traits.json",
+        ]),
+        interests:    read_json_data_multi(&resource_base, &[
+            "real_world_data/interests.json",
+            "real_world_data/registries/interests.json",
+        ]),
+        goals:        read_json_data_multi(&resource_base, &[
+            "real_world_data/goals.json",
+            "real_world_data/registries/goals.json",
+        ]),
+        clubs:        read_json_data_multi(&resource_base, &[
+            "real_world_data/clubs.json",
+            "real_world_data/football/clubs.json",
+        ]),
+        parties:      read_json_data_multi(&resource_base, &[
+            "real_world_data/parties.json",
+            "real_world_data/politics/parties.json",
+        ]),
+        universities: read_json_data_multi(&resource_base, &[
+            "real_world_data/universities.json",
+            "real_world_data/education/universities.json",
+        ]),
+        companies:    read_json_data_multi(&resource_base, &[
+            "real_world_data/corporations.json",
+            "real_world_data/companies/corporations.json",
+        ]),
     })
 }
 
