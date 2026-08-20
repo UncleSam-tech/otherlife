@@ -1,0 +1,10 @@
+[package]
+name = "otherlife_actions"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+otherlife_world = { path = "../world" }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }

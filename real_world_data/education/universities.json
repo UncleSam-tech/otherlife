@@ -1,0 +1,37 @@
+[
+  {
+    "id": "uni:real:oxford",
+    "name": "University of Oxford",
+    "country_id": "country:real:united_kingdom",
+    "city_id": "city:real:london",
+    "prestige": 98.0
+  },
+  {
+    "id": "uni:real:glasgow_uni",
+    "name": "University of Glasgow",
+    "country_id": "country:real:united_kingdom",
+    "city_id": "city:real:glasgow",
+    "prestige": 86.0
+  },
+  {
+    "id": "uni:real:harvard",
+    "name": "Harvard University",
+    "country_id": "country:real:united_states",
+    "city_id": "city:real:new_york",
+    "prestige": 99.0
+  },
+  {
+    "id": "uni:real:sorbonne",
+    "name": "Sorbonne University",
+    "country_id": "country:real:france",
+    "city_id": "city:real:paris",
+    "prestige": 92.0
+  },
+  {
+    "id": "uni:real:lagos_state_uni",
+    "name": "Lagos State University",
+    "country_id": "country:real:nigeria",
+    "city_id": "city:real:lagos",
+    "prestige": 78.0
+  }
+]

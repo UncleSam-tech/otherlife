@@ -1,0 +1,50 @@
+[
+  {
+    "id": "club:real:celtic",
+    "name": "Celtic FC",
+    "city_id": "city:real:glasgow",
+    "league_id": "league:real:scottish_premiership",
+    "stadium_name": "Celtic Park",
+    "reputation": 82.0
+  },
+  {
+    "id": "club:real:rangers",
+    "name": "Rangers FC",
+    "city_id": "city:real:glasgow",
+    "league_id": "league:real:scottish_premiership",
+    "stadium_name": "Ibrox Stadium",
+    "reputation": 81.0
+  },
+  {
+    "id": "club:real:arsenal",
+    "name": "Arsenal FC",
+    "city_id": "city:real:london",
+    "league_id": "league:real:english_premier_league",
+    "stadium_name": "Emirates Stadium",
+    "reputation": 89.0
+  },
+  {
+    "id": "club:real:manchester_united",
+    "name": "Manchester United",
+    "city_id": "city:real:london",
+    "league_id": "league:real:english_premier_league",
+    "stadium_name": "Old Trafford",
+    "reputation": 90.0
+  },
+  {
+    "id": "club:real:real_madrid",
+    "name": "Real Madrid CF",
+    "city_id": "city:real:madrid",
+    "league_id": "league:real:la_liga",
+    "stadium_name": "Santiago Bernabéu",
+    "reputation": 95.0
+  },
+  {
+    "id": "club:real:psg",
+    "name": "Paris Saint-Germain",
+    "city_id": "city:real:paris",
+    "league_id": "league:real:ligue_1",
+    "stadium_name": "Parc des Princes",
+    "reputation": 88.0
+  }
+]

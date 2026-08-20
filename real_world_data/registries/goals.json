@@ -1,0 +1,11 @@
+[
+  { "id": "become_wealthy", "name": "Become Wealthy & Financially Free", "category": "Wealth" },
+  { "id": "play_pro_football", "name": "Play Professional Football", "category": "Sports" },
+  { "id": "become_musician", "name": "Release Hit Albums as a Musician", "category": "Arts" },
+  { "id": "become_prime_minister", "name": "Attain High Political Office", "category": "Politics" },
+  { "id": "start_business", "name": "Found a Successful Company", "category": "Business" },
+  { "id": "become_journalist", "name": "Build a Respected Journalism Career", "category": "Media" },
+  { "id": "build_family", "name": "Build a Loving Household & Family", "category": "Personal" },
+  { "id": "move_abroad", "name": "Emigrate & Live Abroad", "category": "Lifestyle" },
+  { "id": "live_quietly", "name": "Live a Quiet, Peaceful Life", "category": "Personal" }
+]

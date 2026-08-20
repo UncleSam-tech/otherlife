@@ -1,0 +1,21 @@
+# Rust target build output
+/target/
+/**/target/
+
+# Node & Frontend dependencies & builds
+node_modules/
+**/node_modules/
+dist/
+**/dist/
+.vite/
+
+# OS metadata & logs
+.DS_Store
+*.log
+
+# Environment & temporary files
+.env
+.env.local
+.env.*.local
+tmp/
+scratch/

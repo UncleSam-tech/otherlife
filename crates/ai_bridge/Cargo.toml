@@ -1,0 +1,12 @@
+[package]
+name = "otherlife_ai_bridge"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+otherlife_actions = { path = "../actions" }
+otherlife_world = { path = "../world" }
+serde = { workspace = true }
+serde_json = { workspace = true }
+regex = { workspace = true }
+thiserror = { workspace = true }

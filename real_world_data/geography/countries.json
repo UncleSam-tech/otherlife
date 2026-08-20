@@ -1,0 +1,90 @@
+[
+  {
+    "id": "country:real:nigeria",
+    "name": "Nigeria",
+    "code": "NG",
+    "currency": "NGN",
+    "currency_symbol": "₦",
+    "cost_of_living_index": 0.45,
+    "primary_language": "English",
+    "secondary_languages": ["Yoruba", "Hausa", "Igbo"],
+    "capital_city_id": "city:real:abuja"
+  },
+  {
+    "id": "country:real:united_kingdom",
+    "name": "United Kingdom",
+    "code": "UK",
+    "currency": "GBP",
+    "currency_symbol": "£",
+    "cost_of_living_index": 1.0,
+    "primary_language": "English",
+    "secondary_languages": ["Scottish Gaelic", "Welsh"],
+    "capital_city_id": "city:real:london"
+  },
+  {
+    "id": "country:real:united_states",
+    "name": "United States",
+    "code": "US",
+    "currency": "USD",
+    "currency_symbol": "$",
+    "cost_of_living_index": 1.2,
+    "primary_language": "English",
+    "secondary_languages": ["Spanish"],
+    "capital_city_id": "city:real:washington_dc"
+  },
+  {
+    "id": "country:real:france",
+    "name": "France",
+    "code": "FR",
+    "currency": "EUR",
+    "currency_symbol": "€",
+    "cost_of_living_index": 1.1,
+    "primary_language": "French",
+    "secondary_languages": [],
+    "capital_city_id": "city:real:paris"
+  },
+  {
+    "id": "country:real:spain",
+    "name": "Spain",
+    "code": "ES",
+    "currency": "EUR",
+    "currency_symbol": "€",
+    "cost_of_living_index": 0.85,
+    "primary_language": "Spanish",
+    "secondary_languages": ["Catalan", "Basque"],
+    "capital_city_id": "city:real:madrid"
+  },
+  {
+    "id": "country:real:germany",
+    "name": "Germany",
+    "code": "DE",
+    "currency": "EUR",
+    "currency_symbol": "€",
+    "cost_of_living_index": 1.05,
+    "primary_language": "German",
+    "secondary_languages": [],
+    "capital_city_id": "city:real:berlin"
+  },
+  {
+    "id": "country:real:brazil",
+    "name": "Brazil",
+    "code": "BR",
+    "currency": "BRL",
+    "currency_symbol": "R$",
+    "cost_of_living_index": 0.55,
+    "primary_language": "Portuguese",
+    "secondary_languages": [],
+    "capital_city_id": "city:real:brasilia"
+  },
+  {
+    "id": "country:real:japan",
+    "name": "Japan",
+    "code": "JP",
+    "currency": "JPY",
+    "currency_symbol": "¥",
+    "cost_of_living_index": 1.15,
+    "primary_language": "Japanese",
+    "secondary_languages": [],
+    "capital_city_id": "city:real:tokyo"
+  }
+]

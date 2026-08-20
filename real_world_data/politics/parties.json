@@ -1,0 +1,37 @@
+[
+  {
+    "id": "party:real:uk_labour",
+    "name": "Labour Party",
+    "country_id": "country:real:united_kingdom",
+    "ideology": "Centre-left",
+    "influence": 85.0
+  },
+  {
+    "id": "party:real:uk_conservative",
+    "name": "Conservative Party",
+    "country_id": "country:real:united_kingdom",
+    "ideology": "Centre-right",
+    "influence": 80.0
+  },
+  {
+    "id": "party:real:us_democrats",
+    "name": "Democratic Party",
+    "country_id": "country:real:united_states",
+    "ideology": "Liberal",
+    "influence": 90.0
+  },
+  {
+    "id": "party:real:us_republicans",
+    "name": "Republican Party",
+    "country_id": "country:real:united_states",
+    "ideology": "Conservative",
+    "influence": 90.0
+  },
+  {
+    "id": "party:real:fr_renaissance",
+    "name": "Renaissance",
+    "country_id": "country:real:france",
+    "ideology": "Centrist",
+    "influence": 78.0
+  }
+]

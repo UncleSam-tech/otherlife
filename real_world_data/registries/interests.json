@@ -1,0 +1,17 @@
+[
+  { "id": "football", "name": "Football (Soccer)", "category": "Sports" },
+  { "id": "basketball", "name": "Basketball", "category": "Sports" },
+  { "id": "athletics", "name": "Athletics & Fitness", "category": "Sports" },
+  { "id": "music", "name": "Music & Performing", "category": "Arts" },
+  { "id": "acting", "name": "Acting & Drama", "category": "Arts" },
+  { "id": "film", "name": "Film & Cinema", "category": "Arts" },
+  { "id": "technology", "name": "Technology & Coding", "category": "STEM" },
+  { "id": "science", "name": "Science & Medicine", "category": "STEM" },
+  { "id": "business", "name": "Business & Startups", "category": "Commerce" },
+  { "id": "finance", "name": "Finance & Markets", "category": "Commerce" },
+  { "id": "politics", "name": "Politics & Governance", "category": "Society" },
+  { "id": "law", "name": "Law & Justice", "category": "Society" },
+  { "id": "writing", "name": "Writing & Journalism", "category": "Media" },
+  { "id": "gaming", "name": "Gaming & Esports", "category": "Digital" },
+  { "id": "social_causes", "name": "Activism & Community", "category": "Society" }
+]

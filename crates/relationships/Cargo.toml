@@ -1,0 +1,8 @@
+[package]
+name = "otherlife_relationships"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+otherlife_world = { path = "../world" }
+serde = { workspace = true }

@@ -1,0 +1,50 @@
+[
+  {
+    "id": "city:real:lagos",
+    "name": "Lagos",
+    "country_id": "country:real:nigeria",
+    "region_name": "Lagos State",
+    "population": 15400000,
+    "districts": ["Ikeja", "Victoria Island", "Lekki", "Surulere", "Yaba"]
+  },
+  {
+    "id": "city:real:glasgow",
+    "name": "Glasgow",
+    "country_id": "country:real:united_kingdom",
+    "region_name": "Scotland",
+    "population": 635000,
+    "districts": ["West End", "City Centre", "East End", "Southside", "Partick"]
+  },
+  {
+    "id": "city:real:london",
+    "name": "London",
+    "country_id": "country:real:united_kingdom",
+    "region_name": "England",
+    "population": 8980000,
+    "districts": ["Camden", "Islington", "Kensington", "Hackney", "Greenwich"]
+  },
+  {
+    "id": "city:real:new_york",
+    "name": "New York City",
+    "country_id": "country:real:united_states",
+    "region_name": "New York",
+    "population": 8400000,
+    "districts": ["Manhattan", "Brooklyn", "Queens", "The Bronx", "Staten Island"]
+  },
+  {
+    "id": "city:real:paris",
+    "name": "Paris",
+    "country_id": "country:real:france",
+    "region_name": "Île-de-France",
+    "population": 2160000,
+    "districts": ["Le Marais", "Montmartre", "Latin Quarter", "Élysée"]
+  },
+  {
+    "id": "city:real:madrid",
+    "name": "Madrid",
+    "country_id": "country:real:spain",
+    "region_name": "Community of Madrid",
+    "population": 3220000,
+    "districts": ["Chamartín", "Salamanca", "Retiro", "Centro"]
+  }
+]

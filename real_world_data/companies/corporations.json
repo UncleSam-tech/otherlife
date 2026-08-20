@@ -1,0 +1,23 @@
+[
+  {
+    "id": "company:real:global_finance_inc",
+    "name": "Global Financial Group",
+    "industry": "Finance & Banking",
+    "country_id": "country:real:united_states",
+    "market_cap_tier": "MEGA"
+  },
+  {
+    "id": "company:real:apex_tech_corp",
+    "name": "Apex Technology Solutions",
+    "industry": "Technology",
+    "country_id": "country:real:united_kingdom",
+    "market_cap_tier": "LARGE"
+  },
+  {
+    "id": "company:real:luxe_media_group",
+    "name": "Luxe Entertainment & Media",
+    "industry": "Media & Entertainment",
+    "country_id": "country:real:france",
+    "market_cap_tier": "LARGE"
+  }
+]

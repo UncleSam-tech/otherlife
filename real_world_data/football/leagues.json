@@ -1,0 +1,26 @@
+[
+  {
+    "id": "league:real:scottish_premiership",
+    "name": "Scottish Premiership",
+    "country_id": "country:real:united_kingdom",
+    "tier": 1
+  },
+  {
+    "id": "league:real:english_premier_league",
+    "name": "English Premier League",
+    "country_id": "country:real:united_kingdom",
+    "tier": 1
+  },
+  {
+    "id": "league:real:la_liga",
+    "name": "La Liga",
+    "country_id": "country:real:spain",
+    "tier": 1
+  },
+  {
+    "id": "league:real:ligue_1",
+    "name": "Ligue 1",
+    "country_id": "country:real:france",
+    "tier": 1
+  }
+]

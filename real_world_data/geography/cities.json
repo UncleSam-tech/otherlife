@@ -1,0 +1,29 @@
+[
+  {
+    "id": "city:real:glasgow",
+    "name": "Glasgow",
+    "country_id": "country:real:united_kingdom",
+    "region_id": "region:real:scotland",
+    "population": 635000,
+    "cost_of_living_index": 1.0,
+    "districts": ["West End", "City Centre", "East End", "Southside", "Partick"]
+  },
+  {
+    "id": "city:real:london",
+    "name": "London",
+    "country_id": "country:real:united_kingdom",
+    "region_id": "region:real:england",
+    "population": 8980000,
+    "cost_of_living_index": 1.65,
+    "districts": ["Camden", "Islington", "Kensington", "Hackney", "Greenwich"]
+  },
+  {
+    "id": "city:real:madrid",
+    "name": "Madrid",
+    "country_id": "country:real:spain",
+    "region_id": "region:real:madrid",
+    "population": 3220000,
+    "cost_of_living_index": 1.15,
+    "districts": ["Chamartín", "Salamanca", "Retiro", "Centro"]
+  }
+]

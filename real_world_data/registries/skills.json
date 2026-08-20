@@ -1,0 +1,40 @@
+[
+  { "id": "mathematics", "name": "Mathematics", "category": "Academic", "description": "Numerical reasoning and analytical problem solving." },
+  { "id": "writing", "name": "Writing", "category": "Academic", "description": "Prose composition, journalism, and essay writing." },
+  { "id": "reading", "name": "Reading & Comprehension", "category": "Academic", "description": "Literacy speed and critical textual analysis." },
+  { "id": "science", "name": "Natural Sciences", "category": "Academic", "description": "Biology, chemistry, physics, and empirical observation." },
+  { "id": "history", "name": "History & Humanities", "category": "Academic", "description": "Historical knowledge, context, and philosophical analysis." },
+  { "id": "languages", "name": "Linguistic Aptitude", "category": "Academic", "description": "Multilingual learning and language acquisition." },
+  
+  { "id": "communication", "name": "Communication", "category": "Social", "description": "Clear verbal expression and interpersonal rapport." },
+  { "id": "persuasion", "name": "Persuasion", "category": "Social", "description": "Influence, debate, and convincing others." },
+  { "id": "negotiation", "name": "Negotiation", "category": "Social", "description": "Bargaining, dealmaking, and trade-off structuring." },
+  { "id": "leadership", "name": "Leadership", "category": "Social", "description": "Team motivation, decision authority, and direction." },
+  { "id": "empathy", "name": "Empathy", "category": "Social", "description": "Emotional awareness and interpersonal understanding." },
+  { "id": "networking", "name": "Networking", "category": "Social", "description": "Building and maintaining social and professional ties." },
+  { "id": "public_speaking", "name": "Public Speaking", "category": "Social", "description": "Oratory and performance in front of audiences." },
+
+  { "id": "speed", "name": "Pace & Speed", "category": "Physical", "description": "Sprint velocity and explosive acceleration." },
+  { "id": "stamina", "name": "Endurance & Stamina", "category": "Physical", "description": "Aerobic capacity and physical resilience." },
+  { "id": "strength", "name": "Physical Strength", "category": "Physical", "description": "Muscular force and physical presence." },
+  { "id": "agility", "name": "Agility & Flexibility", "category": "Physical", "description": "Quick directional changes and balance." },
+  { "id": "coordination", "name": "Motor Coordination", "category": "Physical", "description": "Hand-eye and foot-eye body control." },
+
+  { "id": "football_control", "name": "Football Control", "category": "Sport", "description": "First touch, dribbling, and ball manipulation." },
+  { "id": "football_passing", "name": "Football Passing", "category": "Sport", "description": "Distribution, vision, and crossing accuracy." },
+  { "id": "football_finishing", "name": "Football Finishing", "category": "Sport", "description": "Shot placement, composure, and goalscoring." },
+  { "id": "football_defending", "name": "Football Defending", "category": "Sport", "description": "Tackling, interception timing, and marking." },
+
+  { "id": "singing", "name": "Vocal Performance", "category": "Creative", "description": "Pitch accuracy, vocal control, and musical expression." },
+  { "id": "songwriting", "name": "Songwriting & Composition", "category": "Creative", "description": "Melodic invention, lyricism, and chord structures." },
+  { "id": "acting", "name": "Acting & Dramatic Arts", "category": "Creative", "description": "Character embodiment, emotional range, and stage presence." },
+  { "id": "music_production", "name": "Music Production", "category": "Creative", "description": "Audio mixing, beatmaking, and DAW engineering." },
+  { "id": "drawing_design", "name": "Illustration & Design", "category": "Creative", "description": "Visual aesthetics, sketching, and UI graphic design." },
+
+  { "id": "programming", "name": "Software Engineering", "category": "Professional", "description": "Coding logic, algorithms, and system building." },
+  { "id": "finance_accounting", "name": "Finance & Accounting", "category": "Professional", "description": "Financial modeling, budgeting, and bookkeeping." },
+  { "id": "management", "name": "Business Management", "category": "Professional", "description": "Resource allocation, operational oversight, and strategy." },
+  { "id": "sales", "name": "Sales & Business Development", "category": "Professional", "description": "Client acquisition, closing deals, and pitch presentation." },
+  { "id": "medicine", "name": "Clinical Medicine", "category": "Professional", "description": "Medical diagnosis, patient care, and anatomical knowledge." },
+  { "id": "law", "name": "Legal Practice", "category": "Professional", "description": "Statutory interpretation, case law, and litigation." }
+]

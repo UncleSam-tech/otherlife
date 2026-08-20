@@ -1,0 +1,10 @@
+[
+  { "id": "ambition", "name": "Ambition", "description": "Drive for success, status, and high achievement." },
+  { "id": "discipline", "name": "Discipline", "description": "Focus, work ethic, and resistance to distraction." },
+  { "id": "risk_tolerance", "name": "Risk Tolerance", "description": "Willingness to take bold or uncertain actions." },
+  { "id": "confidence", "name": "Confidence", "description": "Self-belief and composure under pressure." },
+  { "id": "empathy", "name": "Empathy", "description": "Sensitivity to feelings and perspectives of others." },
+  { "id": "resilience", "name": "Resilience", "description": "Ability to bounce back quickly from failure or loss." },
+  { "id": "creativity", "name": "Creativity", "description": "Original thinking and lateral problem solving." },
+  { "id": "sociability", "name": "Sociability", "description": "Extroversion and energy gained from social interaction." }
+]

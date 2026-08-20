@@ -1,0 +1,16 @@
+[
+  {
+    "id": "school:real:glasgow_high",
+    "name": "The High School of Glasgow",
+    "city_id": "city:real:glasgow",
+    "academic_rating": 88.0,
+    "sports_program_rating": 85.0
+  },
+  {
+    "id": "school:real:st_aloysius",
+    "name": "St Aloysius' College",
+    "city_id": "city:real:glasgow",
+    "academic_rating": 86.0,
+    "sports_program_rating": 82.0
+  }
+]

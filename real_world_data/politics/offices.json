@@ -1,0 +1,26 @@
+[
+  {
+    "id": "office:real:uk_prime_minister",
+    "title": "Prime Minister of the United Kingdom",
+    "country_id": "country:real:united_kingdom",
+    "level": "NATIONAL"
+  },
+  {
+    "id": "office:real:us_president",
+    "title": "President of the United States",
+    "country_id": "country:real:united_states",
+    "level": "NATIONAL"
+  },
+  {
+    "id": "office:real:fr_president",
+    "title": "President of France",
+    "country_id": "country:real:france",
+    "level": "NATIONAL"
+  },
+  {
+    "id": "office:real:mp_glasgow_central",
+    "title": "Member of Parliament (Glasgow Central)",
+    "country_id": "country:real:united_kingdom",
+    "level": "CONSTITUENCY"
+  }
+]
