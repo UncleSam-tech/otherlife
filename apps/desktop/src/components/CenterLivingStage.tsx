@@ -1,6 +1,7 @@
 import React from 'react';
 import { ActionPromptBar } from './ActionPromptBar';
-import { Sparkles, Calendar, MapPin, CheckCircle2 } from 'lucide-react';
+import { IllustratedWorldLayer } from './IllustratedWorldLayer';
+import { Sparkles, Compass } from 'lucide-react';
 
 export interface TodaySceneDTO {
   greeting: string;
@@ -36,77 +37,86 @@ export const CenterLivingStage: React.FC<CenterLivingStageProps> = ({
 }) => {
   if (!scene) {
     return (
-      <div className="flex-1 flex items-center justify-center p-8 bg-slate-950">
-        <p className="text-slate-500 font-mono">Loading living stage...</p>
+      <div className="flex-1 flex items-center justify-center p-8 bg-[#0b0d13]">
+        <div className="flex flex-col items-center gap-3">
+          <Compass className="w-8 h-8 text-amber-400/60 animate-spin" />
+          <p className="text-slate-400 font-serif italic text-sm">Opening your eyes to the world...</p>
+        </div>
       </div>
     );
   }
 
-  return (
-    <main className="flex-1 overflow-y-auto bg-slate-950 px-8 py-8 flex flex-col justify-between max-w-4xl mx-auto">
-      <div className="space-y-6">
-        {/* Stage Header Banner */}
-        <div className="border-b border-slate-800/80 pb-5">
-          <div className="flex items-center gap-4 text-xs font-mono text-emerald-400 mb-2">
-            <span className="flex items-center gap-1.5 bg-emerald-500/10 px-2.5 py-1 rounded-md border border-emerald-500/20">
-              <Calendar className="w-3.5 h-3.5" />
-              {scene.date_formatted}
-            </span>
-            <span className="flex items-center gap-1.5 bg-slate-800/80 text-slate-300 px-2.5 py-1 rounded-md border border-slate-700/50">
-              <MapPin className="w-3.5 h-3.5" />
-              {scene.location_formatted}
-            </span>
-            <span className="bg-slate-800/80 text-slate-300 px-2.5 py-1 rounded-md border border-slate-700/50">
-              AGE {scene.age} · {scene.life_stage.toUpperCase()}
-            </span>
-          </div>
+  // Parse location and date into poetic headline
+  const headlineParts = scene.headline.replace('Life in ', '').split('·');
+  const chapterLocation = headlineParts[0]?.trim() || scene.location_formatted;
 
-          <h2 className="text-2xl font-serif font-bold text-slate-100 tracking-tight mt-3">
-            {scene.headline}
+  return (
+    <main className="flex-1 overflow-y-auto bg-[#0b0d13] px-6 lg:px-12 py-8 flex flex-col justify-between max-w-4xl mx-auto space-y-8 select-text">
+      <div className="space-y-6">
+        {/* 1. Illustrated 2D World Layer Canvas */}
+        <IllustratedWorldLayer
+          lifeStage={scene.life_stage}
+          age={scene.age}
+          locationFormatted={scene.location_formatted}
+          timeFormatted={scene.date_formatted}
+        />
+
+        {/* 2. Cinematic Headline & Chapter Intro */}
+        <div className="border-b border-slate-800/60 pb-4">
+          <p className="text-xs uppercase tracking-widest text-amber-400/80 font-mono mb-1">
+            {scene.life_stage} · Age {scene.age}
+          </p>
+          <h2 className="text-2xl lg:text-3xl font-serif font-bold text-slate-100 tracking-tight leading-snug">
+            {scene.date_formatted} · {chapterLocation}
           </h2>
         </div>
 
-        {/* Previous Action Outcome Feedback (if any) */}
+        {/* 3. Consequence Passage (if previous intention was executed) */}
         {lastStepResult && (
-          <div className="bg-slate-900/90 border border-emerald-500/30 rounded-xl p-5 shadow-lg space-y-2 animate-fadeIn">
-            <div className="flex items-center gap-2 text-emerald-400 font-medium text-sm">
-              <CheckCircle2 className="w-4 h-4" />
-              <span>Consequence ({lastStepResult.days_advanced} days elapsed)</span>
+          <div className="relative bg-gradient-to-r from-amber-950/20 via-slate-900/40 to-slate-900/20 border-l-2 border-amber-500/80 rounded-r-xl p-5 space-y-2.5 shadow-md">
+            <div className="flex items-center gap-2 text-amber-300 text-xs font-mono uppercase tracking-wider">
+              <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+              <span>How recent days unfolded ({lastStepResult.days_advanced} days elapsed)</span>
             </div>
-            <p className="text-slate-200 text-sm leading-relaxed">{lastStepResult.narrative}</p>
-            <div className="pt-2 border-t border-slate-800/60 flex items-center gap-2 text-xs text-slate-400 font-mono">
-              <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
-              <span>Causal origin: {lastStepResult.causality_note}</span>
+            <p className="text-slate-200 font-serif text-base leading-relaxed italic">
+              "{lastStepResult.narrative}"
+            </p>
+            <div className="pt-2 border-t border-slate-800/40 text-xs text-slate-400 font-sans">
+              <span className="text-slate-500 font-serif">Milestone: </span>
+              {lastStepResult.causality_note}
             </div>
           </div>
         )}
 
-        {/* Current Living Narrative */}
-        <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-6 backdrop-blur-sm space-y-4">
-          <p className="text-slate-200 font-serif text-lg leading-relaxed">{scene.narrative}</p>
+        {/* 4. Living Memoir Prose Scene */}
+        <article className="space-y-4 pt-1">
+          <p className="text-slate-200 font-serif text-lg lg:text-xl leading-relaxed tracking-normal font-normal">
+            {scene.narrative}
+          </p>
 
+          {/* Environmental Sensory Observations */}
           {scene.circumstances.length > 0 && (
-            <div className="pt-4 border-t border-slate-800/60">
-              <p className="text-xs font-mono uppercase tracking-wider text-slate-500 mb-2">
-                Current Circumstances & Active Dynamics
+            <div className="pt-4 mt-4 border-t border-slate-800/40">
+              <p className="text-xs font-serif italic text-amber-300/70 mb-2.5">
+                You notice in your surroundings:
               </p>
               <div className="flex flex-wrap gap-2">
                 {scene.circumstances.map((c, i) => (
                   <span
                     key={i}
-                    className="text-xs bg-slate-800 text-slate-300 px-3 py-1 rounded-full border border-slate-700/60"
+                    className="text-xs font-sans bg-slate-900/80 text-slate-300 px-3.5 py-1.5 rounded-full border border-slate-800 shadow-sm"
                   >
-                    {c}
+                    • {c}
                   </span>
                 ))}
               </div>
             </div>
           )}
-        </div>
+        </article>
       </div>
 
-      {/* Intention Input Bar */}
-      <div className="mt-8 pt-6 border-t border-slate-800/80">
+      {/* 5. Natural Intention Prompt Bar */}
+      <div className="pt-6 border-t border-slate-800/80">
         <ActionPromptBar
           onSubmitIntent={onSubmitIntent}
           suggestions={scene.prompt_suggestions}

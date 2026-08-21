@@ -110,8 +110,8 @@ export const App: React.FC = () => {
 
   if (appMode === 'BOOTING') {
     return (
-      <div className="flex items-center justify-center h-screen bg-slate-950 text-slate-400 font-mono">
-        <p>Booting OTHERLIFE Simulation Engine...</p>
+      <div className="flex items-center justify-center h-screen bg-[#0b0d13] text-amber-200 font-serif">
+        <p className="italic text-lg">Opening the book of life...</p>
       </div>
     );
   }
@@ -130,7 +130,7 @@ export const App: React.FC = () => {
   }
 
   return (
-    <div className="flex flex-col h-screen w-screen bg-slate-950 text-slate-100 overflow-hidden font-sans">
+    <div className="flex flex-col h-screen w-screen bg-[#0b0d13] text-slate-100 overflow-hidden font-sans">
       <Header
         timeFormatted={livingState?.time_formatted || ''}
         age={livingState?.age || 0}
@@ -158,32 +158,40 @@ export const App: React.FC = () => {
         )}
 
         {activeLens === 'biography' && (
-          <main className="flex-1 overflow-y-auto bg-slate-950 p-8 max-w-4xl mx-auto">
-            <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-8 space-y-6">
-              <div className="flex items-center gap-3 border-b border-slate-800 pb-4">
-                <Feather className="w-6 h-6 text-emerald-400" />
-                <h2 className="text-2xl font-serif font-bold text-slate-100">Autobiographical Life Memoir</h2>
+          <main className="flex-1 overflow-y-auto bg-[#0b0d13] p-8 max-w-4xl mx-auto space-y-6 select-text">
+            <div className="bg-slate-900/60 border border-slate-800/80 rounded-2xl p-8 space-y-6 shadow-md">
+              <div className="flex items-center gap-3 border-b border-slate-800/60 pb-4">
+                <Feather className="w-6 h-6 text-amber-400" />
+                <div>
+                  <h2 className="text-2xl font-serif font-bold text-slate-100">My Story</h2>
+                  <p className="text-xs font-serif italic text-amber-300/80">Reflections on the path traveled so far</p>
+                </div>
               </div>
-              <div className="prose prose-invert max-w-none text-slate-300 font-serif leading-relaxed whitespace-pre-wrap">
-                {biographyText || 'Your life chronicle is currently being recorded as moments unfold.'}
+              <div className="prose prose-invert max-w-none text-slate-200 font-serif text-lg leading-relaxed whitespace-pre-wrap">
+                {biographyText || 'The first chapters of life are still being written...'}
               </div>
             </div>
           </main>
         )}
 
         {activeLens === 'journal' && (
-          <main className="flex-1 overflow-y-auto bg-slate-950 p-8 max-w-4xl mx-auto">
-            <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-8 space-y-6">
-              <div className="flex items-center gap-3 border-b border-slate-800 pb-4">
-                <BookOpen className="w-6 h-6 text-emerald-400" />
-                <h2 className="text-2xl font-serif font-bold text-slate-100">Episodic Chronicle & Defining Moments</h2>
+          <main className="flex-1 overflow-y-auto bg-[#0b0d13] p-8 max-w-4xl mx-auto space-y-6 select-text">
+            <div className="bg-slate-900/60 border border-slate-800/80 rounded-2xl p-8 space-y-6 shadow-md">
+              <div className="flex items-center gap-3 border-b border-slate-800/60 pb-4">
+                <BookOpen className="w-6 h-6 text-amber-400" />
+                <div>
+                  <h2 className="text-2xl font-serif font-bold text-slate-100">Life Chronicle</h2>
+                  <p className="text-xs font-serif italic text-amber-300/80">Defining memories and turning points</p>
+                </div>
               </div>
-              <p className="text-slate-400 text-sm">Every significant decision, consequence, and milestone recorded in time.</p>
-              <div className="space-y-4">
-                <div className="border-l-2 border-emerald-500 pl-4 py-1">
-                  <span className="text-xs font-mono text-emerald-400">{livingState?.time_formatted}</span>
-                  <h4 className="font-semibold text-slate-200 text-sm mt-1">{todayScene?.headline}</h4>
-                  <p className="text-xs text-slate-400 mt-1">{todayScene?.narrative}</p>
+              <div className="space-y-6">
+                <div className="relative pl-6 border-l-2 border-amber-500/80 space-y-2">
+                  <div className="absolute -left-[9px] top-1.5 w-4 h-4 rounded-full bg-slate-950 border-2 border-amber-400 flex items-center justify-center">
+                    <div className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+                  </div>
+                  <span className="text-xs font-mono text-amber-400">{livingState?.time_formatted}</span>
+                  <h4 className="font-serif font-bold text-slate-100 text-lg">{todayScene?.headline}</h4>
+                  <p className="text-slate-300 font-serif text-base leading-relaxed italic">{todayScene?.narrative}</p>
                 </div>
               </div>
             </div>
@@ -191,30 +199,28 @@ export const App: React.FC = () => {
         )}
 
         {activeLens === 'people' && (
-          <main className="flex-1 overflow-y-auto bg-slate-950 p-8 max-w-4xl mx-auto space-y-6">
-            <div className="flex items-center gap-3 border-b border-slate-800 pb-4">
-              <Users className="w-6 h-6 text-emerald-400" />
+          <main className="flex-1 overflow-y-auto bg-[#0b0d13] p-8 max-w-4xl mx-auto space-y-6 select-text">
+            <div className="flex items-center gap-3 border-b border-slate-800/60 pb-4">
+              <Users className="w-6 h-6 text-amber-400" />
               <div>
-                <h2 className="text-2xl font-serif font-bold text-slate-100">Social Network & Living NPCs</h2>
-                <p className="text-xs text-slate-400">Autonomous people living independent lives in your world.</p>
+                <h2 className="text-2xl font-serif font-bold text-slate-100">People & Bonds</h2>
+                <p className="text-xs font-serif italic text-amber-300/80">Family, mentors, companions, and those who share your life</p>
               </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {npcs.map((npc) => (
-                <div key={npc.id} className="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-3">
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <h3 className="font-semibold text-slate-100">{npc.name}</h3>
-                      <p className="text-xs font-mono text-emerald-400">{npc.relationship_type}</p>
-                    </div>
-                    <span className="text-xs bg-slate-800 text-slate-400 px-2 py-0.5 rounded font-mono">
-                      {npc.trust_description}
-                    </span>
+                <div key={npc.id} className="bg-slate-900/60 border border-slate-800/80 rounded-2xl p-5 space-y-3 shadow-sm">
+                  <div className="flex justify-between items-baseline">
+                    <h3 className="font-serif font-bold text-slate-100 text-base">{npc.name}</h3>
+                    <span className="text-xs font-serif italic text-amber-300/90">{npc.relationship_type}</span>
                   </div>
-                  <p className="text-xs text-slate-400">
-                    <strong className="text-slate-300">Schedule:</strong> {npc.current_activity}
+                  <p className="text-xs text-slate-300 font-sans">
+                    <strong className="text-slate-400">Rhythm: </strong> {npc.current_activity}
                   </p>
+                  <div className="pt-2 border-t border-slate-800/60 text-xs text-slate-400 font-serif italic">
+                    Bond: {npc.trust_description}
+                  </div>
                 </div>
               ))}
             </div>
@@ -222,67 +228,56 @@ export const App: React.FC = () => {
         )}
 
         {activeLens === 'places' && (
-          <main className="flex-1 overflow-y-auto bg-slate-950 p-8 max-w-4xl mx-auto space-y-6">
-            <div className="flex items-center gap-3 border-b border-slate-800 pb-4">
-              <MapPin className="w-6 h-6 text-emerald-400" />
+          <main className="flex-1 overflow-y-auto bg-[#0b0d13] p-8 max-w-4xl mx-auto space-y-6 select-text">
+            <div className="flex items-center gap-3 border-b border-slate-800/60 pb-4">
+              <MapPin className="w-6 h-6 text-amber-400" />
               <div>
-                <h2 className="text-2xl font-serif font-bold text-slate-100">Places & Institutions</h2>
-                <p className="text-xs text-slate-400">Schools, clubs, civic centers, and municipal hubs in your region.</p>
+                <h2 className="text-2xl font-serif font-bold text-slate-100">Places & World</h2>
+                <p className="text-xs font-serif italic text-amber-300/80">The schools, grounds, streets, and institutions where your story unfolds</p>
               </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-2">
-                <h3 className="font-semibold text-slate-100">Abuja Model Primary School</h3>
-                <p className="text-xs text-emerald-400 font-mono">PRIMARY EDUCATION · GARKI</p>
-                <p className="text-xs text-slate-400">Public academic institution providing foundational numeracy, English, and civic studies.</p>
+              <div className="bg-slate-900/60 border border-slate-800/80 rounded-2xl p-5 space-y-2.5 shadow-sm">
+                <h3 className="font-serif font-bold text-slate-100 text-base">District Primary & Secondary Schools</h3>
+                <p className="text-xs text-amber-300/80 font-mono">EDUCATIONAL FOUNDATION</p>
+                <p className="text-xs text-slate-300 font-serif leading-relaxed">
+                  The local classrooms and grounds where discipline, foundational arithmetic, reading, and early mentorship take root.
+                </p>
               </div>
-              <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-2">
-                <h3 className="font-semibold text-slate-100">Area 10 Community Sports Ground</h3>
-                <p className="text-xs text-emerald-400 font-mono">ATHLETICS & FOOTBALL PITCH · GARKI</p>
-                <p className="text-xs text-slate-400">Open community grounds hosting youth training, weekend match fixtures, and grassroots scouts.</p>
+              <div className="bg-slate-900/60 border border-slate-800/80 rounded-2xl p-5 space-y-2.5 shadow-sm">
+                <h3 className="font-serif font-bold text-slate-100 text-base">Community Sports & Athletics Ground</h3>
+                <p className="text-xs text-amber-300/80 font-mono">TRAINING PITCH & RECREATION</p>
+                <p className="text-xs text-slate-300 font-serif leading-relaxed">
+                  Open community grounds where youth matches are contested, tactical drills are run, and talent scouts observe from the sidelines.
+                </p>
               </div>
             </div>
           </main>
         )}
 
         {activeLens === 'messages' && (
-          <main className="flex-1 overflow-y-auto bg-slate-950 p-8 max-w-4xl mx-auto space-y-6">
-            <div className="flex items-center gap-3 border-b border-slate-800 pb-4">
-              <Mail className="w-6 h-6 text-emerald-400" />
+          <main className="flex-1 overflow-y-auto bg-[#0b0d13] p-8 max-w-4xl mx-auto space-y-6 select-text">
+            <div className="flex items-center gap-3 border-b border-slate-800/60 pb-4">
+              <Mail className="w-6 h-6 text-amber-400" />
               <div>
-                <h2 className="text-2xl font-serif font-bold text-slate-100">Letters, School Notices & Mail</h2>
-                <p className="text-xs text-slate-400">Official correspondence, examination slips, and family communications.</p>
+                <h2 className="text-2xl font-serif font-bold text-slate-100">Letters & Notices</h2>
+                <p className="text-xs font-serif italic text-amber-300/80">Official correspondence, certifications, and personal notes</p>
               </div>
             </div>
             <div className="space-y-4">
-              <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-3">
+              <div className="bg-slate-900/60 border border-slate-800/80 rounded-2xl p-6 space-y-3 shadow-sm">
                 <div className="flex justify-between items-start">
                   <div>
-                    <h3 className="font-semibold text-slate-100">West African Examinations Council (WAEC)</h3>
-                    <p className="text-xs text-emerald-400 font-mono">SENIOR SCHOOL CERTIFICATE EXAMINATION</p>
+                    <h3 className="font-serif font-bold text-slate-100 text-base">National Examination Registry</h3>
+                    <p className="text-xs text-amber-300/80 font-mono">OFFICIAL ENTRY NOTIFICATION</p>
                   </div>
-                  <span className="text-xs bg-emerald-500/10 text-emerald-400 px-2.5 py-0.5 rounded border border-emerald-500/20">
+                  <span className="text-xs bg-amber-500/10 text-amber-300 px-3 py-1 rounded-full border border-amber-500/20 font-serif">
                     Official Notice
                   </span>
                 </div>
-                <p className="text-sm text-slate-300 font-serif leading-relaxed">
-                  "Registration portal is now open for candidates presenting 5 credit passes including Mathematics and English language."
-                </p>
-              </div>
-
-              <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-5 space-y-3">
-                <div className="flex justify-between items-start">
-                  <div>
-                    <h3 className="font-semibold text-slate-100">Abuja Model Primary School</h3>
-                    <p className="text-xs text-emerald-400 font-mono">HEAD OF MATHEMATICS · MR. ADEWALE</p>
-                  </div>
-                  <span className="text-xs bg-slate-800 text-slate-400 px-2 py-0.5 rounded">
-                    Archived
-                  </span>
-                </div>
-                <p className="text-sm text-slate-300 font-serif leading-relaxed">
-                  "Term academic commendation awarded for disciplined classroom arithmetic and problem set accuracy."
+                <p className="text-sm text-slate-200 font-serif leading-relaxed italic">
+                  "Candidate enrollment portal is open. Qualifying students preparing for higher education admissions may register their entry."
                 </p>
               </div>
             </div>
@@ -290,43 +285,27 @@ export const App: React.FC = () => {
         )}
 
         {activeLens === 'world' && (
-          <main className="flex-1 overflow-y-auto bg-slate-950 p-8 max-w-4xl mx-auto space-y-6">
-            <div className="flex items-center gap-3 border-b border-slate-800 pb-4">
-              <Globe className="w-6 h-6 text-emerald-400" />
+          <main className="flex-1 overflow-y-auto bg-[#0b0d13] p-8 max-w-4xl mx-auto space-y-6 select-text">
+            <div className="flex items-center gap-3 border-b border-slate-800/60 pb-4">
+              <Globe className="w-6 h-6 text-amber-400" />
               <div>
-                <h2 className="text-2xl font-serif font-bold text-slate-100">World & Economic Indicators</h2>
-                <p className="text-xs text-slate-400">Macro-economic trends, national news, and historical era.</p>
+                <h2 className="text-2xl font-serif font-bold text-slate-100">Surroundings & Era</h2>
+                <p className="text-xs font-serif italic text-amber-300/80">The climate, economic reality, and era surrounding your life</p>
               </div>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-3">
-                <div className="flex justify-between items-center text-sm">
-                  <span className="text-slate-400">Location</span>
-                  <span className="font-mono text-slate-200">Garki, Abuja, Nigeria</span>
-                </div>
-                <div className="flex justify-between items-center text-sm">
-                  <span className="text-slate-400">National Currency</span>
-                  <span className="font-mono text-emerald-400">Nigerian Naira (₦)</span>
-                </div>
-                <div className="flex justify-between items-center text-sm">
-                  <span className="text-slate-400">Climate Zone</span>
-                  <span className="font-mono text-slate-300">Tropical Savanna</span>
-                </div>
+              <div className="bg-slate-900/60 border border-slate-800/80 rounded-2xl p-5 space-y-3 shadow-sm">
+                <p className="text-xs font-mono uppercase tracking-wider text-slate-500">Geographic Setting</p>
+                <p className="text-sm text-slate-200 font-serif leading-relaxed">
+                  Located in {livingState?.location_formatted}. The seasons shift between bright harmattan haze and seasonal rains, shaping the rhythm of outdoor markets, sports, and school terms.
+                </p>
               </div>
 
-              <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-3">
-                <div className="flex justify-between items-center text-sm">
-                  <span className="text-slate-400">Annual Inflation Rate</span>
-                  <span className="font-mono text-amber-400">11.2%</span>
-                </div>
-                <div className="flex justify-between items-center text-sm">
-                  <span className="text-slate-400">Power Grid Reliability</span>
-                  <span className="font-mono text-slate-300">75% (Occasional outages)</span>
-                </div>
-                <div className="flex justify-between items-center text-sm">
-                  <span className="text-slate-400">Living Cost Index</span>
-                  <span className="font-mono text-emerald-400">1.15 (Capital District)</span>
-                </div>
+              <div className="bg-slate-900/60 border border-slate-800/80 rounded-2xl p-5 space-y-3 shadow-sm">
+                <p className="text-xs font-mono uppercase tracking-wider text-slate-500">Economic Climate</p>
+                <p className="text-sm text-slate-200 font-serif leading-relaxed">
+                  A dynamic urban economy where ambition, education, and family diligence open pathways to trade, engineering, and civic leadership.
+                </p>
               </div>
             </div>
           </main>
