@@ -180,19 +180,7 @@ pub mod commands {
 
 pub fn run() {
     let default_config = NewLifeConfig {
-        creation_mode: "CUSTOM".to_string(),
-        starting_year: 2005,
-        country_id: "country:real:nigeria".to_string(),
-        location_id: "city:real:abuja".to_string(),
-        starting_age: 0,
-        first_name: Some("Israel".to_string()),
-        last_name: Some("Oyebamiji".to_string()),
-        sex: Some("Male".to_string()),
-        household_income_tier: Some("MIDDLE".to_string()),
-        traits: std::collections::HashMap::new(),
-        skills: std::collections::HashMap::new(),
-        interests: vec!["academics".to_string()],
-        goals: vec!["excellence".to_string()],
+        ..Default::default()
     };
 
     let initial_engine = SimulationEngine::new_game(default_config, 100);

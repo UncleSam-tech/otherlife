@@ -253,12 +253,15 @@ pub struct AutonomousNPC {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub enum NpcRole {
     Parent,
+    Sibling,
     Teacher,
     Classmate,
+    Friend,
     Coach,
     Mentor,
     Colleague,
     Employer,
+    Partner,
     Neighbor,
 }
 
@@ -565,14 +568,54 @@ pub struct NewLifeConfig {
     pub country_id: String,
     pub location_id: String,
     pub starting_age: u32,
+    pub birth_year: Option<i32>,
+    pub birth_month: Option<u32>,
+    pub birth_day: Option<u32>,
     pub first_name: Option<String>,
     pub last_name: Option<String>,
     pub sex: Option<String>,
     pub household_income_tier: Option<String>,
+    pub mother_name: Option<String>,
+    pub mother_job: Option<String>,
+    pub father_name: Option<String>,
+    pub father_job: Option<String>,
+    pub custom_backstory: Option<String>,
+    #[serde(default)]
     pub traits: HashMap<String, f32>,
+    #[serde(default)]
     pub skills: HashMap<String, f32>,
+    #[serde(default)]
     pub interests: Vec<String>,
+    #[serde(default)]
     pub goals: Vec<String>,
+}
+
+impl Default for NewLifeConfig {
+    fn default() -> Self {
+        Self {
+            creation_mode: "CUSTOM".to_string(),
+            starting_year: 2005,
+            country_id: "country:real:nigeria".to_string(),
+            location_id: "city:real:abuja".to_string(),
+            starting_age: 0,
+            birth_year: Some(2005),
+            birth_month: Some(1),
+            birth_day: Some(15),
+            first_name: Some("Israel".to_string()),
+            last_name: Some("Oyebamiji".to_string()),
+            sex: Some("Male".to_string()),
+            household_income_tier: Some("MIDDLE".to_string()),
+            mother_name: None,
+            mother_job: None,
+            father_name: None,
+            father_job: None,
+            custom_backstory: None,
+            traits: HashMap::new(),
+            skills: HashMap::new(),
+            interests: vec!["academics".to_string()],
+            goals: vec!["excellence".to_string()],
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

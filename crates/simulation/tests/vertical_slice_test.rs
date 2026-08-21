@@ -18,6 +18,7 @@ fn test_birth_to_youth_vertical_slice() {
         skills: HashMap::new(),
         interests: vec!["academics".to_string()],
         goals: vec!["excellence".to_string()],
+        ..Default::default()
     };
 
     let mut engine = SimulationEngine::new_game(config, 42);

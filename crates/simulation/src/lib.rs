@@ -204,7 +204,13 @@ impl SimulationEngine {
 
     pub fn new_game(config: NewLifeConfig, seed: u64) -> Self {
         let rng = WorldRng::new(seed);
-        let time = SimTime::new(config.starting_year, 1, 15);
+        
+        let starting_age = config.starting_age;
+        let birth_year = config.birth_year.unwrap_or(config.starting_year - starting_age as i32);
+        let birth_month = config.birth_month.unwrap_or(1);
+        let birth_day = config.birth_day.unwrap_or(15);
+        let sim_starting_year = birth_year + starting_age as i32;
+        let time = SimTime::new(sim_starting_year, birth_month, birth_day);
 
         let first_name = config.first_name.unwrap_or_else(|| "Alex".to_string());
         let last_name = config.last_name.unwrap_or_else(|| "Sterling".to_string());
@@ -214,8 +220,6 @@ impl SimulationEngine {
         let ctx = Self::resolve_location_context(&config.country_id, &config.location_id, &wealth_tier, &last_name);
 
         let player_id = "person:sim:player".to_string();
-        let starting_age = config.starting_age;
-        let birth_year = config.starting_year - starting_age as i32;
 
         let mut skills = HashMap::new();
         skills.insert("curiosity".to_string(), SkillMastery { level: 25.0, experience: 100.0, natural_affinity: 1.2, last_practiced_day: 0 });
@@ -237,8 +241,8 @@ impl SimulationEngine {
                 first_name: first_name.clone(),
                 last_name: last_name.clone(),
                 birth_year,
-                birth_month: 1,
-                birth_day: 15,
+                birth_month,
+                birth_day,
                 sex: sex.clone(),
                 birthplace_id: format!("city:real:{}", ctx.city_name.to_lowercase().replace(' ', "_")),
                 nationality: ctx.country_name.clone(),
@@ -1270,8 +1274,30 @@ impl SimulationEngine {
     }
 
     pub fn get_surrounding_npcs(&self) -> Vec<ContextNpcDTO> {
+        let player = match self.persons.get("person:sim:player") {
+            Some(p) => p,
+            None => return Vec::new(),
+        };
+        let age = self.time.year - player.identity.birth_year;
+
         self.npcs
             .values()
+            .filter(|npc| {
+                // Strict age gating for people around you
+                if age < 4 {
+                    // Infancy: ONLY parents & family are in the child's world
+                    matches!(npc.primary_role, NpcRole::Parent | NpcRole::Sibling)
+                } else if age < 13 {
+                    // Childhood: Parents, Primary School Teacher, and Childhood Friend
+                    matches!(npc.primary_role, NpcRole::Parent | NpcRole::Sibling | NpcRole::Teacher | NpcRole::Friend)
+                } else if age < 18 {
+                    // Adolescence: Parents, Teachers, Sports Coaches, Friends, and Mentors
+                    matches!(npc.primary_role, NpcRole::Parent | NpcRole::Sibling | NpcRole::Teacher | NpcRole::Coach | NpcRole::Friend | NpcRole::Mentor)
+                } else {
+                    // Adulthood: All social connections
+                    true
+                }
+            })
             .map(|npc| {
                 let name = format!("{} {}", npc.base.identity.first_name, npc.base.identity.last_name);
                 let role = format!("{:?}", npc.primary_role);

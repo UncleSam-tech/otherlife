@@ -3,13 +3,13 @@ import { LifeHeader } from './LifeHeader';
 import { LifeNavigation, NavLens } from '../navigation/LifeNavigation';
 import { WorldStage } from '../world/WorldStage';
 import { ContextPanel, LivingStateDTO } from '../context/ContextPanel';
-import { NaturalIntentBar } from '../interaction/NaturalIntentBar';
+import { ActivityDrawer } from '../interaction/ActivityDrawer';
 import { RelationshipPanel } from '../characters/RelationshipPanel';
 import { MemoryTimeline } from '../context/MemoryTimeline';
 import { TodaySceneDTO, LastStepResultDTO } from '../world/SceneRenderer';
 import { ContextNpcDTO } from '../characters/NPCDisplay';
 import { ContextProcessDTO } from '../context/ProcessTracker';
-import { Feather, MapPin, Mail, Globe } from 'lucide-react';
+import { Feather, MapPin, Mail, Globe, Home, BookOpen, Activity, Building, Briefcase } from 'lucide-react';
 
 interface GameShellProps {
   livingState: LivingStateDTO | null;
@@ -42,12 +42,126 @@ export const GameShell: React.FC<GameShellProps> = ({
   devMode,
   onToggleDevMode,
 }) => {
+  const playerAge = livingState?.age || 0;
+
+  const renderPlacesByAge = () => {
+    if (playerAge < 4) {
+      // Infancy: Home & Nursery
+      return (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="bg-[#121622] border border-[#20273a] rounded-2xl p-5 space-y-2 shadow-sm">
+            <div className="flex items-center gap-2 text-amber-400">
+              <Home className="w-4 h-4" />
+              <h3 className="font-serif font-bold text-slate-100 text-base">Family Home & Nursery</h3>
+            </div>
+            <p className="text-[10px] text-amber-300/80 font-mono">EARLY CHILDHOOD LIVING</p>
+            <p className="text-xs text-slate-300 font-serif leading-relaxed">
+              Your safe, sunlit nursery and family living room where your parents care for you and morning tea brews.
+            </p>
+          </div>
+
+          <div className="bg-[#121622] border border-[#20273a] rounded-2xl p-5 space-y-2 shadow-sm">
+            <div className="flex items-center gap-2 text-emerald-400">
+              <Activity className="w-4 h-4" />
+              <h3 className="font-serif font-bold text-slate-100 text-base">Neighborhood Clinic & Pediatric Center</h3>
+            </div>
+            <p className="text-[10px] text-emerald-300/80 font-mono">HEALTH & VACCINATIONS</p>
+            <p className="text-xs text-slate-300 font-serif leading-relaxed">
+              The local healthcare center where infant growth checks and routine vaccinations are administered.
+            </p>
+          </div>
+        </div>
+      );
+    } else if (playerAge < 13) {
+      // Childhood: Primary School & Courtyard
+      return (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="bg-[#121622] border border-[#20273a] rounded-2xl p-5 space-y-2 shadow-sm">
+            <div className="flex items-center gap-2 text-blue-400">
+              <BookOpen className="w-4 h-4" />
+              <h3 className="font-serif font-bold text-slate-100 text-base">District Primary School</h3>
+            </div>
+            <p className="text-[10px] text-blue-300/80 font-mono">PRIMARY EDUCATION</p>
+            <p className="text-xs text-slate-300 font-serif leading-relaxed">
+              Classrooms with green chalkboards where foundational arithmetic, reading, and moral discipline are taught.
+            </p>
+          </div>
+
+          <div className="bg-[#121622] border border-[#20273a] rounded-2xl p-5 space-y-2 shadow-sm">
+            <div className="flex items-center gap-2 text-orange-400">
+              <Activity className="w-4 h-4" />
+              <h3 className="font-serif font-bold text-slate-100 text-base">Neighborhood Sports Courtyard</h3>
+            </div>
+            <p className="text-[10px] text-orange-300/80 font-mono">COMMUNITY RECREATION</p>
+            <p className="text-xs text-slate-300 font-serif leading-relaxed">
+              Open grass grounds where children play street football and neighborhood games after school.
+            </p>
+          </div>
+        </div>
+      );
+    } else if (playerAge < 18) {
+      // Adolescence: Secondary Academy & Sports Club
+      return (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="bg-[#121622] border border-[#20273a] rounded-2xl p-5 space-y-2 shadow-sm">
+            <div className="flex items-center gap-2 text-amber-400">
+              <Building className="w-4 h-4" />
+              <h3 className="font-serif font-bold text-slate-100 text-base">Senior Secondary & Exam Academy</h3>
+            </div>
+            <p className="text-[10px] text-amber-300/80 font-mono">NATIONAL CERTIFICATION ACADEMY</p>
+            <p className="text-xs text-slate-300 font-serif leading-relaxed">
+              Academic halls hosting intensive examination revisions, science laboratories, and library study desks.
+            </p>
+          </div>
+
+          <div className="bg-[#121622] border border-[#20273a] rounded-2xl p-5 space-y-2 shadow-sm">
+            <div className="flex items-center gap-2 text-emerald-400">
+              <Activity className="w-4 h-4" />
+              <h3 className="font-serif font-bold text-slate-100 text-base">Youth Sports Academy & Scouting Grounds</h3>
+            </div>
+            <p className="text-[10px] text-emerald-300/80 font-mono">SCOUTING & COMPETITIVE PITCH</p>
+            <p className="text-xs text-slate-300 font-serif leading-relaxed">
+              Floodlit athletic fields where tactical training drills are contested under the eyes of talent scouts.
+            </p>
+          </div>
+        </div>
+      );
+    } else {
+      // Adulthood: Universities, Workplaces & Civic Institutions
+      return (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="bg-[#121622] border border-[#20273a] rounded-2xl p-5 space-y-2 shadow-sm">
+            <div className="flex items-center gap-2 text-indigo-400">
+              <Building className="w-4 h-4" />
+              <h3 className="font-serif font-bold text-slate-100 text-base">University & Higher Institute</h3>
+            </div>
+            <p className="text-[10px] text-indigo-300/80 font-mono">HIGHER EDUCATION & RESEARCH</p>
+            <p className="text-xs text-slate-300 font-serif leading-relaxed">
+              Lecture auditoriums and faculties offering degree programs, research papers, and alumni networks.
+            </p>
+          </div>
+
+          <div className="bg-[#121622] border border-[#20273a] rounded-2xl p-5 space-y-2 shadow-sm">
+            <div className="flex items-center gap-2 text-cyan-400">
+              <Briefcase className="w-4 h-4" />
+              <h3 className="font-serif font-bold text-slate-100 text-base">Commercial Central Business District</h3>
+            </div>
+            <p className="text-[10px] text-cyan-300/80 font-mono">FINANCIAL & CORPORATE PLAZAS</p>
+            <p className="text-xs text-slate-300 font-serif leading-relaxed">
+              Corporate headquarters, venture offices, commercial banks, and company registration registries.
+            </p>
+          </div>
+        </div>
+      );
+    }
+  };
+
   return (
     <div className="flex flex-col h-screen w-screen bg-[#07090e] text-slate-100 overflow-hidden font-sans select-none">
       {/* 1. Life Header */}
       <LifeHeader
         playerName={livingState?.player_name || 'Living Person'}
-        age={livingState?.age || 0}
+        age={playerAge}
         lifeStage={livingState?.life_stage || 'Infancy'}
         timeFormatted={livingState?.time_formatted || ''}
         locationFormatted={livingState?.location_formatted || 'Living World'}
@@ -76,10 +190,10 @@ export const GameShell: React.FC<GameShellProps> = ({
                 lastStepResult={lastStepResult}
                 weatherName="Harmattan Haze"
               />
-              {/* Natural Intention Bar */}
-              <NaturalIntentBar
+              {/* Structured Activities Menu Drawer (BitLife Style) */}
+              <ActivityDrawer
+                playerAge={playerAge}
                 onSubmitIntent={onSubmitIntent}
-                suggestions={todayScene?.prompt_suggestions || []}
                 isLoading={isLoading}
               />
             </div>
@@ -120,26 +234,11 @@ export const GameShell: React.FC<GameShellProps> = ({
                 <MapPin className="w-6 h-6 text-amber-400" />
                 <div>
                   <h2 className="text-2xl font-serif font-bold text-slate-100">Places & Horizon</h2>
-                  <p className="text-xs font-serif italic text-amber-300/80">The classrooms, grounds, streets, and institutions of your world</p>
+                  <p className="text-xs font-serif italic text-amber-300/80">The locations and institutions currently present in your world</p>
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="bg-[#121622] border border-[#20273a] rounded-2xl p-5 space-y-2 shadow-sm">
-                  <h3 className="font-serif font-bold text-slate-100 text-base">District Primary & Secondary Academy</h3>
-                  <p className="text-xs text-amber-300/80 font-mono">EDUCATIONAL FOUNDATION</p>
-                  <p className="text-xs text-slate-300 font-serif leading-relaxed">
-                    Classrooms and school courtyards where foundational arithmetic, literacy, and character discipline take root.
-                  </p>
-                </div>
-                <div className="bg-[#121622] border border-[#20273a] rounded-2xl p-5 space-y-2 shadow-sm">
-                  <h3 className="font-serif font-bold text-slate-100 text-base">Community Sports & Athletics Ground</h3>
-                  <p className="text-xs text-amber-300/80 font-mono">TRAINING & SCOUTING PITCH</p>
-                  <p className="text-xs text-slate-300 font-serif leading-relaxed">
-                    Youth athletic pitches hosting training drills, scrimmage matches, and grassroots talent scouts.
-                  </p>
-                </div>
-              </div>
+              {renderPlacesByAge()}
             </main>
           )}
 
@@ -148,25 +247,42 @@ export const GameShell: React.FC<GameShellProps> = ({
               <div className="flex items-center gap-3 border-b border-[#1c2130] pb-4">
                 <Mail className="w-6 h-6 text-amber-400" />
                 <div>
-                  <h2 className="text-2xl font-serif font-bold text-slate-100">Letters & Inward Mail</h2>
-                  <p className="text-xs font-serif italic text-amber-300/80">Official correspondence, examination slips, and notes</p>
+                  <h2 className="text-2xl font-serif font-bold text-slate-100">Letters & Notices</h2>
+                  <p className="text-xs font-serif italic text-amber-300/80">Official correspondence, certifications, and personal notes</p>
                 </div>
               </div>
               <div className="space-y-4">
-                <div className="bg-[#121622] border border-[#20273a] rounded-2xl p-6 space-y-3 shadow-sm">
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <h3 className="font-serif font-bold text-slate-100 text-base">National Examination Registry</h3>
-                      <p className="text-xs text-amber-300/80 font-mono">OFFICIAL REGISTRATION NOTICE</p>
+                {playerAge < 4 ? (
+                  <div className="bg-[#121622] border border-[#20273a] rounded-2xl p-6 space-y-3 shadow-sm">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <h3 className="font-serif font-bold text-slate-100 text-base">Civic Registry of Births</h3>
+                        <p className="text-xs text-amber-300/80 font-mono">OFFICIAL BIRTH RECORD</p>
+                      </div>
+                      <span className="text-xs bg-amber-500/10 text-amber-300 px-3 py-1 rounded-full border border-amber-500/20 font-serif">
+                        Certificate
+                      </span>
                     </div>
-                    <span className="text-xs bg-amber-500/10 text-amber-300 px-3 py-1 rounded-full border border-amber-500/20 font-serif">
-                      Official
-                    </span>
+                    <p className="text-sm text-slate-200 font-serif leading-relaxed italic">
+                      "Birth officially registered in the civic registry. Welcome to the living world."
+                    </p>
                   </div>
-                  <p className="text-sm text-slate-200 font-serif leading-relaxed italic">
-                    "Candidate enrollment portal is open for qualifying students preparing for higher education admissions certification."
-                  </p>
-                </div>
+                ) : (
+                  <div className="bg-[#121622] border border-[#20273a] rounded-2xl p-6 space-y-3 shadow-sm">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <h3 className="font-serif font-bold text-slate-100 text-base">National Examination Registry</h3>
+                        <p className="text-xs text-amber-300/80 font-mono">OFFICIAL ADMISSIONS ENTRY</p>
+                      </div>
+                      <span className="text-xs bg-amber-500/10 text-amber-300 px-3 py-1 rounded-full border border-amber-500/20 font-serif">
+                        Official
+                      </span>
+                    </div>
+                    <p className="text-sm text-slate-200 font-serif leading-relaxed italic">
+                      "Candidate registration portal is open for students preparing for higher certifications."
+                    </p>
+                  </div>
+                )}
               </div>
             </main>
           )}

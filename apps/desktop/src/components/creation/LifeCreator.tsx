@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ArrowRight, Dices, ArrowLeft, Globe, User, Home, Sparkles } from 'lucide-react';
+import { ArrowRight, Dices, ArrowLeft, Globe, User, Home, Sparkles, Calendar, BookOpen } from 'lucide-react';
 
 export interface NewLifeCreatorConfig {
   creation_mode: string;
@@ -7,10 +7,18 @@ export interface NewLifeCreatorConfig {
   country_id: string;
   location_id: string;
   starting_age: number;
+  birth_year: number;
+  birth_month: number;
+  birth_day: number;
   first_name: string;
   last_name: string;
   sex: string;
   household_income_tier: string;
+  mother_name?: string;
+  mother_job?: string;
+  father_name?: string;
+  father_job?: string;
+  custom_backstory?: string;
   traits: Record<string, number>;
   skills: Record<string, number>;
   interests: string[];
@@ -37,6 +45,12 @@ const COUNTRIES = [
     ],
     sampleFirstNames: { Male: ['Tunde', 'Israel', 'Chidi', 'Ibrahim', 'Emeka', 'Femi'], Female: ['Funke', 'Sarah', 'Amina', 'Nkechi', 'Blessing', 'Yetunde'] },
     sampleLastNames: ['Adeyemi', 'Oyebamiji', 'Nwosu', 'Bello', 'Okoye', 'Adeleke', 'Briggs'],
+    defaultParents: {
+      motherName: 'Sarah Adeyemi',
+      motherJob: 'Healthcare Officer',
+      fatherName: 'David Adeyemi',
+      fatherJob: 'Civil Engineering Inspector',
+    }
   },
   {
     id: 'country:real:united_kingdom',
@@ -51,6 +65,12 @@ const COUNTRIES = [
     ],
     sampleFirstNames: { Male: ['Callum', 'Liam', 'Arthur', 'Jack', 'Oliver', 'Harry'], Female: ['Fiona', 'Emma', 'Isobel', 'Claire', 'Gemma', 'Charlotte'] },
     sampleLastNames: ['Sinclair', 'Robertson', 'MacLeod', 'Harrison', 'Taylor', 'Campbell', 'Lewis'],
+    defaultParents: {
+      motherName: 'Fiona Sinclair',
+      motherJob: 'Senior Architect',
+      fatherName: 'Callum Sinclair',
+      fatherJob: 'Secondary Educator',
+    }
   },
   {
     id: 'country:real:united_states',
@@ -65,6 +85,12 @@ const COUNTRIES = [
     ],
     sampleFirstNames: { Male: ['Marcus', 'Ethan', 'Daniel', 'Lucas', 'Noah', 'Benjamin'], Female: ['Elena', 'Maya', 'Rachel', 'Laura', 'Sarah', 'Chloe'] },
     sampleLastNames: ['Sterling', 'Vance', 'Lin', 'Rivera', 'Murphy', 'Brooks', 'Hayes'],
+    defaultParents: {
+      motherName: 'Elena Sterling',
+      motherJob: 'Biotech Scientist',
+      fatherName: 'Marcus Sterling',
+      fatherJob: 'Systems Project Director',
+    }
   },
 ];
 
@@ -74,16 +100,46 @@ const HOUSEHOLD_TIERS = [
   { id: 'UPPER_MIDDLE', label: 'Upper-Middle Class', desc: 'Substantial family resources, private mentorship, and deep community roots.' },
 ];
 
+const STARTING_AGES = [
+  { age: 0, label: 'Age 0 · Newborn Infancy', desc: 'Experience life from your very first moments and nursery surroundings.' },
+  { age: 6, label: 'Age 6 · Primary School', desc: 'Begin as a young child entering classrooms and neighborhood playgrounds.' },
+  { age: 11, label: 'Age 11 · Secondary School', desc: 'Jump in as an adolescent facing exam revisions, sports trials, and friendships.' },
+  { age: 16, label: 'Age 16 · Senior Youth', desc: 'Prepare for national higher examinations, talent scouting, and early ambitions.' },
+  { age: 18, label: 'Age 18 · Early Adulthood', desc: 'Enter adult independence, university admissions, and career pathways.' },
+  { age: 25, label: 'Age 25 · Established Professional', desc: 'Begin as an independent adult building businesses, careers, and wealth.' },
+];
+
+const MONTH_NAMES = [
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December'
+];
+
 export const LifeCreator: React.FC<LifeCreatorProps> = ({ onBeginLife, onCancel }) => {
   const [selectedCountryIndex, setSelectedCountryIndex] = useState(0);
   const [selectedCityId, setSelectedCityId] = useState(COUNTRIES[0].cities[0].id);
   const [sex, setSex] = useState<'Male' | 'Female'>('Male');
   const [firstName, setFirstName] = useState(COUNTRIES[0].sampleFirstNames.Male[0]);
   const [lastName, setLastName] = useState(COUNTRIES[0].sampleLastNames[0]);
-  const [birthYear, setBirthYear] = useState(2005);
+  
+  // Date of Birth & Starting Age
+  const [birthYear, setBirthYear] = useState(1998);
+  const [birthMonth, setBirthMonth] = useState(6);
+  const [birthDay, setBirthDay] = useState(14);
+  const [startingAge, setStartingAge] = useState(0);
+
   const [householdTier, setHouseholdTier] = useState('MIDDLE');
 
+  // Custom Parents & Backstory (for Starting Age > 0)
   const currentCountry = COUNTRIES[selectedCountryIndex];
+  const [motherName, setMotherName] = useState(currentCountry.defaultParents.motherName);
+  const [motherJob, setMotherJob] = useState(currentCountry.defaultParents.motherJob);
+  const [fatherName, setFatherName] = useState(currentCountry.defaultParents.fatherName);
+  const [fatherJob, setFatherJob] = useState(currentCountry.defaultParents.fatherJob);
+  const [customBackstory, setCustomBackstory] = useState(
+    'Raised in a supportive household with an emphasis on curiosity, academic diligence, and integrity.'
+  );
+
+  const simStartingYear = birthYear + startingAge;
 
   const handleCountryChange = (idx: number) => {
     setSelectedCountryIndex(idx);
@@ -92,6 +148,10 @@ export const LifeCreator: React.FC<LifeCreatorProps> = ({ onBeginLife, onCancel 
     const fNames = sex === 'Female' ? country.sampleFirstNames.Female : country.sampleFirstNames.Male;
     setFirstName(fNames[0]);
     setLastName(country.sampleLastNames[0]);
+    setMotherName(country.defaultParents.motherName);
+    setMotherJob(country.defaultParents.motherJob);
+    setFatherName(country.defaultParents.fatherName);
+    setFatherJob(country.defaultParents.fatherJob);
   };
 
   const handleRandomize = () => {
@@ -104,23 +164,41 @@ export const LifeCreator: React.FC<LifeCreatorProps> = ({ onBeginLife, onCancel 
     setSex(randomSex);
     const fNames = randomSex === 'Female' ? country.sampleFirstNames.Female : country.sampleFirstNames.Male;
     setFirstName(fNames[Math.floor(Math.random() * fNames.length)]);
-    setLastName(country.sampleLastNames[Math.floor(Math.random() * country.sampleLastNames.length)]);
+    const lName = country.sampleLastNames[Math.floor(Math.random() * country.sampleLastNames.length)];
+    setLastName(lName);
     const tiers = ['WORKING_CLASS', 'MIDDLE', 'UPPER_MIDDLE'];
     setHouseholdTier(tiers[Math.floor(Math.random() * tiers.length)]);
-    setBirthYear(1995 + Math.floor(Math.random() * 16));
+    
+    const yr = 1990 + Math.floor(Math.random() * 20);
+    setBirthYear(yr);
+    setBirthMonth(1 + Math.floor(Math.random() * 12));
+    setBirthDay(1 + Math.floor(Math.random() * 28));
+
+    setMotherName(country.defaultParents.motherName);
+    setMotherJob(country.defaultParents.motherJob);
+    setFatherName(country.defaultParents.fatherName);
+    setFatherJob(country.defaultParents.fatherJob);
   };
 
   const handleStart = () => {
     const config: NewLifeCreatorConfig = {
       creation_mode: 'CUSTOM',
-      starting_year: birthYear,
+      starting_year: simStartingYear,
       country_id: currentCountry.id,
       location_id: selectedCityId,
-      starting_age: 0,
+      starting_age: startingAge,
+      birth_year: birthYear,
+      birth_month: birthMonth,
+      birth_day: birthDay,
       first_name: firstName.trim() || 'Alex',
       last_name: lastName.trim() || 'Sterling',
       sex,
       household_income_tier: householdTier,
+      mother_name: motherName.trim() || currentCountry.defaultParents.motherName,
+      mother_job: motherJob.trim() || currentCountry.defaultParents.motherJob,
+      father_name: fatherName.trim() || currentCountry.defaultParents.fatherName,
+      father_job: fatherJob.trim() || currentCountry.defaultParents.fatherJob,
+      custom_backstory: startingAge > 0 ? customBackstory.trim() : undefined,
       traits: {},
       skills: {},
       interests: ['curiosity', 'academics'],
@@ -130,7 +208,7 @@ export const LifeCreator: React.FC<LifeCreatorProps> = ({ onBeginLife, onCancel 
   };
 
   return (
-    <div className="w-full max-w-2xl bg-[#0e1118] border border-amber-500/30 rounded-3xl p-8 shadow-2xl space-y-6 text-slate-100 font-sans animate-fadeIn">
+    <div className="w-full max-w-3xl bg-[#0e1118] border border-amber-500/30 rounded-3xl p-8 shadow-2xl space-y-6 text-slate-100 font-sans max-h-[90vh] overflow-y-auto animate-fadeIn">
       {/* Prologue Header */}
       <div className="flex items-center justify-between border-b border-[#1c2130] pb-4">
         <div>
@@ -152,7 +230,7 @@ export const LifeCreator: React.FC<LifeCreatorProps> = ({ onBeginLife, onCancel 
         </button>
       </div>
 
-      {/* Identity: Name & Sex */}
+      {/* 1. Identity */}
       <div className="space-y-3">
         <div className="flex items-center gap-2 text-xs font-serif text-amber-300/90">
           <User className="w-3.5 h-3.5 text-amber-400" />
@@ -201,7 +279,145 @@ export const LifeCreator: React.FC<LifeCreatorProps> = ({ onBeginLife, onCancel 
         </div>
       </div>
 
-      {/* Geography: Country & City */}
+      {/* 2. Exact Date of Birth & Starting Age */}
+      <div className="space-y-3 pt-2 border-t border-[#1c2130]">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2 text-xs font-serif text-amber-300/90">
+            <Calendar className="w-3.5 h-3.5 text-amber-400" />
+            <span>Date of Birth & Starting Age</span>
+          </div>
+          <span className="text-[11px] font-mono text-amber-400 bg-amber-500/10 px-2.5 py-0.5 rounded-full border border-amber-500/20">
+            Timeline Starts: {MONTH_NAMES[birthMonth - 1]} {birthDay}, {simStartingYear}
+          </span>
+        </div>
+
+        {/* Date Pickers */}
+        <div className="grid grid-cols-3 gap-3">
+          <div>
+            <label className="block text-[11px] font-sans text-slate-400 mb-1">Birth Month</label>
+            <select
+              value={birthMonth}
+              onChange={(e) => setBirthMonth(Number(e.target.value))}
+              className="w-full bg-[#121622] border border-[#20273a] focus:border-amber-500/60 rounded-xl px-3 py-2 text-xs text-slate-100 font-serif focus:outline-none"
+            >
+              {MONTH_NAMES.map((m, idx) => (
+                <option key={idx} value={idx + 1}>{m}</option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-[11px] font-sans text-slate-400 mb-1">Birth Day</label>
+            <select
+              value={birthDay}
+              onChange={(e) => setBirthDay(Number(e.target.value))}
+              className="w-full bg-[#121622] border border-[#20273a] focus:border-amber-500/60 rounded-xl px-3 py-2 text-xs text-slate-100 font-serif focus:outline-none"
+            >
+              {Array.from({ length: 31 }, (_, i) => i + 1).map((d) => (
+                <option key={d} value={d}>{d}</option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-[11px] font-sans text-slate-400 mb-1">Birth Year</label>
+            <input
+              type="number"
+              value={birthYear}
+              min={1960}
+              max={2026}
+              onChange={(e) => setBirthYear(Number(e.target.value))}
+              className="w-full bg-[#121622] border border-[#20273a] focus:border-amber-500/60 rounded-xl px-3 py-2 text-xs text-slate-100 font-mono focus:outline-none"
+            />
+          </div>
+        </div>
+
+        {/* Starting Age Selector */}
+        <div className="space-y-1.5 pt-1">
+          <label className="block text-[11px] font-sans text-slate-400">At what stage of life will you begin?</label>
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-2.5">
+            {STARTING_AGES.map((st) => (
+              <button
+                key={st.age}
+                type="button"
+                onClick={() => setStartingAge(st.age)}
+                className={`p-3 rounded-2xl border text-left transition-all ${
+                  startingAge === st.age
+                    ? 'bg-amber-500/20 border-amber-500/60 text-amber-200 shadow-md'
+                    : 'bg-[#121622] border-[#20273a] text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                <div className="font-serif font-bold text-xs">{st.label}</div>
+                <div className="text-[10px] text-slate-500 font-sans mt-0.5 leading-snug">{st.desc}</div>
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* 3. Custom Parents & Backstory (if Starting Age > 0) */}
+      {startingAge > 0 && (
+        <div className="space-y-3 pt-2 border-t border-[#1c2130] bg-[#121622]/50 p-4 rounded-2xl border border-[#20273a]">
+          <div className="flex items-center gap-2 text-xs font-serif text-amber-300">
+            <BookOpen className="w-3.5 h-3.5 text-amber-400" />
+            <span>Family Background & Childhood Backstory (Pre-Game History)</span>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-[10px] font-sans text-slate-400 mb-1">Mother's Name & Career</label>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  placeholder="Mother's Name"
+                  value={motherName}
+                  onChange={(e) => setMotherName(e.target.value)}
+                  className="w-1/2 bg-[#121622] border border-[#20273a] rounded-xl px-3 py-1.5 text-xs text-slate-100 font-serif"
+                />
+                <input
+                  type="text"
+                  placeholder="Mother's Job"
+                  value={motherJob}
+                  onChange={(e) => setMotherJob(e.target.value)}
+                  className="w-1/2 bg-[#121622] border border-[#20273a] rounded-xl px-3 py-1.5 text-xs text-slate-100 font-serif"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-[10px] font-sans text-slate-400 mb-1">Father's Name & Career</label>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  placeholder="Father's Name"
+                  value={fatherName}
+                  onChange={(e) => setFatherName(e.target.value)}
+                  className="w-1/2 bg-[#121622] border border-[#20273a] rounded-xl px-3 py-1.5 text-xs text-slate-100 font-serif"
+                />
+                <input
+                  type="text"
+                  placeholder="Father's Job"
+                  value={fatherJob}
+                  onChange={(e) => setFatherJob(e.target.value)}
+                  className="w-1/2 bg-[#121622] border border-[#20273a] rounded-xl px-3 py-1.5 text-xs text-slate-100 font-serif"
+                />
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-[10px] font-sans text-slate-400 mb-1">Childhood Upbringing & Narrative Notes</label>
+            <textarea
+              rows={2}
+              value={customBackstory}
+              onChange={(e) => setCustomBackstory(e.target.value)}
+              className="w-full bg-[#121622] border border-[#20273a] rounded-xl p-2.5 text-xs text-slate-200 font-serif focus:outline-none focus:border-amber-500/60"
+            />
+          </div>
+        </div>
+      )}
+
+      {/* 4. Geography */}
       <div className="space-y-3 pt-2 border-t border-[#1c2130]">
         <div className="flex items-center gap-2 text-xs font-serif text-amber-300/90">
           <Globe className="w-3.5 h-3.5 text-amber-400" />
@@ -246,7 +462,7 @@ export const LifeCreator: React.FC<LifeCreatorProps> = ({ onBeginLife, onCancel 
         </div>
       </div>
 
-      {/* Household Circumstances */}
+      {/* 5. Household Reality */}
       <div className="space-y-3 pt-2 border-t border-[#1c2130]">
         <div className="flex items-center gap-2 text-xs font-serif text-amber-300/90">
           <Home className="w-3.5 h-3.5 text-amber-400" />
@@ -271,29 +487,8 @@ export const LifeCreator: React.FC<LifeCreatorProps> = ({ onBeginLife, onCancel 
         </div>
       </div>
 
-      {/* Era */}
-      <div className="flex items-center justify-between pt-2 border-t border-[#1c2130]">
-        <span className="text-xs font-serif text-slate-400">Birth Year / Era</span>
-        <div className="flex gap-2">
-          {[1995, 2000, 2005, 2010].map((yr) => (
-            <button
-              key={yr}
-              type="button"
-              onClick={() => setBirthYear(yr)}
-              className={`px-3 py-1 rounded-lg text-xs font-mono transition-all ${
-                birthYear === yr
-                  ? 'bg-amber-400 text-slate-950 font-bold'
-                  : 'bg-[#121622] text-slate-400 border border-[#20273a] hover:text-slate-200'
-              }`}
-            >
-              {yr}
-            </button>
-          ))}
-        </div>
-      </div>
-
       {/* Action Navigation */}
-      <div className="flex items-center justify-between pt-3 border-t border-[#1c2130]">
+      <div className="flex items-center justify-between pt-4 border-t border-[#1c2130]">
         <button
           type="button"
           onClick={onCancel}
@@ -308,7 +503,7 @@ export const LifeCreator: React.FC<LifeCreatorProps> = ({ onBeginLife, onCancel 
           onClick={handleStart}
           className="flex items-center gap-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-serif font-bold px-6 py-2.5 rounded-2xl text-sm shadow-xl shadow-amber-500/20 transition-all hover:scale-105"
         >
-          <span>Begin Life as {firstName} {lastName}</span>
+          <span>Begin Life as {firstName} {lastName} ({startingAge === 0 ? 'Infant' : `Age ${startingAge}`})</span>
           <ArrowRight className="w-4 h-4" />
         </button>
       </div>

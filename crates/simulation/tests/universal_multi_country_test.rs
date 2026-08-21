@@ -18,6 +18,7 @@ fn test_universal_life_a_lagos_nigeria() {
         skills: HashMap::new(),
         interests: vec!["academics".to_string()],
         goals: vec!["advancement".to_string()],
+        ..Default::default()
     };
 
     let mut engine = SimulationEngine::new_game(config, 401);
@@ -52,6 +53,7 @@ fn test_universal_life_b_glasgow_scotland() {
         skills: HashMap::new(),
         interests: vec!["sports".to_string(), "engineering".to_string()],
         goals: vec!["university".to_string()],
+        ..Default::default()
     };
 
     let mut engine = SimulationEngine::new_game(config, 402);
@@ -86,6 +88,7 @@ fn test_universal_life_c_san_francisco_usa() {
         skills: HashMap::new(),
         interests: vec!["technology".to_string()],
         goals: vec!["innovation".to_string()],
+        ..Default::default()
     };
 
     let mut engine = SimulationEngine::new_game(config, 403);

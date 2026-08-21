@@ -17,6 +17,7 @@ fn create_phase2_abuja_life(starting_age: u32) -> SimulationEngine {
         skills: HashMap::new(),
         interests: vec!["academics".to_string(), "technology".to_string()],
         goals: vec!["excellence".to_string()],
+        ..Default::default()
     };
     SimulationEngine::new_game(config, 200)
 }
