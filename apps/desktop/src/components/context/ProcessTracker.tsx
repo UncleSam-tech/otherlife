@@ -6,6 +6,8 @@ export interface ContextProcessDTO {
   title: string;
   progress_percent: number;
   status: string;
+  current_step?: number;
+  total_steps?: number;
 }
 
 interface ProcessTrackerProps {

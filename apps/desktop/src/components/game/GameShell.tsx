@@ -1,16 +1,20 @@
 import React, { useState } from 'react';
-import { LifeHeader } from './LifeHeader';
-import { LifeNavigation, NavLens } from '../navigation/LifeNavigation';
-import { WorldStage } from '../world/WorldStage';
-import { ContextPanel, LivingStateDTO } from '../context/ContextPanel';
-import { IntentionComposer } from '../interaction/IntentionComposer';
+import { PersistentWorldBar } from './PersistentWorldBar';
+import { ExpandableNavigation } from '../navigation/ExpandableNavigation';
+import { NavLens } from '../navigation/LifeNavigation';
+import { SceneWorkspace } from '../world/SceneWorkspace';
+import { DismissibleContextDrawer, ContextDrawerItem } from '../context/DismissibleContextDrawer';
+import { ConversationModal } from '../characters/ConversationModal';
+import { CalendarModal } from '../calendar/CalendarModal';
+import { SimulatedPhoneModal } from '../devices/SimulatedPhoneModal';
+import { SimulatedComputerModal } from '../devices/SimulatedComputerModal';
 import { DiegeticDeviceModal } from '../devices/DiegeticDeviceModal';
 import { MemoryTimeline } from '../context/MemoryTimeline';
 import { TodaySceneDTO, LastStepResultDTO } from '../world/SceneRenderer';
 import { ContextNpcDTO } from '../characters/NPCDisplay';
 import { ContextProcessDTO } from '../context/ProcessTracker';
-import { PersonInteractionModal } from '../characters/PersonInteractionModal';
-import { PlaceInteractionModal, PlaceLocationDTO } from '../world/PlaceInteractionModal';
+import { PlaceLocationDTO } from '../world/PlaceInteractionModal';
+import { LivingStateDTO } from '../context/ContextPanel';
 import { Feather, Mail, Globe, Send } from 'lucide-react';
 
 interface GameShellProps {
@@ -18,15 +22,15 @@ interface GameShellProps {
   todayScene: TodaySceneDTO | null;
   lastStepResult: LastStepResultDTO | null;
   npcs: ContextNpcDTO[];
-  processes: ContextProcessDTO[];
+  processes?: ContextProcessDTO[];
   biographyText: string;
   activeLens: NavLens;
   onSelectLens: (lens: NavLens) => void;
   onSubmitIntent: (intentText: string) => void;
   isLoading: boolean;
   onReturnToMainMenu: () => void;
-  devMode: boolean;
-  onToggleDevMode: () => void;
+  devMode?: boolean;
+  onToggleDevMode?: () => void;
 }
 
 export const GameShell: React.FC<GameShellProps> = ({
@@ -34,20 +38,25 @@ export const GameShell: React.FC<GameShellProps> = ({
   todayScene,
   lastStepResult,
   npcs,
-  processes,
+  processes: _processes,
   biographyText,
   activeLens,
   onSelectLens,
   onSubmitIntent,
   isLoading,
   onReturnToMainMenu,
-  devMode,
-  onToggleDevMode,
+  devMode: _devMode,
+  onToggleDevMode: _onToggleDevMode,
 }) => {
   const playerAge = livingState?.age || 0;
-  const [selectedNpc, setSelectedNpc] = useState<ContextNpcDTO | null>(null);
-  const [selectedPlace, setSelectedPlace] = useState<PlaceLocationDTO | null>(null);
-  const [activeDevice, setActiveDevice] = useState<'phone' | 'computer' | 'wallet' | 'documents' | 'mail' | null>(null);
+
+  // Modals & Drawers State
+  const [drawerItem, setDrawerItem] = useState<ContextDrawerItem>(null);
+  const [conversationNpc, setConversationNpc] = useState<ContextNpcDTO | null>(null);
+  const [isCalendarOpen, setIsCalendarOpen] = useState(false);
+  const [isPhoneOpen, setIsPhoneOpen] = useState(false);
+  const [isComputerOpen, setIsComputerOpen] = useState(false);
+  const [activeDeviceType, setActiveDeviceType] = useState<'phone' | 'computer' | 'wallet' | 'documents' | 'mail' | null>(null);
 
   const getPlacesForAge = (): PlaceLocationDTO[] => {
     if (playerAge < 4) {
@@ -78,7 +87,7 @@ export const GameShell: React.FC<GameShellProps> = ({
           id: 'place_school',
           name: 'District Primary School',
           category: 'Primary Education',
-          desc: 'Classrooms with green chalkboards where foundational arithmetic, reading, and discipline are taught.',
+          desc: 'Classrooms where foundational arithmetic, reading, and science are taught.',
           actions: [
             { id: 'school_study', title: 'Attend Arithmetic & Reading Classes', desc: 'Work through problem sets with the class.', intent: 'I spend the afternoon doing arithmetic exercises and reading my schoolbooks carefully.' },
             { id: 'school_club', title: 'Participate in Science & Debate Club', desc: 'Engage with fellow curious students.', intent: 'I attend the school Science and Debate Club to learn with fellow curious students.' },
@@ -142,257 +151,294 @@ export const GameShell: React.FC<GameShellProps> = ({
   };
 
   const currentPlaces = getPlacesForAge();
-  const suggestions = todayScene?.subtle_details || [
-    playerAge < 4 ? 'Cuddle close to your mother on the sofa' : playerAge < 13 ? 'Complete arithmetic homework at the desk' : 'Study past national examination papers',
-    playerAge < 4 ? 'Try to stand and take first steps' : 'Spend time with family and discuss goals',
-    'Rest and restore energy peacefully',
-  ];
+
+  const handleSelectObject = (objName: string) => {
+    const lower = objName.toLowerCase();
+    if (lower.includes('phone') || lower.includes('mobile')) {
+      setIsPhoneOpen(true);
+    } else if (lower.includes('computer') || lower.includes('laptop') || lower.includes('pc')) {
+      setIsComputerOpen(true);
+    } else {
+      setDrawerItem({
+        type: 'object',
+        data: {
+          name: objName,
+          description: `An environmental object in the room: ${objName}.`,
+          possibleActions: [
+            `I inspect and examine the ${objName} closely.`,
+            `I tidy up and arrange the ${objName} carefully.`,
+          ],
+        },
+      });
+    }
+  };
 
   return (
     <div className="flex flex-col h-screen w-screen bg-[#07090e] text-slate-100 overflow-hidden font-sans select-none">
-      {/* 1. Life Header */}
-      <LifeHeader
-        playerName={livingState?.player_name || 'Living Person'}
-        age={playerAge}
-        lifeStage={livingState?.life_stage || 'Infancy'}
-        timeFormatted={livingState?.time_formatted || ''}
+      {/* 1. Persistent World Bar */}
+      <PersistentWorldBar
+        characterName={livingState?.player_name || 'Living Person'}
+        dateTimeFormatted={livingState?.time_formatted || ''}
         locationFormatted={livingState?.location_formatted || 'Living World'}
         weatherName={livingState?.weather_name || 'Seasonal Weather'}
-        currencySymbol={livingState?.currency_symbol || '₦'}
-        cash={livingState?.cash || 0}
-        onReturnToMainMenu={onReturnToMainMenu}
-        devMode={devMode}
-        onToggleDevMode={onToggleDevMode}
+        unreadNotificationsCount={0}
+        playerAge={playerAge}
+        onOpenCalendar={() => setIsCalendarOpen(true)}
+        onOpenPhone={() => setIsPhoneOpen(true)}
+        onOpenMessages={() => onSelectLens('messages')}
+        onOpenDocuments={() => setActiveDeviceType('documents')}
+        onOpenMenu={onReturnToMainMenu}
       />
 
-      {/* 2. Middle Body: 3-Column Living World Layout */}
+      {/* 2. Middle Body: Expandable Navigation + Scene Workspace */}
       <div className="flex flex-1 overflow-hidden relative">
-        {/* Left Column: Permanent Life Lenses */}
-        <LifeNavigation
+        {/* Compact Expandable Navigation Rail */}
+        <ExpandableNavigation
           activeLens={activeLens}
           onSelectLens={onSelectLens}
+          unreadCount={0}
         />
 
-        {/* Center Stage: Active Lens Content */}
-        <div className="flex-1 flex flex-col overflow-hidden relative bg-[#0a0c12]">
-          {activeLens === 'life' && (
-            <div className="flex-1 flex flex-col overflow-hidden">
-              <WorldStage
-                scene={todayScene}
-                lastStepResult={lastStepResult}
-                weatherName={livingState?.weather_name || 'Seasonal Weather'}
-              />
-              {/* Scene-First Natural Intention Composer */}
-              <IntentionComposer
-                playerAge={playerAge}
-                suggestions={suggestions}
-                onSubmitIntent={onSubmitIntent}
-                onOpenDevice={(dev) => setActiveDevice(dev)}
-                isLoading={isLoading}
-              />
+        {/* Central Workspace */}
+        {activeLens === 'life' && (
+          <SceneWorkspace
+            scene={todayScene}
+            lastStepResult={lastStepResult}
+            presentNpcs={npcs}
+            playerAge={playerAge}
+            weatherName={livingState?.weather_name || 'Seasonal Weather'}
+            onSelectNpc={(npc) => setDrawerItem({ type: 'npc', data: npc })}
+            onSelectObject={handleSelectObject}
+            onSubmitIntent={onSubmitIntent}
+            onOpenDevice={(dev) => {
+              if (dev === 'phone') setIsPhoneOpen(true);
+              else if (dev === 'computer') setIsComputerOpen(true);
+              else setActiveDeviceType(dev);
+            }}
+            isLoading={isLoading}
+          />
+        )}
+
+        {activeLens === 'people' && (
+          <main className="flex-1 overflow-y-auto bg-[#07090e] p-8 max-w-4xl mx-auto space-y-6 select-text">
+            <div className="flex items-center justify-between border-b border-[#1c2130] pb-4">
+              <div>
+                <h2 className="text-2xl font-serif font-bold text-slate-100">People & Bonds</h2>
+                <p className="text-xs font-serif italic text-amber-300/80">Click any person to converse or view relationship details</p>
+              </div>
             </div>
-          )}
 
-          {activeLens === 'people' && (
-            <main className="flex-1 overflow-y-auto bg-[#0a0c12] p-8 max-w-4xl mx-auto space-y-6 select-text">
-              <div className="flex items-center justify-between border-b border-[#1c2130] pb-4">
-                <div>
-                  <h2 className="text-2xl font-serif font-bold text-slate-100">People & Bonds</h2>
-                  <p className="text-xs font-serif italic text-amber-300/80">Click any person to converse, ask for support, or interact</p>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {npcs.map((npc) => (
-                  <div
-                    key={npc.id}
-                    onClick={() => setSelectedNpc(npc)}
-                    className="bg-[#121622] hover:bg-[#161c2b] border border-[#20273a] hover:border-amber-500/50 p-5 rounded-2xl cursor-pointer space-y-2.5 transition-all duration-200 shadow-sm group"
-                  >
-                    <div className="flex justify-between items-baseline">
-                      <h4 className="font-serif font-bold text-slate-100 text-base group-hover:text-amber-200">{npc.name}</h4>
-                      <span className="text-xs font-serif italic text-amber-300/90">{npc.relationship_type}</span>
-                    </div>
-                    <p className="text-xs text-slate-300 font-sans">
-                      <span className="text-slate-500 font-serif">Currently: </span>
-                      {npc.current_activity}
-                    </p>
-                    <div className="pt-2 border-t border-[#1c2234] text-[11px] text-amber-400/80 font-serif italic flex justify-between items-center">
-                      <span>Click to interact</span>
-                      <span className="text-slate-500">{npc.trust_description}</span>
-                    </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {npcs.map((npc) => (
+                <div
+                  key={npc.id}
+                  onClick={() => setDrawerItem({ type: 'npc', data: npc })}
+                  className="bg-[#0d1017] hover:bg-[#131722] border border-[#1b2234] hover:border-amber-500/50 p-5 rounded-2xl cursor-pointer space-y-2.5 transition-all shadow-sm group"
+                >
+                  <div className="flex justify-between items-baseline">
+                    <h4 className="font-serif font-bold text-slate-100 text-base group-hover:text-amber-200">{npc.name}</h4>
+                    <span className="text-xs font-serif italic text-amber-300/90">{npc.relationship_type}</span>
                   </div>
-                ))}
-              </div>
-            </main>
-          )}
-
-          {activeLens === 'journal' && (
-            <MemoryTimeline
-              timeFormatted={livingState?.time_formatted || ''}
-              headline={todayScene?.headline}
-              narrative={todayScene?.narrative}
-            />
-          )}
-
-          {activeLens === 'biography' && (
-            <main className="flex-1 overflow-y-auto bg-[#0a0c12] p-8 max-w-4xl mx-auto space-y-6 select-text">
-              <div className="bg-[#121622] border border-[#20273a] rounded-2xl p-8 space-y-6 shadow-md">
-                <div className="flex items-center gap-3 border-b border-[#1c2130] pb-4">
-                  <Feather className="w-6 h-6 text-amber-400" />
-                  <div>
-                    <h2 className="text-2xl font-serif font-bold text-slate-100">My Story</h2>
-                    <p className="text-xs font-serif italic text-amber-300/80">Autobiographical reflections on the path traveled</p>
+                  <p className="text-xs text-slate-300 font-sans">
+                    <span className="text-slate-500 font-serif">Currently: </span>
+                    {npc.current_activity}
+                  </p>
+                  <div className="pt-2 border-t border-[#1c2234] text-[11px] text-amber-400/80 font-serif italic flex justify-between items-center">
+                    <span>Click to inspect & converse</span>
+                    <span className="text-slate-500">{npc.trust_description}</span>
                   </div>
                 </div>
-                <div className="prose prose-invert max-w-none text-slate-200 font-serif text-lg leading-relaxed whitespace-pre-wrap">
-                  {biographyText || 'The first chapters of life are still unfolding...'}
-                </div>
-              </div>
-            </main>
-          )}
+              ))}
+            </div>
+          </main>
+        )}
 
-          {activeLens === 'places' && (
-            <main className="flex-1 overflow-y-auto bg-[#0a0c12] p-8 max-w-4xl mx-auto space-y-6 select-text">
-              <div className="flex items-center justify-between border-b border-[#1c2130] pb-4">
-                <div>
-                  <h2 className="text-2xl font-serif font-bold text-slate-100">Places & Horizon</h2>
-                  <p className="text-xs font-serif italic text-amber-300/80">Click any location to visit and take direct action</p>
-                </div>
+        {activeLens === 'places' && (
+          <main className="flex-1 overflow-y-auto bg-[#07090e] p-8 max-w-4xl mx-auto space-y-6 select-text">
+            <div className="flex items-center justify-between border-b border-[#1c2130] pb-4">
+              <div>
+                <h2 className="text-2xl font-serif font-bold text-slate-100">Places & Horizon</h2>
+                <p className="text-xs font-serif italic text-amber-300/80">Click any location to inspect opportunities and actions</p>
               </div>
+            </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {currentPlaces.map((pl) => (
-                  <div
-                    key={pl.id}
-                    onClick={() => setSelectedPlace(pl)}
-                    className="bg-[#121622] hover:bg-[#161c2b] border border-[#20273a] hover:border-amber-500/50 p-5 rounded-2xl cursor-pointer space-y-2.5 transition-all duration-200 shadow-sm group"
-                  >
-                    <div className="flex items-center justify-between">
-                      <h3 className="font-serif font-bold text-slate-100 text-base group-hover:text-amber-200">{pl.name}</h3>
-                      <Send className="w-3.5 h-3.5 text-slate-600 group-hover:text-amber-400 group-hover:translate-x-0.5 transition-all" />
-                    </div>
-                    <p className="text-[10px] text-amber-300/80 font-mono uppercase">{pl.category}</p>
-                    <p className="text-xs text-slate-300 font-serif leading-relaxed">
-                      {pl.desc}
-                    </p>
-                    <div className="pt-2 border-t border-[#1c2234] text-[11px] text-amber-400/80 font-serif italic">
-                      Click to visit ({pl.actions.length} actions available)
-                    </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {currentPlaces.map((pl) => (
+                <div
+                  key={pl.id}
+                  onClick={() => setDrawerItem({ type: 'place', data: pl })}
+                  className="bg-[#0d1017] hover:bg-[#131722] border border-[#1b2234] hover:border-amber-500/50 p-5 rounded-2xl cursor-pointer space-y-2.5 transition-all shadow-sm group"
+                >
+                  <div className="flex items-center justify-between">
+                    <h3 className="font-serif font-bold text-slate-100 text-base group-hover:text-amber-200">{pl.name}</h3>
+                    <Send className="w-3.5 h-3.5 text-slate-600 group-hover:text-amber-400 group-hover:translate-x-0.5 transition-all" />
                   </div>
-                ))}
-              </div>
-            </main>
-          )}
+                  <p className="text-[10px] text-amber-300/80 font-mono uppercase">{pl.category}</p>
+                  <p className="text-xs text-slate-300 font-serif leading-relaxed">{pl.desc}</p>
+                  <div className="pt-2 border-t border-[#1c2234] text-[11px] text-amber-400/80 font-serif italic">
+                    Click to visit ({pl.actions.length} actions available)
+                  </div>
+                </div>
+              ))}
+            </div>
+          </main>
+        )}
 
-          {activeLens === 'messages' && (
-            <main className="flex-1 overflow-y-auto bg-[#0a0c12] p-8 max-w-4xl mx-auto space-y-6 select-text">
+        {activeLens === 'journal' && (
+          <MemoryTimeline
+            timeFormatted={livingState?.time_formatted || ''}
+            headline={todayScene?.headline}
+            narrative={todayScene?.narrative}
+          />
+        )}
+
+        {activeLens === 'biography' && (
+          <main className="flex-1 overflow-y-auto bg-[#07090e] p-8 max-w-3xl mx-auto space-y-6 select-text">
+            <div className="bg-[#0d1017] border border-[#1b2234] rounded-2xl p-8 space-y-6 shadow-md">
               <div className="flex items-center gap-3 border-b border-[#1c2130] pb-4">
-                <Mail className="w-6 h-6 text-amber-400" />
+                <Feather className="w-6 h-6 text-amber-400" />
                 <div>
-                  <h2 className="text-2xl font-serif font-bold text-slate-100">Letters & Notices</h2>
-                  <p className="text-xs font-serif italic text-amber-300/80">Official correspondence, certifications, and personal notes</p>
+                  <h2 className="text-2xl font-serif font-bold text-slate-100">My Story</h2>
+                  <p className="text-xs font-serif italic text-amber-300/80">Reflections on the lived path</p>
                 </div>
               </div>
-              <div className="space-y-4">
-                {playerAge < 4 ? (
-                  <div className="bg-[#121622] border border-[#20273a] rounded-2xl p-6 space-y-3 shadow-sm">
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <h3 className="font-serif font-bold text-slate-100 text-base">Civic Registry of Births</h3>
-                        <p className="text-xs text-amber-300/80 font-mono">OFFICIAL BIRTH RECORD</p>
-                      </div>
-                      <span className="text-xs bg-amber-500/10 text-amber-300 px-3 py-1 rounded-full border border-amber-500/20 font-serif">
-                        Certificate
-                      </span>
-                    </div>
-                    <p className="text-sm text-slate-200 font-serif leading-relaxed italic">
-                      "Birth officially registered in the civic registry. Welcome to the living world."
-                    </p>
-                  </div>
-                ) : (
-                  <div className="bg-[#121622] border border-[#20273a] rounded-2xl p-6 space-y-3 shadow-sm">
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <h3 className="font-serif font-bold text-slate-100 text-base">National Examination Registry</h3>
-                        <p className="text-xs text-amber-300/80 font-mono">OFFICIAL ADMISSIONS ENTRY</p>
-                      </div>
-                      <span className="text-xs bg-amber-500/10 text-amber-300 px-3 py-1 rounded-full border border-amber-500/20 font-serif">
-                        Official
-                      </span>
-                    </div>
-                    <p className="text-sm text-slate-200 font-serif leading-relaxed italic">
-                      "Candidate registration portal is open for students preparing for higher certifications."
-                    </p>
-                  </div>
-                )}
+              <div className="prose prose-invert max-w-none text-slate-200 font-serif text-base md:text-lg leading-relaxed whitespace-pre-wrap">
+                {biographyText || 'The first chapters of life are still unfolding...'}
               </div>
-            </main>
-          )}
+            </div>
+          </main>
+        )}
 
-          {activeLens === 'world' && (
-            <main className="flex-1 overflow-y-auto bg-[#0a0c12] p-8 max-w-4xl mx-auto space-y-6 select-text">
-              <div className="flex items-center gap-3 border-b border-[#1c2130] pb-4">
-                <Globe className="w-6 h-6 text-amber-400" />
-                <div>
-                  <h2 className="text-2xl font-serif font-bold text-slate-100">Surrounding World & Era</h2>
-                  <p className="text-xs font-serif italic text-amber-300/80">Climate, regional setting, and historical background</p>
-                </div>
+        {activeLens === 'messages' && (
+          <main className="flex-1 overflow-y-auto bg-[#07090e] p-8 max-w-3xl mx-auto space-y-6 select-text">
+            <div className="flex items-center gap-3 border-b border-[#1c2130] pb-4">
+              <Mail className="w-6 h-6 text-amber-400" />
+              <div>
+                <h2 className="text-2xl font-serif font-bold text-slate-100">Letters & Notices</h2>
+                <p className="text-xs font-serif italic text-amber-300/80">Official correspondence and notices</p>
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="bg-[#121622] border border-[#20273a] rounded-2xl p-5 space-y-2 shadow-sm">
-                  <p className="text-xs font-mono uppercase tracking-wider text-slate-500">Geographic Setting</p>
-                  <p className="text-sm text-slate-200 font-serif leading-relaxed">
-                    Located in {livingState?.location_formatted}. Daily rhythms balance family life, school terms, and community activities.
+            </div>
+            <div className="space-y-4">
+              {playerAge < 4 ? (
+                <div className="bg-[#0d1017] border border-[#1b2234] rounded-2xl p-6 space-y-3 shadow-sm">
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <h3 className="font-serif font-bold text-slate-100 text-base">Civic Registry of Births</h3>
+                      <p className="text-xs text-amber-300/80 font-mono">OFFICIAL BIRTH RECORD</p>
+                    </div>
+                    <span className="text-xs bg-amber-500/10 text-amber-300 px-3 py-1 rounded-full border border-amber-500/20 font-serif">
+                      Certificate
+                    </span>
+                  </div>
+                  <p className="text-sm text-slate-200 font-serif leading-relaxed italic">
+                    "Birth officially registered in the civic registry. Welcome to the living world."
                   </p>
                 </div>
-                <div className="bg-[#121622] border border-[#20273a] rounded-2xl p-5 space-y-2 shadow-sm">
-                  <p className="text-xs font-mono uppercase tracking-wider text-slate-500">Living Environment</p>
-                  <p className="text-sm text-slate-200 font-serif leading-relaxed">
-                    A vibrant urban environment where discipline, curiosity, and family support shape long-term opportunities.
+              ) : (
+                <div className="bg-[#0d1017] border border-[#1b2234] rounded-2xl p-6 space-y-3 shadow-sm">
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <h3 className="font-serif font-bold text-slate-100 text-base">National Examination Registry</h3>
+                      <p className="text-xs text-amber-300/80 font-mono">OFFICIAL ADMISSIONS ENTRY</p>
+                    </div>
+                    <span className="text-xs bg-amber-500/10 text-amber-300 px-3 py-1 rounded-full border border-amber-500/20 font-serif">
+                      Official
+                    </span>
+                  </div>
+                  <p className="text-sm text-slate-200 font-serif leading-relaxed italic">
+                    "Candidate registration portal is open for students preparing for higher certifications."
                   </p>
                 </div>
-              </div>
-            </main>
-          )}
-        </div>
+              )}
+            </div>
+          </main>
+        )}
 
-        {/* Right Column: Context Panel */}
-        <ContextPanel
-          state={livingState}
-          npcs={npcs}
-          processes={processes}
-          onSelectNpc={(npc) => setSelectedNpc(npc)}
-        />
+        {activeLens === 'world' && (
+          <main className="flex-1 overflow-y-auto bg-[#07090e] p-8 max-w-3xl mx-auto space-y-6 select-text">
+            <div className="flex items-center gap-3 border-b border-[#1c2130] pb-4">
+              <Globe className="w-6 h-6 text-amber-400" />
+              <div>
+                <h2 className="text-2xl font-serif font-bold text-slate-100">Surrounding World & Era</h2>
+                <p className="text-xs font-serif italic text-amber-300/80">Regional setting and climate</p>
+              </div>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="bg-[#0d1017] border border-[#1b2234] rounded-2xl p-5 space-y-2 shadow-sm">
+                <p className="text-xs font-mono uppercase tracking-wider text-slate-500">Geographic Setting</p>
+                <p className="text-sm text-slate-200 font-serif leading-relaxed">
+                  Located in {livingState?.location_formatted}. Daily rhythms balance family life, school terms, and community activities.
+                </p>
+              </div>
+              <div className="bg-[#0d1017] border border-[#1b2234] rounded-2xl p-5 space-y-2 shadow-sm">
+                <p className="text-xs font-mono uppercase tracking-wider text-slate-500">Living Environment</p>
+                <p className="text-sm text-slate-200 font-serif leading-relaxed">
+                  A vibrant urban environment where discipline, curiosity, and family support shape long-term opportunities.
+                </p>
+              </div>
+            </div>
+          </main>
+        )}
       </div>
 
-      {/* Person Interaction Modal */}
-      {selectedNpc && (
-        <PersonInteractionModal
-          npc={selectedNpc}
+      {/* 3. Dismissible Context Drawer */}
+      <DismissibleContextDrawer
+        item={drawerItem}
+        onClose={() => setDrawerItem(null)}
+        onExecuteAction={onSubmitIntent}
+        onOpenConversation={(npc) => setConversationNpc(npc)}
+        isLoading={isLoading}
+      />
+
+      {/* 4. In-Depth Conversation Modal */}
+      {conversationNpc && (
+        <ConversationModal
+          npc={conversationNpc}
+          onClose={() => setConversationNpc(null)}
+          onSendMessage={onSubmitIntent}
+          isLoading={isLoading}
+        />
+      )}
+
+      {/* 5. In-World Calendar Modal */}
+      {isCalendarOpen && (
+        <CalendarModal
+          timeFormatted={livingState?.time_formatted || ''}
           playerAge={playerAge}
-          onClose={() => setSelectedNpc(null)}
+          onClose={() => setIsCalendarOpen(false)}
+          onAdvanceTime={onSubmitIntent}
+          isLoading={isLoading}
+        />
+      )}
+
+      {/* 6. In-World Smartphone Modal */}
+      {isPhoneOpen && (
+        <SimulatedPhoneModal
+          onClose={() => setIsPhoneOpen(false)}
+          playerAge={playerAge}
+          cash={livingState?.cash || 0}
+          currencySymbol={livingState?.currency_symbol || '₦'}
+          npcs={npcs}
           onExecuteAction={onSubmitIntent}
           isLoading={isLoading}
         />
       )}
 
-      {/* Place Interaction Modal */}
-      {selectedPlace && (
-        <PlaceInteractionModal
-          place={selectedPlace}
-          onClose={() => setSelectedPlace(null)}
+      {/* 7. In-World Computer Modal */}
+      {isComputerOpen && (
+        <SimulatedComputerModal
+          onClose={() => setIsComputerOpen(false)}
+          playerAge={playerAge}
           onExecuteAction={onSubmitIntent}
           isLoading={isLoading}
         />
       )}
 
-      {/* Diegetic Device Modal */}
-      {activeDevice && (
+      {/* 8. Additional Diegetic Device Modal (Wallet / Documents) */}
+      {activeDeviceType && (
         <DiegeticDeviceModal
-          deviceType={activeDevice}
-          onClose={() => setActiveDevice(null)}
-          playerAge={playerAge}
+          deviceType={activeDeviceType}
+          onClose={() => setActiveDeviceType(null)}
           cash={livingState?.cash || 0}
           currencySymbol={livingState?.currency_symbol || '₦'}
           onExecuteAction={onSubmitIntent}
