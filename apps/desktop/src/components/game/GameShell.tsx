@@ -8,6 +8,7 @@ import { ConversationModal } from '../characters/ConversationModal';
 import { CalendarModal } from '../calendar/CalendarModal';
 import { SimulatedPhoneModal } from '../devices/SimulatedPhoneModal';
 import { SimulatedComputerModal } from '../devices/SimulatedComputerModal';
+import { DocumentViewerModal, DocumentDTO } from '../documents/DocumentViewerModal';
 import { DiegeticDeviceModal } from '../devices/DiegeticDeviceModal';
 import { MemoryTimeline } from '../context/MemoryTimeline';
 import { TodaySceneDTO, LastStepResultDTO } from '../world/SceneRenderer';
@@ -15,18 +16,20 @@ import { ContextNpcDTO } from '../characters/NPCDisplay';
 import { ContextProcessDTO } from '../context/ProcessTracker';
 import { PlaceLocationDTO } from '../world/PlaceInteractionModal';
 import { LivingStateDTO } from '../context/ContextPanel';
-import { Feather, Mail, Globe, Send } from 'lucide-react';
+import { Feather, Mail, Globe, Send, FileText } from 'lucide-react';
 
 interface GameShellProps {
   livingState: LivingStateDTO | null;
   todayScene: TodaySceneDTO | null;
   lastStepResult: LastStepResultDTO | null;
   npcs: ContextNpcDTO[];
+  documents: DocumentDTO[];
   processes?: ContextProcessDTO[];
   biographyText: string;
   activeLens: NavLens;
   onSelectLens: (lens: NavLens) => void;
   onSubmitIntent: (intentText: string) => void;
+  onAdvanceExplicit?: (actionType: 'HOURS' | 'DAYS' | 'SLEEP' | 'ROUTINE', amount?: number) => void;
   isLoading: boolean;
   onReturnToMainMenu: () => void;
   devMode?: boolean;
@@ -38,11 +41,13 @@ export const GameShell: React.FC<GameShellProps> = ({
   todayScene,
   lastStepResult,
   npcs,
+  documents,
   processes: _processes,
   biographyText,
   activeLens,
   onSelectLens,
   onSubmitIntent,
+  onAdvanceExplicit,
   isLoading,
   onReturnToMainMenu,
   devMode: _devMode,
@@ -56,6 +61,7 @@ export const GameShell: React.FC<GameShellProps> = ({
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
   const [isPhoneOpen, setIsPhoneOpen] = useState(false);
   const [isComputerOpen, setIsComputerOpen] = useState(false);
+  const [isDocumentsOpen, setIsDocumentsOpen] = useState(false);
   const [activeDeviceType, setActiveDeviceType] = useState<'phone' | 'computer' | 'wallet' | 'documents' | 'mail' | null>(null);
 
   const getPlacesForAge = (): PlaceLocationDTO[] => {
@@ -154,10 +160,12 @@ export const GameShell: React.FC<GameShellProps> = ({
 
   const handleSelectObject = (objName: string) => {
     const lower = objName.toLowerCase();
-    if (lower.includes('phone') || lower.includes('mobile')) {
+    if (lower.includes('phone') || lower.includes('mobile') || lower.includes('smartphone')) {
       setIsPhoneOpen(true);
-    } else if (lower.includes('computer') || lower.includes('laptop') || lower.includes('pc')) {
+    } else if (lower.includes('computer') || lower.includes('laptop') || lower.includes('pc') || lower.includes('desktop')) {
       setIsComputerOpen(true);
+    } else if (lower.includes('certificate') || lower.includes('record') || lower.includes('document')) {
+      setIsDocumentsOpen(true);
     } else {
       setDrawerItem({
         type: 'object',
@@ -186,7 +194,7 @@ export const GameShell: React.FC<GameShellProps> = ({
         onOpenCalendar={() => setIsCalendarOpen(true)}
         onOpenPhone={() => setIsPhoneOpen(true)}
         onOpenMessages={() => onSelectLens('messages')}
-        onOpenDocuments={() => setActiveDeviceType('documents')}
+        onOpenDocuments={() => setIsDocumentsOpen(true)}
         onOpenMenu={onReturnToMainMenu}
       />
 
@@ -213,6 +221,7 @@ export const GameShell: React.FC<GameShellProps> = ({
             onOpenDevice={(dev) => {
               if (dev === 'phone') setIsPhoneOpen(true);
               else if (dev === 'computer') setIsComputerOpen(true);
+              else if (dev === 'documents') setIsDocumentsOpen(true);
               else setActiveDeviceType(dev);
             }}
             isLoading={isLoading}
@@ -311,45 +320,44 @@ export const GameShell: React.FC<GameShellProps> = ({
 
         {activeLens === 'messages' && (
           <main className="flex-1 overflow-y-auto bg-[#07090e] p-8 max-w-3xl mx-auto space-y-6 select-text">
-            <div className="flex items-center gap-3 border-b border-[#1c2130] pb-4">
-              <Mail className="w-6 h-6 text-amber-400" />
-              <div>
-                <h2 className="text-2xl font-serif font-bold text-slate-100">Letters & Notices</h2>
-                <p className="text-xs font-serif italic text-amber-300/80">Official correspondence and notices</p>
+            <div className="flex items-center justify-between border-b border-[#1c2130] pb-4">
+              <div className="flex items-center gap-3">
+                <Mail className="w-6 h-6 text-amber-400" />
+                <div>
+                  <h2 className="text-2xl font-serif font-bold text-slate-100">Letters & Official Documents</h2>
+                  <p className="text-xs font-serif italic text-amber-300/80">Official records, birth certificates, and notices</p>
+                </div>
               </div>
+              <button
+                type="button"
+                onClick={() => setIsDocumentsOpen(true)}
+                className="flex items-center gap-2 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 px-3.5 py-1.5 rounded-xl text-xs font-serif transition-colors cursor-pointer"
+              >
+                <FileText className="w-4 h-4" />
+                <span>Inspect Certificates</span>
+              </button>
             </div>
             <div className="space-y-4">
-              {playerAge < 4 ? (
-                <div className="bg-[#0d1017] border border-[#1b2234] rounded-2xl p-6 space-y-3 shadow-sm">
+              {documents.map((doc) => (
+                <div
+                  key={doc.id}
+                  onClick={() => setIsDocumentsOpen(true)}
+                  className="bg-[#0d1017] hover:bg-[#131722] border border-[#1b2234] hover:border-amber-500/40 rounded-2xl p-6 space-y-3 shadow-sm cursor-pointer transition-colors"
+                >
                   <div className="flex justify-between items-start">
                     <div>
-                      <h3 className="font-serif font-bold text-slate-100 text-base">Civic Registry of Births</h3>
-                      <p className="text-xs text-amber-300/80 font-mono">OFFICIAL BIRTH RECORD</p>
+                      <h3 className="font-serif font-bold text-slate-100 text-base">{doc.title}</h3>
+                      <p className="text-xs text-amber-300/80 font-mono uppercase">{doc.issuing_authority}</p>
                     </div>
                     <span className="text-xs bg-amber-500/10 text-amber-300 px-3 py-1 rounded-full border border-amber-500/20 font-serif">
-                      Certificate
+                      Reg: {doc.registration_number}
                     </span>
                   </div>
-                  <p className="text-sm text-slate-200 font-serif leading-relaxed italic">
-                    "Birth officially registered in the civic registry. Welcome to the living world."
+                  <p className="text-xs text-slate-300 font-serif leading-relaxed italic">
+                    Click to view full verified registry record issued on {doc.issue_date}.
                   </p>
                 </div>
-              ) : (
-                <div className="bg-[#0d1017] border border-[#1b2234] rounded-2xl p-6 space-y-3 shadow-sm">
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <h3 className="font-serif font-bold text-slate-100 text-base">National Examination Registry</h3>
-                      <p className="text-xs text-amber-300/80 font-mono">OFFICIAL ADMISSIONS ENTRY</p>
-                    </div>
-                    <span className="text-xs bg-amber-500/10 text-amber-300 px-3 py-1 rounded-full border border-amber-500/20 font-serif">
-                      Official
-                    </span>
-                  </div>
-                  <p className="text-sm text-slate-200 font-serif leading-relaxed italic">
-                    "Candidate registration portal is open for students preparing for higher certifications."
-                  </p>
-                </div>
-              )}
+              ))}
             </div>
           </main>
         )}
@@ -360,20 +368,20 @@ export const GameShell: React.FC<GameShellProps> = ({
               <Globe className="w-6 h-6 text-amber-400" />
               <div>
                 <h2 className="text-2xl font-serif font-bold text-slate-100">Surrounding World & Era</h2>
-                <p className="text-xs font-serif italic text-amber-300/80">Regional setting and climate</p>
+                <p className="text-xs font-serif italic text-amber-300/80">Regional setting and institutions</p>
               </div>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="bg-[#0d1017] border border-[#1b2234] rounded-2xl p-5 space-y-2 shadow-sm">
                 <p className="text-xs font-mono uppercase tracking-wider text-slate-500">Geographic Setting</p>
                 <p className="text-sm text-slate-200 font-serif leading-relaxed">
-                  Located in {livingState?.location_formatted}. Daily rhythms balance family life, school terms, and community activities.
+                  Currently residing in {livingState?.location_formatted}. Daily life balances family commitments, education, and career development.
                 </p>
               </div>
               <div className="bg-[#0d1017] border border-[#1b2234] rounded-2xl p-5 space-y-2 shadow-sm">
                 <p className="text-xs font-mono uppercase tracking-wider text-slate-500">Living Environment</p>
                 <p className="text-sm text-slate-200 font-serif leading-relaxed">
-                  A vibrant urban environment where discipline, curiosity, and family support shape long-term opportunities.
+                  A dynamic urban landscape where education, discipline, and community bonds open long-term opportunities.
                 </p>
               </div>
             </div>
@@ -407,6 +415,7 @@ export const GameShell: React.FC<GameShellProps> = ({
           playerAge={playerAge}
           onClose={() => setIsCalendarOpen(false)}
           onAdvanceTime={onSubmitIntent}
+          onAdvanceExplicit={onAdvanceExplicit}
           isLoading={isLoading}
         />
       )}
@@ -429,12 +438,21 @@ export const GameShell: React.FC<GameShellProps> = ({
         <SimulatedComputerModal
           onClose={() => setIsComputerOpen(false)}
           playerAge={playerAge}
+          currencySymbol={livingState?.currency_symbol || '₦'}
           onExecuteAction={onSubmitIntent}
           isLoading={isLoading}
         />
       )}
 
-      {/* 8. Additional Diegetic Device Modal (Wallet / Documents) */}
+      {/* 8. Inspectable Document Viewer Modal */}
+      {isDocumentsOpen && (
+        <DocumentViewerModal
+          documents={documents}
+          onClose={() => setIsDocumentsOpen(false)}
+        />
+      )}
+
+      {/* 9. Additional Diegetic Device Modal */}
       {activeDeviceType && (
         <DiegeticDeviceModal
           deviceType={activeDeviceType}

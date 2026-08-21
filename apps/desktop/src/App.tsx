@@ -6,6 +6,7 @@ import { LivingStateDTO } from './components/context/ContextPanel';
 import { TodaySceneDTO, LastStepResultDTO } from './components/world/SceneRenderer';
 import { ContextNpcDTO } from './components/characters/NPCDisplay';
 import { ContextProcessDTO } from './components/context/ProcessTracker';
+import { DocumentDTO } from './components/documents/DocumentViewerModal';
 import { NavLens } from './components/navigation/LifeNavigation';
 import { NewLifeCreatorConfig } from './components/creation/LifeCreator';
 import './styles/globals.css';
@@ -33,6 +34,7 @@ export const App: React.FC = () => {
   const [todayScene, setTodayScene] = useState<TodaySceneDTO | null>(null);
   const [npcs, setNpcs] = useState<ContextNpcDTO[]>([]);
   const [processes, setProcesses] = useState<ContextProcessDTO[]>([]);
+  const [documents, setDocuments] = useState<DocumentDTO[]>([]);
   const [lastStepResult, setLastStepResult] = useState<LastStepResultDTO | null>(null);
   const [biographyText, setBiographyText] = useState<string>('');
 
@@ -46,6 +48,11 @@ export const App: React.FC = () => {
     if (bio) setBiographyText(bio);
   };
 
+  const refreshDocuments = async () => {
+    const docs = await callTauriCommand<DocumentDTO[]>('get_documents');
+    if (docs) setDocuments(docs);
+  };
+
   useEffect(() => {
     const initBoot = async () => {
       await refreshSavesList();
@@ -57,7 +64,7 @@ export const App: React.FC = () => {
   const handleStartNewLife = async (config?: NewLifeCreatorConfig) => {
     setIsLoading(true);
     const lifeConfig = config || {
-      creation_mode: 'CUSTOM',
+      creation_mode: 'ORGANIC_BIRTH',
       starting_year: 2005,
       country_id: 'country:real:nigeria',
       location_id: 'city:real:abuja',
@@ -84,6 +91,52 @@ export const App: React.FC = () => {
       setProcesses(res[3]);
       setLastStepResult(null);
       await refreshBiography();
+      await refreshDocuments();
+      await refreshSavesList();
+      setAppMode('PLAYING');
+      setActiveLens('life');
+    }
+    setIsLoading(false);
+  };
+
+  const handleContinueRecentSave = async () => {
+    setIsLoading(true);
+    const res = await callTauriCommand<[LivingStateDTO, TodaySceneDTO, ContextNpcDTO[], ContextProcessDTO[]]>(
+      'continue_recent_save'
+    );
+
+    if (res) {
+      setLivingState(res[0]);
+      setTodayScene(res[1]);
+      setNpcs(res[2]);
+      setProcesses(res[3]);
+      setLastStepResult(null);
+      await refreshBiography();
+      await refreshDocuments();
+      setAppMode('PLAYING');
+      setActiveLens('life');
+    } else {
+      // If no save file found, start fresh life
+      await handleStartNewLife();
+    }
+    setIsLoading(false);
+  };
+
+  const handleLoadSave = async (filename: string) => {
+    setIsLoading(true);
+    const res = await callTauriCommand<[LivingStateDTO, TodaySceneDTO, ContextNpcDTO[], ContextProcessDTO[]]>(
+      'load_game',
+      { filename }
+    );
+
+    if (res) {
+      setLivingState(res[0]);
+      setTodayScene(res[1]);
+      setNpcs(res[2]);
+      setProcesses(res[3]);
+      setLastStepResult(null);
+      await refreshBiography();
+      await refreshDocuments();
       setAppMode('PLAYING');
       setActiveLens('life');
     }
@@ -106,13 +159,37 @@ export const App: React.FC = () => {
       setNpcs(res[3]);
       setProcesses(res[4]);
       await refreshBiography();
+      await refreshDocuments();
+      await refreshSavesList();
+    }
+    setIsLoading(false);
+  };
+
+  const handleAdvanceExplicit = async (actionType: 'HOURS' | 'DAYS' | 'SLEEP' | 'ROUTINE', amount?: number) => {
+    if (isLoading) return;
+    setIsLoading(true);
+
+    const res = await callTauriCommand<[LivingStateDTO, LastStepResultDTO, TodaySceneDTO, ContextNpcDTO[], ContextProcessDTO[]]>(
+      'advance_time_explicit',
+      { actionType, amount }
+    );
+
+    if (res) {
+      setLivingState(res[0]);
+      setLastStepResult(res[1]);
+      setTodayScene(res[2]);
+      setNpcs(res[3]);
+      setProcesses(res[4]);
+      await refreshBiography();
+      await refreshDocuments();
+      await refreshSavesList();
     }
     setIsLoading(false);
   };
 
   if (appMode === 'BOOTING') {
     return (
-      <div className="flex items-center justify-center h-screen bg-[#07090e] text-amber-200 font-serif">
+      <div className="flex items-center justify-center h-screen bg-[#07090e] text-amber-200 font-serif select-none">
         <p className="italic text-lg">Opening the book of life...</p>
       </div>
     );
@@ -122,29 +199,37 @@ export const App: React.FC = () => {
     return (
       <MainMenu
         onStartNewLife={(cfg) => handleStartNewLife(cfg)}
-        onContinueRecentSave={() => handleStartNewLife()}
-        onLoadSave={(filename) => console.log('Load save:', filename)}
+        onContinueRecentSave={handleContinueRecentSave}
+        onLoadSave={handleLoadSave}
         onOpenSettings={() => {}}
         saves={savesList}
-        onDeleteSave={async () => { await refreshSavesList(); }}
+        onDeleteSave={async (fname) => {
+          await callTauriCommand('delete_save', { filename: fname });
+          await refreshSavesList();
+        }}
       />
     );
   }
 
   return (
-    <div className="relative w-screen h-screen overflow-hidden">
+    <div className="relative w-screen h-screen overflow-hidden select-none font-sans">
       <GameShell
         livingState={livingState}
         todayScene={todayScene}
         lastStepResult={lastStepResult}
         npcs={npcs}
+        documents={documents}
         processes={processes}
         biographyText={biographyText}
         activeLens={activeLens}
         onSelectLens={setActiveLens}
         onSubmitIntent={handleSubmitIntent}
+        onAdvanceExplicit={handleAdvanceExplicit}
         isLoading={isLoading}
-        onReturnToMainMenu={() => setAppMode('MAIN_MENU')}
+        onReturnToMainMenu={async () => {
+          await refreshSavesList();
+          setAppMode('MAIN_MENU');
+        }}
         devMode={devMode}
         onToggleDevMode={() => setDevMode(!devMode)}
       />

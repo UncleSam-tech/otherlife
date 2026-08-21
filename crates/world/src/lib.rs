@@ -2,21 +2,38 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 // =========================================================================
-// 1. CANONICAL HUMAN & SOCIAL ENTITIES
+// 1. CANONICAL SIMULATION PRIMITIVES & IDENTITY
 // =========================================================================
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct HumanEntity {
-    pub id: String,
-    pub identity: IdentityProfile,
-    pub biology: BiologicalProfile,
-    pub psychology: PsychologicalProfile,
-    pub reputation: ReputationProfile,
-    pub skills: HashMap<String, SkillMastery>,
-    pub resources: HumanResources,
-    pub relationships: HashMap<String, RelationshipVector>,
-    pub occupation: Option<OccupationRecord>,
-    pub is_player: bool,
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub enum LifeStage {
+    Infancy,    // Age 0-3
+    Childhood,  // Age 4-12
+    Adolescence,// Age 13-17
+    YoungAdult, // Age 18-29
+    Adulthood,  // Age 30-59
+    Elderly,    // Age 60+
+}
+
+impl LifeStage {
+    pub fn from_age(age: u32) -> Self {
+        match age {
+            0..=3 => LifeStage::Infancy,
+            4..=12 => LifeStage::Childhood,
+            13..=17 => LifeStage::Adolescence,
+            18..=29 => LifeStage::YoungAdult,
+            30..=59 => LifeStage::Adulthood,
+            _ => LifeStage::Elderly,
+        }
+    }
+
+    pub fn can_work_full_time(&self) -> bool {
+        matches!(self, LifeStage::YoungAdult | LifeStage::Adulthood | LifeStage::Elderly)
+    }
+
+    pub fn can_transact_independent_credit(&self) -> bool {
+        matches!(self, LifeStage::YoungAdult | LifeStage::Adulthood | LifeStage::Elderly)
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -44,15 +61,9 @@ impl IdentityProfile {
         }
         let mut age = (current_year - self.birth_year) as u32;
         if current_month < self.birth_month || (current_month == self.birth_month && current_day < self.birth_day) {
-            if age > 0 {
-                age -= 1;
-            }
+            age = age.saturating_sub(1);
         }
         age
-    }
-
-    pub fn is_birthday(&self, current_month: u32, current_day: u32) -> bool {
-        self.birth_month == current_month && self.birth_day == current_day
     }
 }
 
@@ -61,47 +72,80 @@ pub struct BiologicalProfile {
     pub is_alive: bool,
     pub death_year: Option<i32>,
     pub death_reason: Option<String>,
-    pub health_overall: f32, // 0.0 to 100.0
-    pub fitness: f32,        // 0.0 to 100.0
-    pub energy_level: f32,   // 0.0 to 100.0
+    pub health_overall: f32, // 0-100
+    pub fitness: f32,        // 0-100
+    pub energy_level: f32,   // 0-100
     pub chronic_conditions: Vec<String>,
+}
+
+impl Default for BiologicalProfile {
+    fn default() -> Self {
+        Self {
+            is_alive: true,
+            death_year: None,
+            death_reason: None,
+            health_overall: 95.0,
+            fitness: 50.0,
+            energy_level: 90.0,
+            chronic_conditions: Vec::new(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PsychologicalProfile {
-    pub discipline: f32,     // 0.0 to 1.0
-    pub curiosity: f32,      // 0.0 to 1.0
-    pub creativity: f32,     // 0.0 to 1.0
-    pub confidence: f32,     // 0.0 to 1.0
-    pub risk_tolerance: f32, // 0.0 to 1.0
-    pub stress_level: f32,   // 0.0 to 100.0
-    pub resilience: f32,     // 0.0 to 1.0
+    pub discipline: f32,
+    pub curiosity: f32,
+    pub creativity: f32,
+    pub confidence: f32,
+    pub risk_tolerance: f32,
+    pub stress_level: f32, // 0-100
+    pub resilience: f32,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+impl Default for PsychologicalProfile {
+    fn default() -> Self {
+        Self {
+            discipline: 0.5,
+            curiosity: 0.7,
+            creativity: 0.6,
+            confidence: 0.5,
+            risk_tolerance: 0.4,
+            stress_level: 10.0,
+            resilience: 0.6,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ReputationProfile {
-    pub academic_reputation: f32, // 0.0 to 100.0
-    pub athletic_reputation: f32, // 0.0 to 100.0
-    pub reliability: f32,         // 0.0 to 100.0
-    pub kindness: f32,            // 0.0 to 100.0
-    pub creativity: f32,          // 0.0 to 100.0
-    pub leadership: f32,          // 0.0 to 100.0
+    pub integrity: f32,
+    pub reliability: f32,
+    pub community_respect: f32,
+    pub professional_standing: f32,
+    pub academic_reputation: f32,
+    pub athletic_reputation: f32,
+}
+
+impl Default for ReputationProfile {
+    fn default() -> Self {
+        Self {
+            integrity: 0.8,
+            reliability: 0.75,
+            community_respect: 0.5,
+            professional_standing: 0.1,
+            academic_reputation: 0.5,
+            athletic_reputation: 0.5,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SkillMastery {
-    pub level: f32,            // 0.0 to 100.0
+    pub level: f32, // 0.0 - 100.0
     pub experience: f64,
-    pub natural_affinity: f32, // multiplier
+    pub natural_affinity: f32,
     pub last_practiced_day: i64,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct HumanResources {
-    pub cash: f64,
-    pub household_wealth_tier: WealthTier,
-    pub living_arrangement: String,
-    pub tools_available: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -116,8 +160,8 @@ pub enum WealthTier {
 impl WealthTier {
     pub fn from_str(s: &str) -> Self {
         match s.to_uppercase().as_str() {
-            "POOR" | "POVERTY" => WealthTier::Poverty,
-            "WORKING" | "WORKING_CLASS" => WealthTier::WorkingClass,
+            "POVERTY" | "LOW" => WealthTier::Poverty,
+            "WORKING_CLASS" | "WORKING" => WealthTier::WorkingClass,
             "UPPER_MIDDLE" => WealthTier::UpperMiddle,
             "WEALTHY" | "RICH" => WealthTier::Wealthy,
             _ => WealthTier::MiddleClass,
@@ -125,185 +169,121 @@ impl WealthTier {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub enum LifeStage {
-    Infancy,        // 0 - 3
-    Childhood,      // 4 - 12
-    Adolescence,    // 13 - 17
-    EarlyAdulthood, // 18 - 29
-    Adulthood,      // 30 - 64
-    SeniorYears,    // 65+
-}
-
-impl LifeStage {
-    pub fn from_age(age: u32) -> Self {
-        match age {
-            0..=3 => LifeStage::Infancy,
-            4..=12 => LifeStage::Childhood,
-            13..=17 => LifeStage::Adolescence,
-            18..=29 => LifeStage::EarlyAdulthood,
-            30..=64 => LifeStage::Adulthood,
-            _ => LifeStage::SeniorYears,
-        }
-    }
-
-    pub fn display_name(&self) -> &'static str {
-        match self {
-            LifeStage::Infancy => "Infancy (Ages 0–3)",
-            LifeStage::Childhood => "Childhood (Ages 4–12)",
-            LifeStage::Adolescence => "Adolescence (Ages 13–17)",
-            LifeStage::EarlyAdulthood => "Early Adulthood (Ages 18–29)",
-            LifeStage::Adulthood => "Adulthood (Ages 30–64)",
-            LifeStage::SeniorYears => "Senior Years (Ages 65+)",
-        }
-    }
-
-    pub fn can_work_full_time(&self) -> bool {
-        matches!(self, LifeStage::EarlyAdulthood | LifeStage::Adulthood | LifeStage::SeniorYears)
-    }
-
-    pub fn can_transact_independent_credit(&self) -> bool {
-        matches!(self, LifeStage::EarlyAdulthood | LifeStage::Adulthood | LifeStage::SeniorYears)
-    }
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct HumanResources {
+    pub cash: f64,
+    pub household_wealth_tier: WealthTier,
+    pub living_arrangement: String,
+    pub tools_available: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct OccupationRecord {
-    pub title: String,
-    pub employer_org_id: Option<String>,
-    pub monthly_earnings: f64,
-    pub start_year: i32,
-}
-
-// =========================================================================
-// 2. RELATIONSHIPS & NPCS
-// =========================================================================
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct RelationshipVector {
-    pub source_person_id: String,
-    pub target_person_id: String,
-    pub relationship_type: RelationshipType,
-    pub trust: f32,      // 0.0 to 1.0
-    pub affection: f32,  // 0.0 to 1.0
-    pub respect: f32,    // 0.0 to 1.0
-    pub resentment: f32, // 0.0 to 1.0
-    pub history: RelationshipHistory,
-    pub is_active: bool,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
-pub struct RelationshipHistory {
-    pub shared_memories: Vec<SharedMemory>,
-    pub promises: Vec<String>,
-    pub support_moments: u32,
-    pub conflict_moments: u32,
-    pub days_since_last_interaction: i64,
+pub struct HumanEntity {
+    pub id: String,
+    pub identity: IdentityProfile,
+    pub biology: BiologicalProfile,
+    pub psychology: PsychologicalProfile,
+    pub reputation: ReputationProfile,
+    pub skills: HashMap<String, SkillMastery>,
+    pub resources: HumanResources,
+    pub relationships: HashMap<String, RelationshipEdge>,
+    pub occupation: Option<String>,
+    pub is_player: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SharedMemory {
+pub struct RelationshipEdge {
+    pub target_entity_id: String,
+    pub target_name: String,
+    pub relationship_type: String, // Mother, Father, Friend, Teacher, Rival, Spouse
+    pub affinity: f32,             // -1.0 to 1.0
+    pub trust: f32,                // 0.0 to 1.0
+    pub respect: f32,              // 0.0 to 1.0
+    pub memories: Vec<EpisodicMemoryRecord>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EpisodicMemoryRecord {
     pub day_occurred: i64,
-    pub event_summary: String,
-    pub emotional_sentiment: f32,
-    pub significance: u32,
+    pub headline: String,
+    pub description: String,
+    pub emotional_valence: f32, // -1.0 to 1.0
+    pub importance: f32,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub enum RelationshipType {
-    Mother,
-    Father,
-    Sibling,
-    Teacher,
-    Classmate,
-    Friend,
-    Coach,
-    Mentor,
-    Rival,
-    Romance,
-    Colleague,
-    Employer,
-    Neighbor,
-    Acquaintance,
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NpcPersonality {
+    pub communication_style: CommunicationStyle,
+    pub strictness: f32,
+}
+
+impl Default for NpcPersonality {
+    fn default() -> Self {
+        Self {
+            communication_style: CommunicationStyle::NurturingWarm,
+            strictness: 0.5,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AutonomousNPC {
     pub base: HumanEntity,
-    pub primary_role: NpcRole,
-    pub personality: PersonalityProfile,
-    pub daily_schedule: Vec<DailyRoutineBlock>,
-    pub life_goal: String,
-    pub subjective_memories_of_player: Vec<NpcMemoryOfPlayer>,
-    pub monthly_income: f64,
-    pub stress_level: f32,
+    pub daily_routine: Vec<ScheduledActivity>,
+    pub communication_style: CommunicationStyle,
+    pub personality: NpcPersonality,
+    pub current_goal: String,
     pub last_active_day: i64,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub enum NpcRole {
-    Parent,
-    Sibling,
-    Teacher,
-    Classmate,
-    Friend,
-    Coach,
-    Mentor,
-    Colleague,
-    Employer,
-    Partner,
-    Neighbor,
-}
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct PersonalityProfile {
-    pub warmth: f32,
-    pub patience: f32,
-    pub strictness: f32,
-    pub ambition: f32,
-    pub risk_tolerance: f32,
-    pub communication_style: CommunicationStyle,
-    pub core_values: Vec<String>,
+pub struct ScheduledActivity {
+    pub start_hour: u8,
+    pub end_hour: u8,
+    pub location_id: String,
+    pub activity_name: String,
+    pub description: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub enum CommunicationStyle {
+    NurturingWarm,
+    SternDisciplinarian,
+    ScholarlyAnalytical,
+    EncouragingSupportive,
+    PragmaticDirect,
     Nurturing,
     Disciplinarian,
     Inspirational,
     Direct,
-    Playful,
+    Supportive,
 }
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct DailyRoutineBlock {
-    pub start_hour: u8,
-    pub end_hour: u8,
-    pub activity_name: String,
-    pub location_id: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct NpcMemoryOfPlayer {
-    pub day_occurred: i64,
-    pub event_summary: String,
-    pub sentiment: f32,
-    pub importance: u32,
-}
-
-// =========================================================================
-// 3. SPATIAL ENTITIES, HOUSEHOLDS & INSTITUTIONS
-// =========================================================================
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct HouseholdEntity {
     pub id: String,
-    pub name: String,
-    pub residence_place_id: String,
+    pub address: String,
+    pub city_id: String,
+    pub monthly_rent: f64,
     pub members: Vec<String>,
-    pub household_savings: f64,
-    pub monthly_rent_or_mortgage: f64,
-    pub monthly_utility_bills: f64,
+    pub pooled_cash: f64,
+}
+
+// =========================================================================
+// 2. WORLD PLACES & SPATIAL HIERARCHY
+// =========================================================================
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub enum PlaceType {
+    Residence,
+    Education,
+    Workplace,
+    AthleticField,
+    CivicCenter,
+    MedicalClinic,
+    CommercialVenue,
+    Airport,
+    TrainStation,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -311,156 +291,146 @@ pub struct WorldPlace {
     pub id: String,
     pub name: String,
     pub place_type: PlaceType,
-    pub parent_place_id: Option<String>,
-    pub country_id: String,
-    pub climate_zone: String,
-    pub cost_of_living_index: f32,
-    pub culture_tags: Vec<String>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub enum PlaceType {
-    Room,
-    Building,
-    Residence,
-    SchoolCampus,
-    SportsPitch,
-    CommercialDistrict,
-    ClinicHospital,
-    Neighborhood,
-    City,
-    Country,
+    pub city_id: String,
+    pub district_name: String,
+    pub required_min_age: u32,
+    pub affords_activities: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct InstitutionEntity {
     pub id: String,
     pub name: String,
-    pub institution_type: InstitutionType,
-    pub location_id: String,
-    pub prestige: f32,
-    pub admission_requirements: Vec<AdmissionRequirement>,
-    pub active_members: Vec<String>,
+    pub category: String, // School, University, SportsClub, CorporateEmployer, Hospital
+    pub city_id: String,
+    pub reputation: f32,
 }
+
+// =========================================================================
+// 3. MULTI-STAGE PROCESSES
+// =========================================================================
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub enum InstitutionType {
-    PrimarySchool,
-    JuniorSecondarySchool,
-    SeniorSecondarySchool,
-    SixthFormCollege,
-    HighSchool,
-    University,
-    SportsClub,
-    YouthAcademy,
-    Hospital,
-    GovernmentRegistry,
-    CorporateOffice,
-    FinancialBank,
+pub enum ProcessType {
+    SchoolEnrollment,
+    AcademicExamination,
+    SportsAcademyTrial,
+    HigherEducationDegree,
+    UniversityAdmission,
+    CompanyRegistration,
+    JobApplication,
+    MedicalTreatment,
+    TravelJourney,
 }
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum AdmissionRequirement {
-    MinimumAge(u32),
-    MaximumAge(u32),
-    AcademicPerformance(f32),
-    AthleticSkill(f32),
-    FinancialTuition(f64),
-    DocumentRequired(String),
-}
-
-// =========================================================================
-// 4. FINANCIAL ACCOUNTS & LEDGERS
-// =========================================================================
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct FinancialAccount {
-    pub account_id: String,
-    pub owner_id: String,
-    pub institution_id: String,
-    pub account_type: String, // "PERSONAL_CHECKING", "HIGH_YIELD_SAVINGS", "CORPORATE_TREASURY"
-    pub balance: f64,
-    pub currency_code: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct TransactionRecord {
-    pub id: String,
-    pub day: i64,
-    pub from_entity_id: String,
-    pub to_entity_id: String,
-    pub amount: f64,
-    pub currency: String,
-    pub description: String,
-}
-
-// =========================================================================
-// 5. CAUSAL PROCESSES & EVENT LEDGER
-// =========================================================================
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LifeProcess {
     pub id: String,
-    pub person_id: String,
     pub process_type: ProcessType,
     pub title: String,
-    pub institution_id: Option<String>,
+    pub target_institution_id: Option<String>,
     pub current_step: u32,
     pub total_steps: u32,
-    pub target_completion_day: i64,
-    pub requirements_met: bool,
-    pub status: ProcessStatus,
-    pub payload: HashMap<String, String>,
+    pub progress_percent: u32,
+    pub status: String,
+    pub missing_requirements: Vec<String>,
+    pub next_appointment_day: Option<i64>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub enum ProcessType {
-    PrimarySchooling,
-    JuniorSecondaryEducation,
-    SeniorSecondaryEducation,
-    SecondaryExamPreparation, // WAEC / JAMB / GCSE / SAT
-    UniversityAdmission,
-    UniversityDegree,
-    YouthSportsAcademyTrial,
-    CompanyIncorporation,
-    JobApplication,
-    ApprenticeshipTrade,
-    MedicalTreatment,
-    VisaApplication,
-    ApartmentLease,
-    AcademicRecoveryPlan,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub enum ProcessStatus {
-    Active,
-    Paused,
-    Succeeded,
-    Failed,
-    Abandoned,
-}
+// =========================================================================
+// 4. DOCUMENTS & CREDENTIALS ENGINE
+// =========================================================================
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct OpportunityRecord {
+pub struct DocumentRecord {
     pub id: String,
     pub title: String,
-    pub description: String,
-    pub institution_id: Option<String>,
-    pub discovered_day: i64,
-    pub expiry_day: i64,
-    pub requirements_summary: String,
-    pub is_claimed: bool,
+    pub document_type: String, // BIRTH_CERTIFICATE, COMPANY_REGISTRATION, PASSPORT, DEGREE, TICKET
+    pub issue_date: String,
+    pub issuing_authority: String,
+    pub registration_number: String,
+    pub fields: HashMap<String, String>,
+    pub is_verified: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct LetterNotification {
+pub struct DocumentDTO {
     pub id: String,
-    pub sender_name: String,
-    pub date_received: String,
-    pub subject: String,
-    pub body_text: String,
-    pub is_read: bool,
+    pub title: String,
+    pub document_type: String,
+    pub issue_date: String,
+    pub issuing_authority: String,
+    pub registration_number: String,
+    pub fields: HashMap<String, String>,
+    pub is_verified: bool,
 }
+
+// =========================================================================
+// 5. PHONE & COMMUNICATIONS
+// =========================================================================
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PhoneMessage {
+    pub id: String,
+    pub sender_id: String,
+    pub sender_name: String,
+    pub recipient_id: String,
+    pub text: String,
+    pub timestamp: String,
+    pub is_read: bool,
+    pub is_delivered: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PhoneCallState {
+    pub id: String,
+    pub contact_id: String,
+    pub contact_name: String,
+    pub status: String, // RINGING, ANSWERED, BUSY, COMPLETED, DECLINED
+    pub duration_seconds: u32,
+    pub dialogue_history: Vec<String>,
+}
+
+// =========================================================================
+// 6. STRUCTURED LIVING INTENTIONS
+// =========================================================================
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "type", content = "payload")]
+pub enum TypedLivingIntent {
+    FreeText(String),
+    AdvanceHours { hours: u32 },
+    AdvanceDays { days: u32 },
+    SleepUntilMorning,
+    FollowRoutine { days: u32 },
+    SendMessage { recipient_id: String, text: String },
+    PlaceCall { recipient_id: String },
+    SendCallDialogue { dialogue: String },
+    EndCall,
+    TravelToLocation { destination_city_id: String, transport_mode: String },
+    RegisterCompany {
+        name: String,
+        structure: String,
+        partners: Vec<String>,
+        authorized_capital: f64,
+    },
+    ApplyForJob {
+        job_id: String,
+        company_id: String,
+        title: String,
+    },
+    AttendMedicalCheckup,
+    OpenDocument { document_id: String },
+    TransferFunds {
+        recipient_id: String,
+        amount: f64,
+        reference: String,
+    },
+}
+
+// =========================================================================
+// 7. EVENTS & CAUSALITY RECORD
+// =========================================================================
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EventRecord {
@@ -476,8 +446,18 @@ pub struct EventRecord {
     pub success: bool,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LetterNotification {
+    pub id: String,
+    pub sender: String,
+    pub subject: String,
+    pub body: String,
+    pub is_read: bool,
+    pub date_received: String,
+}
+
 // =========================================================================
-// 6. REGIONAL RULE PACKS & CLIMATE ENGINE
+// 8. REGIONAL RULE PACKS & CLIMATE ENGINE
 // =========================================================================
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -497,10 +477,10 @@ pub struct RegionalRulePack {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub enum ClimateType {
-    TropicalSavanna,     // Lagos, Abuja, Kano: Wet season (Apr-Oct), Dry/Harmattan (Nov-Mar)
-    OceanicMaritime,     // Edinburgh, London: Cool summers, chilly damp winters, frequent rain
-    MediterraneanMarine, // San Francisco: Dry mild summers, coastal fog/marine layer, wet winters
-    HumidSubtropical,    // Houston: Hot humid summers, mild winters, thunderstorm storms
+    TropicalSavanna,     // Lagos, Abuja, Kano, Ibadan: Wet season (Apr-Oct), Dry/Harmattan (Nov-Mar)
+    OceanicMaritime,     // Edinburgh, Glasgow, London, Manchester: Cool summers, chilly damp winters, frequent rain
+    MediterraneanMarine, // San Francisco, Madrid: Dry mild summers, coastal fog/marine layer, wet winters
+    HumidSubtropical,    // Houston: Hot humid summers, mild winters, thunderstorms
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -528,112 +508,104 @@ pub struct SeasonalWeather {
 impl SeasonalWeather {
     pub fn for_region_and_month(climate: &ClimateType, month: u32) -> Self {
         match climate {
-            ClimateType::TropicalSavanna => {
-                match month {
-                    12 | 1 | 2 => SeasonalWeather {
-                        name: "Harmattan Dust Haze".to_string(),
-                        temperature_c: 29.0,
-                        description: "Dry, hazy northeast trade winds blow down from the Sahara, filling the afternoon air with golden dust.".to_string(),
-                        is_precipitation: false,
-                    },
-                    3..=5 => SeasonalWeather {
-                        name: "Pre-Monsoon Tropical Heat".to_string(),
-                        temperature_c: 34.0,
-                        description: "Intense tropical sunshine warms the streets before the afternoon humidity breaks.".to_string(),
-                        is_precipitation: false,
-                    },
-                    6..=9 => SeasonalWeather {
-                        name: "Heavy Monsoon Rain".to_string(),
-                        temperature_c: 27.0,
-                        description: "Cool, relentless tropical rain drumming on tin rooftops and pooling on city avenues.".to_string(),
-                        is_precipitation: true,
-                    },
-                    _ => SeasonalWeather {
-                        name: "Warm Autumn Calm".to_string(),
-                        temperature_c: 30.0,
-                        description: "Humid tropical air settles over the evening neighborhood with calm breezes.".to_string(),
-                        is_precipitation: false,
-                    },
-                }
-            }
-            ClimateType::OceanicMaritime => {
-                match month {
-                    12 | 1 | 2 => SeasonalWeather {
-                        name: "Chilly Winter Drizzle".to_string(),
-                        temperature_c: 4.0,
-                        description: "Cold north winds and damp coastal mist hang over stone buildings and cobbled streets.".to_string(),
-                        is_precipitation: true,
-                    },
-                    3..=5 => SeasonalWeather {
-                        name: "Crisp Spring Sun".to_string(),
-                        temperature_c: 12.0,
-                        description: "Cool, bright morning sun filtering through light clouds with refreshing breezes.".to_string(),
-                        is_precipitation: false,
-                    },
-                    6..=8 => SeasonalWeather {
-                        name: "Mild Summer Overcast".to_string(),
-                        temperature_c: 19.0,
-                        description: "Long northern daylight with comfortable temperatures and occasional light showers.".to_string(),
-                        is_precipitation: false,
-                    },
-                    _ => SeasonalWeather {
-                        name: "Autumn Gale & Rain".to_string(),
-                        temperature_c: 10.0,
-                        description: "Brisk autumn gusts scatter amber leaves across the pavements.".to_string(),
-                        is_precipitation: true,
-                    },
-                }
-            }
-            ClimateType::MediterraneanMarine => {
-                match month {
-                    6..=8 => SeasonalWeather {
-                        name: "Pacific Marine Fog".to_string(),
-                        temperature_c: 16.0,
-                        description: "Thick coastal marine fog rolls through the hills in the morning, burning off to cool afternoon sun.".to_string(),
-                        is_precipitation: false,
-                    },
-                    12 | 1 | 2 => SeasonalWeather {
-                        name: "Winter Pacific Rain".to_string(),
-                        temperature_c: 11.0,
-                        description: "Crisp winter rainfall washing over the urban hills and streets.".to_string(),
-                        is_precipitation: true,
-                    },
-                    _ => SeasonalWeather {
-                        name: "Sunny Coastal Breeze".to_string(),
-                        temperature_c: 20.0,
-                        description: "Clear blue skies with crisp oceanic wind blowing off the bay.".to_string(),
-                        is_precipitation: false,
-                    },
-                }
-            }
-            ClimateType::HumidSubtropical => {
-                match month {
-                    6..=8 => SeasonalWeather {
-                        name: "Gulf Coast Summer Heat".to_string(),
-                        temperature_c: 35.0,
-                        description: "Shimmering southern heat and high humidity, broken by sudden afternoon thunderheads.".to_string(),
-                        is_precipitation: false,
-                    },
-                    12 | 1 | 2 => SeasonalWeather {
-                        name: "Mild Winter Breeze".to_string(),
-                        temperature_c: 15.0,
-                        description: "Cool, comfortable winter afternoon under wide southern skies.".to_string(),
-                        is_precipitation: false,
-                    },
-                    _ => SeasonalWeather {
-                        name: "Spring Thunderstorms".to_string(),
-                        temperature_c: 24.0,
-                        description: "Warm spring breezes carrying dark rain clouds across the horizon.".to_string(),
-                        is_precipitation: true,
-                    },
-                }
-            }
+            ClimateType::TropicalSavanna => match month {
+                12 | 1 | 2 => SeasonalWeather {
+                    name: "Harmattan Dust Haze".to_string(),
+                    temperature_c: 29.0,
+                    description: "Dry, hazy northeast trade winds blow down from the Sahara, filling the afternoon air with golden dust.".to_string(),
+                    is_precipitation: false,
+                },
+                3..=5 => SeasonalWeather {
+                    name: "Pre-Monsoon Tropical Heat".to_string(),
+                    temperature_c: 34.0,
+                    description: "Intense tropical sunshine warms the streets before the afternoon humidity breaks.".to_string(),
+                    is_precipitation: false,
+                },
+                6..=9 => SeasonalWeather {
+                    name: "Heavy Monsoon Rain".to_string(),
+                    temperature_c: 27.0,
+                    description: "Cool, relentless tropical rain drumming on tin rooftops and pooling on city avenues.".to_string(),
+                    is_precipitation: true,
+                },
+                _ => SeasonalWeather {
+                    name: "Warm Autumn Calm".to_string(),
+                    temperature_c: 30.0,
+                    description: "Humid tropical air settles over the evening neighborhood with calm breezes.".to_string(),
+                    is_precipitation: false,
+                },
+            },
+            ClimateType::OceanicMaritime => match month {
+                12 | 1 | 2 => SeasonalWeather {
+                    name: "Chilly Winter Drizzle".to_string(),
+                    temperature_c: 4.0,
+                    description: "Cold north winds and damp coastal mist hang over stone buildings and cobbled streets.".to_string(),
+                    is_precipitation: true,
+                },
+                3..=5 => SeasonalWeather {
+                    name: "Crisp Spring Sun".to_string(),
+                    temperature_c: 12.0,
+                    description: "Cool, bright morning sun filtering through light clouds with refreshing breezes.".to_string(),
+                    is_precipitation: false,
+                },
+                6..=8 => SeasonalWeather {
+                    name: "Mild Summer Overcast".to_string(),
+                    temperature_c: 19.0,
+                    description: "Long northern daylight with comfortable temperatures and occasional light showers.".to_string(),
+                    is_precipitation: false,
+                },
+                _ => SeasonalWeather {
+                    name: "Autumn Gale & Rain".to_string(),
+                    temperature_c: 10.0,
+                    description: "Brisk autumn gusts scatter amber leaves across the pavements.".to_string(),
+                    is_precipitation: true,
+                },
+            },
+            ClimateType::MediterraneanMarine => match month {
+                6..=8 => SeasonalWeather {
+                    name: "Pacific Marine Fog".to_string(),
+                    temperature_c: 16.0,
+                    description: "Thick coastal marine fog rolls through the hills in the morning, burning off to cool afternoon sun.".to_string(),
+                    is_precipitation: false,
+                },
+                12 | 1 | 2 => SeasonalWeather {
+                    name: "Winter Pacific Rain".to_string(),
+                    temperature_c: 11.0,
+                    description: "Crisp winter rainfall washing over the urban hills and streets.".to_string(),
+                    is_precipitation: true,
+                },
+                _ => SeasonalWeather {
+                    name: "Sunny Coastal Breeze".to_string(),
+                    temperature_c: 20.0,
+                    description: "Clear blue skies with crisp oceanic wind blowing off the bay.".to_string(),
+                    is_precipitation: false,
+                },
+            },
+            ClimateType::HumidSubtropical => match month {
+                6..=8 => SeasonalWeather {
+                    name: "Gulf Coast Summer Heat".to_string(),
+                    temperature_c: 35.0,
+                    description: "Shimmering southern heat and high humidity, broken by sudden afternoon thunderheads.".to_string(),
+                    is_precipitation: false,
+                },
+                12 | 1 | 2 => SeasonalWeather {
+                    name: "Mild Winter Breeze".to_string(),
+                    temperature_c: 15.0,
+                    description: "Cool, comfortable winter afternoon under wide southern skies.".to_string(),
+                    is_precipitation: false,
+                },
+                _ => SeasonalWeather {
+                    name: "Spring Thunderstorms".to_string(),
+                    temperature_c: 24.0,
+                    description: "Warm spring breezes carrying dark rain clouds across the horizon.".to_string(),
+                    is_precipitation: true,
+                },
+            },
         }
     }
 }
 
 // =========================================================================
-// 7. TIME & SIMULATION TICK STATE
+// 9. TIME & SIMULATION TICK STATE
 // =========================================================================
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -673,6 +645,49 @@ impl TimeState {
         }
     }
 
+    pub fn day_of_week(&self) -> u32 {
+        let y = if self.month < 3 { self.year - 1 } else { self.year };
+        let m = self.month;
+        let d = self.day;
+        let t = [0, 3, 2, 5, 0, 3, 5, 1, 4, 6, 2, 4];
+        let dow = (y + y / 4 - y / 100 + y / 400 + t[(m - 1) as usize] + d as i32) % 7;
+        let pos_dow = if dow < 0 { dow + 7 } else { dow };
+        match pos_dow {
+            0 => 7, // Sunday
+            other => other as u32,
+        }
+    }
+
+    pub fn weekday_name(&self) -> String {
+        match self.day_of_week() {
+            1 => "Monday".to_string(),
+            2 => "Tuesday".to_string(),
+            3 => "Wednesday".to_string(),
+            4 => "Thursday".to_string(),
+            5 => "Friday".to_string(),
+            6 => "Saturday".to_string(),
+            _ => "Sunday".to_string(),
+        }
+    }
+
+    pub fn formatted_full_date(&self) -> String {
+        let month_name = match self.month {
+            1 => "January",
+            2 => "February",
+            3 => "March",
+            4 => "April",
+            5 => "May",
+            6 => "June",
+            7 => "July",
+            8 => "August",
+            9 => "September",
+            10 => "October",
+            11 => "November",
+            _ => "December",
+        };
+        format!("{}, {} {}, {}", self.weekday_name(), month_name, self.day, self.year)
+    }
+
     pub fn advance_hours(&mut self, hours: u8) {
         self.hour += hours;
         if self.hour >= 24 {
@@ -685,14 +700,24 @@ impl TimeState {
     pub fn literary_date(&self) -> String {
         let months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
         let month_name = months.get((self.month.saturating_sub(1)) as usize).unwrap_or(&"January");
+        
+        // Exact calendar weekday (Sakamoto's algorithm)
+        let t = [0, 3, 2, 5, 0, 3, 5, 1, 4, 6, 2, 4];
+        let mut y = self.year;
+        if self.month < 3 {
+            y -= 1;
+        }
+        let dow_calc = (y + y / 4 - y / 100 + y / 400 + t[(self.month.saturating_sub(1)) as usize] + self.day as i32) % 7;
+        let dow_idx = if dow_calc < 0 { (dow_calc + 7) as usize } else { dow_calc as usize };
         let days_of_week = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
-        let weekday = days_of_week.get((self.total_days % 7) as usize).unwrap_or(&"Monday");
-        format!("{}, {} {} {}", weekday, self.day, month_name, self.year)
+        let weekday = days_of_week.get(dow_idx).unwrap_or(&"Monday");
+
+        format!("{}, {} {} {} {:02}:{:02}", weekday, self.day, month_name, self.year, self.hour, self.minute)
     }
 }
 
 // =========================================================================
-// 8. CONFIGURATION & DTOS FOR FRONTEND
+// 10. CONFIGURATION & DTOS FOR FRONTEND
 // =========================================================================
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -808,6 +833,10 @@ pub struct TodaySceneDTO {
     pub environmental_objects: Vec<String>,
     pub subtle_details: Vec<String>,
     pub immediate_pressures: Vec<String>,
+    pub location_formatted: Option<String>,
+    pub life_stage: Option<String>,
+    pub age: Option<u32>,
+    pub circumstances: Option<Vec<String>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

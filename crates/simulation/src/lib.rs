@@ -13,56 +13,63 @@ pub struct SimulationEngine {
     pub households: HashMap<String, HouseholdEntity>,
     pub places: HashMap<String, WorldPlace>,
     pub institutions: HashMap<String, InstitutionEntity>,
-    pub accounts: HashMap<String, FinancialAccount>,
     pub active_processes: Vec<LifeProcess>,
-    pub active_opportunities: Vec<OpportunityRecord>,
     pub letters_inbox: Vec<LetterNotification>,
+    pub documents: HashMap<String, DocumentRecord>,
+    pub phone_messages: Vec<PhoneMessage>,
+    pub active_call: Option<PhoneCallState>,
     pub events_ledger: Vec<EventRecord>,
     pub rule_pack: RegionalRulePack,
+    #[serde(skip, default = "default_ai_bridge")]
     pub ai_bridge: AIBridge,
+}
+
+fn default_ai_bridge() -> AIBridge {
+    AIBridge::new(AIBridgeConfig::default())
 }
 
 impl SimulationEngine {
     pub fn new_game(config: NewLifeConfig, seed: u64) -> Self {
-        let mut rng = WorldRng::new(seed);
-
-        let birth_year = config.birth_year.unwrap_or(2005);
-        let birth_month = config.birth_month.unwrap_or(6).clamp(1, 12);
-        let birth_day = config.birth_day.unwrap_or(14).clamp(1, 30);
+        let rng = WorldRng::new(seed);
         let start_age = config.starting_age;
 
-        let current_year = birth_year + start_age as i32;
-        let time = TimeState::new(current_year, birth_month, birth_day);
+        // 1. Exact Birthdate & Current Time Calculation
+        let birth_year = config.birth_year.unwrap_or(config.starting_year - start_age as i32);
+        let birth_month = config.birth_month.unwrap_or(6).clamp(1, 12);
+        let birth_day = config.birth_day.unwrap_or(14).clamp(1, 30);
+        let current_year = config.starting_year;
+        let mut time = TimeState::new(current_year, birth_month, birth_day);
 
-        // 1. Regional Rule Pack Resolution
+        // 2. Regional Rule Pack Resolution
         let rule_pack = Self::resolve_rule_pack(&config.location_id, &config.country_id);
 
         let first_name = config.first_name.unwrap_or_else(|| "Israel".to_string());
-        let last_name = config.last_name.unwrap_or_else(|| "Adeyemi".to_string());
+        let last_name = config.last_name.unwrap_or_else(|| "Oyebamiji".to_string());
         let sex = config.sex.unwrap_or_else(|| "Male".to_string());
         let wealth = WealthTier::from_str(config.household_income_tier.as_deref().unwrap_or("MIDDLE"));
 
         let player_id = "person:sim:player".to_string();
 
-        // 2. Player Entity Creation
-        let mut initial_cash = 0.0; // Newborns start with 0 cash!
-        if start_age >= 18 {
-            initial_cash = match wealth {
+        // 3. Player Cash Gated by Age and Wealth
+        let initial_cash = if start_age >= 18 {
+            match wealth {
                 WealthTier::Poverty => 50.0,
                 WealthTier::WorkingClass => 300.0,
                 WealthTier::MiddleClass => 1200.0,
                 WealthTier::UpperMiddle => 3500.0,
                 WealthTier::Wealthy => 10000.0,
-            };
+            }
         } else if start_age >= 13 {
-            initial_cash = match wealth {
+            match wealth {
                 WealthTier::Poverty => 5.0,
                 WealthTier::WorkingClass => 20.0,
                 WealthTier::MiddleClass => 60.0,
                 WealthTier::UpperMiddle => 150.0,
                 WealthTier::Wealthy => 400.0,
-            };
-        }
+            }
+        } else {
+            0.0 // Age 0-12 starts with 0 cash!
+        };
 
         let mut skills = HashMap::new();
         for (k, v) in config.skills {
@@ -73,6 +80,26 @@ impl SimulationEngine {
                 last_practiced_day: time.total_days,
             });
         }
+
+        let mut player_relationships = HashMap::new();
+        player_relationships.insert("person:sim:mother".to_string(), RelationshipEdge {
+            target_entity_id: "person:sim:mother".to_string(),
+            target_name: "Mother".to_string(),
+            relationship_type: "Mother".to_string(),
+            affinity: 0.95,
+            trust: 0.95,
+            respect: 0.90,
+            memories: Vec::new(),
+        });
+        player_relationships.insert("person:sim:father".to_string(), RelationshipEdge {
+            target_entity_id: "person:sim:father".to_string(),
+            target_name: "Father".to_string(),
+            relationship_type: "Father".to_string(),
+            affinity: 0.92,
+            trust: 0.92,
+            respect: 0.90,
+            memories: Vec::new(),
+        });
 
         let player_entity = HumanEntity {
             id: player_id.clone(),
@@ -97,63 +124,75 @@ impl SimulationEngine {
                 energy_level: 90.0,
                 chronic_conditions: Vec::new(),
             },
-            psychology: PsychologicalProfile {
-                discipline: 0.50,
-                curiosity: 0.70,
-                creativity: 0.60,
-                confidence: 0.55,
-                risk_tolerance: 0.40,
-                stress_level: 10.0,
-                resilience: 0.60,
-            },
+            psychology: PsychologicalProfile::default(),
             reputation: ReputationProfile::default(),
             skills,
             resources: HumanResources {
                 cash: initial_cash,
                 household_wealth_tier: wealth.clone(),
                 living_arrangement: "FAMILY_HOME".to_string(),
-                tools_available: if start_age >= 13 { vec!["BOOKS".to_string(), "FAMILY_DESKTOP".to_string()] } else { vec!["CRIB_TOYS".to_string()] },
+                tools_available: if start_age >= 13 {
+                    vec!["BOOKS".to_string(), "FAMILY_DESKTOP".to_string(), "SMARTPHONE".to_string()]
+                } else {
+                    vec!["CRIB_TOYS".to_string()]
+                },
             },
-            relationships: HashMap::new(),
-            occupation: None,
+            relationships: player_relationships,
+            occupation: if start_age >= 22 { Some("Junior Associate".to_string()) } else { None },
             is_player: true,
         };
 
         let mut persons = HashMap::new();
         persons.insert(player_id.clone(), player_entity);
 
-        // 3. Parents and Immediate Family Setup
-        let mother_name = config.mother_name.unwrap_or_else(|| {
-            if rule_pack.city_id.contains("edinburgh") || rule_pack.city_id.contains("london") {
+        // 4. Parents Setup with Regionalization and Clean First Names
+        let raw_mother = config.mother_name.unwrap_or_else(|| {
+            if rule_pack.city_id.contains("glasgow") || rule_pack.city_id.contains("edinburgh") {
                 "Fiona".to_string()
-            } else if rule_pack.city_id.contains("san_francisco") || rule_pack.city_id.contains("houston") {
+            } else if rule_pack.city_id.contains("london") || rule_pack.city_id.contains("manchester") {
                 "Eleanor".to_string()
-            } else {
+            } else if rule_pack.city_id.contains("san_francisco") || rule_pack.city_id.contains("houston") || rule_pack.city_id.contains("new_york") {
                 "Sarah".to_string()
+            } else {
+                "Blessing".to_string()
             }
         });
+        let mother_first = if raw_mother.contains(' ') {
+            raw_mother.split_whitespace().next().unwrap_or(&raw_mother).to_string()
+        } else {
+            raw_mother.clone()
+        };
+
         let mother_job = config.mother_job.unwrap_or_else(|| {
-            if rule_pack.city_id.contains("edinburgh") || rule_pack.city_id.contains("london") {
-                "Staff Nurse (NHS)".to_string()
+            if rule_pack.city_id.contains("glasgow") || rule_pack.city_id.contains("edinburgh") || rule_pack.city_id.contains("london") {
+                "Senior Nurse (NHS)".to_string()
             } else if rule_pack.city_id.contains("san_francisco") {
                 "Biotech Research Scientist".to_string()
             } else {
-                "Healthcare Officer".to_string()
+                "Senior Healthcare Officer".to_string()
             }
         });
 
-        let father_name = config.father_name.unwrap_or_else(|| {
-            if rule_pack.city_id.contains("edinburgh") || rule_pack.city_id.contains("london") {
-                "Duncan".to_string()
-            } else if rule_pack.city_id.contains("san_francisco") || rule_pack.city_id.contains("houston") {
+        let raw_father = config.father_name.unwrap_or_else(|| {
+            if rule_pack.city_id.contains("glasgow") || rule_pack.city_id.contains("edinburgh") {
+                "Callum".to_string()
+            } else if rule_pack.city_id.contains("london") || rule_pack.city_id.contains("manchester") {
                 "Arthur".to_string()
+            } else if rule_pack.city_id.contains("san_francisco") || rule_pack.city_id.contains("houston") || rule_pack.city_id.contains("new_york") {
+                "Robert".to_string()
             } else {
                 "David".to_string()
             }
         });
+        let father_first = if raw_father.contains(' ') {
+            raw_father.split_whitespace().next().unwrap_or(&raw_father).to_string()
+        } else {
+            raw_father.clone()
+        };
+
         let father_job = config.father_job.unwrap_or_else(|| {
-            if rule_pack.city_id.contains("edinburgh") || rule_pack.city_id.contains("london") {
-                "Civil Engineer".to_string()
+            if rule_pack.city_id.contains("glasgow") || rule_pack.city_id.contains("edinburgh") || rule_pack.city_id.contains("london") {
+                "Civil Structural Engineer".to_string()
             } else if rule_pack.city_id.contains("san_francisco") {
                 "Software Architect".to_string()
             } else {
@@ -163,13 +202,14 @@ impl SimulationEngine {
 
         let mut npcs = HashMap::new();
 
-        // Mother
+        // Mother NPC
         let mother_id = "person:sim:mother".to_string();
+        let mother_routine = Self::generate_routine_for_job(&mother_job, &rule_pack.city_id);
         npcs.insert(mother_id.clone(), AutonomousNPC {
             base: HumanEntity {
                 id: mother_id.clone(),
                 identity: IdentityProfile {
-                    first_name: mother_name.clone(),
+                    first_name: mother_first.clone(),
                     last_name: last_name.clone(),
                     birth_year: current_year - (28 + start_age as i32),
                     birth_month: 4,
@@ -180,69 +220,38 @@ impl SimulationEngine {
                     culture: rule_pack.region_name.clone(),
                     primary_language: rule_pack.primary_language.clone(),
                 },
-                biology: BiologicalProfile {
-                    is_alive: true,
-                    death_year: None,
-                    death_reason: None,
-                    health_overall: 90.0,
-                    fitness: 60.0,
-                    energy_level: 80.0,
-                    chronic_conditions: Vec::new(),
-                },
-                psychology: PsychologicalProfile {
-                    discipline: 0.80,
-                    curiosity: 0.65,
-                    creativity: 0.50,
-                    confidence: 0.75,
-                    risk_tolerance: 0.30,
-                    stress_level: 25.0,
-                    resilience: 0.85,
-                },
+                biology: BiologicalProfile::default(),
+                psychology: PsychologicalProfile::default(),
                 reputation: ReputationProfile::default(),
                 skills: HashMap::new(),
                 resources: HumanResources {
-                    cash: 45000.0,
+                    cash: 4500.0,
                     household_wealth_tier: wealth.clone(),
                     living_arrangement: "FAMILY_HOME".to_string(),
-                    tools_available: vec!["VEHICLE".to_string(), "MOBILE_PHONE".to_string()],
+                    tools_available: vec![],
                 },
                 relationships: HashMap::new(),
-                occupation: Some(OccupationRecord {
-                    title: mother_job.clone(),
-                    employer_org_id: Some("org:sim:health_center".to_string()),
-                    monthly_earnings: 180000.0,
-                    start_year: current_year - 6,
-                }),
+                occupation: Some(mother_job.clone()),
                 is_player: false,
             },
-            primary_role: NpcRole::Parent,
-            personality: PersonalityProfile {
-                warmth: 0.95,
-                patience: 0.85,
-                strictness: 0.50,
-                ambition: 0.60,
-                risk_tolerance: 0.25,
+            daily_routine: mother_routine,
+            communication_style: CommunicationStyle::Nurturing,
+            personality: NpcPersonality {
                 communication_style: CommunicationStyle::Nurturing,
-                core_values: vec!["Family Integrity".to_string(), "Education".to_string()],
+                strictness: 0.35,
             },
-            daily_schedule: vec![
-                DailyRoutineBlock { start_hour: 7, end_hour: 16, activity_name: format!("Hospital Ward Shift: {}", mother_job), location_id: "place:clinic".to_string() },
-                DailyRoutineBlock { start_hour: 17, end_hour: 22, activity_name: "Family Home Evening Care".to_string(), location_id: "place:home".to_string() },
-            ],
-            life_goal: "Provide a prosperous, nurturing future for children".to_string(),
-            subjective_memories_of_player: Vec::new(),
-            monthly_income: 180000.0,
-            stress_level: 20.0,
+            current_goal: format!("Provide loving family stability in {}", rule_pack.city_name),
             last_active_day: time.total_days,
         });
 
-        // Father
+        // Father NPC
         let father_id = "person:sim:father".to_string();
+        let father_routine = Self::generate_routine_for_job(&father_job, &rule_pack.city_id);
         npcs.insert(father_id.clone(), AutonomousNPC {
             base: HumanEntity {
                 id: father_id.clone(),
                 identity: IdentityProfile {
-                    first_name: father_name.clone(),
+                    first_name: father_first.clone(),
                     last_name: last_name.clone(),
                     birth_year: current_year - (30 + start_age as i32),
                     birth_month: 9,
@@ -253,99 +262,51 @@ impl SimulationEngine {
                     culture: rule_pack.region_name.clone(),
                     primary_language: rule_pack.primary_language.clone(),
                 },
-                biology: BiologicalProfile {
-                    is_alive: true,
-                    death_year: None,
-                    death_reason: None,
-                    health_overall: 88.0,
-                    fitness: 55.0,
-                    energy_level: 75.0,
-                    chronic_conditions: Vec::new(),
-                },
-                psychology: PsychologicalProfile {
-                    discipline: 0.85,
-                    curiosity: 0.60,
-                    creativity: 0.45,
-                    confidence: 0.80,
-                    risk_tolerance: 0.35,
-                    stress_level: 30.0,
-                    resilience: 0.80,
-                },
+                biology: BiologicalProfile::default(),
+                psychology: PsychologicalProfile::default(),
                 reputation: ReputationProfile::default(),
                 skills: HashMap::new(),
                 resources: HumanResources {
-                    cash: 60000.0,
+                    cash: 5200.0,
                     household_wealth_tier: wealth.clone(),
                     living_arrangement: "FAMILY_HOME".to_string(),
-                    tools_available: vec!["VEHICLE".to_string(), "LAPTOP".to_string()],
+                    tools_available: vec![],
                 },
                 relationships: HashMap::new(),
-                occupation: Some(OccupationRecord {
-                    title: father_job.clone(),
-                    employer_org_id: Some("org:sim:gov_ministry".to_string()),
-                    monthly_earnings: 220000.0,
-                    start_year: current_year - 8,
-                }),
+                occupation: Some(father_job.clone()),
                 is_player: false,
             },
-            primary_role: NpcRole::Parent,
-            personality: PersonalityProfile {
-                warmth: 0.80,
-                patience: 0.70,
-                strictness: 0.65,
-                ambition: 0.75,
-                risk_tolerance: 0.30,
+            daily_routine: father_routine,
+            communication_style: CommunicationStyle::Disciplinarian,
+            personality: NpcPersonality {
                 communication_style: CommunicationStyle::Disciplinarian,
-                core_values: vec!["Diligence".to_string(), "Academic Excellence".to_string()],
+                strictness: 0.70,
             },
-            daily_schedule: vec![
-                DailyRoutineBlock { start_hour: 8, end_hour: 17, activity_name: format!("Civil Ministry Duties: {}", father_job), location_id: "place:cbd".to_string() },
-                DailyRoutineBlock { start_hour: 18, end_hour: 22, activity_name: "Home Study & Financial Review".to_string(), location_id: "place:home".to_string() },
-            ],
-            life_goal: "Instill discipline, excellence, and strong moral character".to_string(),
-            subjective_memories_of_player: Vec::new(),
-            monthly_income: 220000.0,
-            stress_level: 25.0,
+            current_goal: format!("Support family career and education goals in {}", rule_pack.city_name),
             last_active_day: time.total_days,
         });
 
-        // Add relationships to player
-        if let Some(player) = persons.get_mut(&player_id) {
-            player.relationships.insert(mother_id.clone(), RelationshipVector {
-                source_person_id: player_id.clone(),
-                target_person_id: mother_id.clone(),
-                relationship_type: RelationshipType::Mother,
-                trust: 0.95,
-                affection: 0.95,
-                respect: 0.90,
-                resentment: 0.0,
-                history: RelationshipHistory::default(),
-                is_active: true,
-            });
-            player.relationships.insert(father_id.clone(), RelationshipVector {
-                source_person_id: player_id.clone(),
-                target_person_id: father_id.clone(),
-                relationship_type: RelationshipType::Father,
-                trust: 0.90,
-                affection: 0.90,
-                respect: 0.92,
-                resentment: 0.0,
-                history: RelationshipHistory::default(),
-                is_active: true,
-            });
-        }
+        // Mentor / Teacher NPC (Regionalized)
+        if start_age >= 4 {
+            let (teacher_first, teacher_last, teacher_title) = if rule_pack.city_id.contains("glasgow") || rule_pack.city_id.contains("edinburgh") {
+                ("Hamish", "MacGregor", "Head Teacher")
+            } else if rule_pack.city_id.contains("london") || rule_pack.city_id.contains("manchester") {
+                ("David", "Harrison", "Senior Form Tutor")
+            } else if rule_pack.city_id.contains("san_francisco") || rule_pack.city_id.contains("houston") || rule_pack.city_id.contains("new_york") {
+                ("Marcus", "Davis", "Principal Instructor")
+            } else {
+                ("Babatunde", "Balogun", "Senior Master")
+            };
 
-        // Additional age-appropriate NPCs (Teacher, Coach, Peer) if starting at older age
-        if start_age >= 6 {
             let teacher_id = "person:sim:teacher".to_string();
             npcs.insert(teacher_id.clone(), AutonomousNPC {
                 base: HumanEntity {
                     id: teacher_id.clone(),
                     identity: IdentityProfile {
-                        first_name: "Oladipo".to_string(),
-                        last_name: "Johnson".to_string(),
-                        birth_year: current_year - 40,
-                        birth_month: 3,
+                        first_name: teacher_first.to_string(),
+                        last_name: teacher_last.to_string(),
+                        birth_year: current_year - 42,
+                        birth_month: 2,
                         birth_day: 15,
                         sex: "Male".to_string(),
                         birthplace_id: rule_pack.city_id.clone(),
@@ -353,128 +314,151 @@ impl SimulationEngine {
                         culture: rule_pack.region_name.clone(),
                         primary_language: rule_pack.primary_language.clone(),
                     },
-                    biology: BiologicalProfile { is_alive: true, death_year: None, death_reason: None, health_overall: 85.0, fitness: 50.0, energy_level: 80.0, chronic_conditions: Vec::new() },
-                    psychology: PsychologicalProfile { discipline: 0.90, curiosity: 0.80, creativity: 0.70, confidence: 0.85, risk_tolerance: 0.20, stress_level: 20.0, resilience: 0.80 },
+                    biology: BiologicalProfile::default(),
+                    psychology: PsychologicalProfile::default(),
                     reputation: ReputationProfile::default(),
                     skills: HashMap::new(),
-                    resources: HumanResources { cash: 30000.0, household_wealth_tier: WealthTier::MiddleClass, living_arrangement: "APARTMENT".to_string(), tools_available: vec!["BOOKS".to_string()] },
+                    resources: HumanResources {
+                        cash: 3000.0,
+                        household_wealth_tier: WealthTier::MiddleClass,
+                        living_arrangement: "APARTMENT".to_string(),
+                        tools_available: vec![],
+                    },
                     relationships: HashMap::new(),
-                    occupation: Some(OccupationRecord { title: "Senior Mathematics & Science Tutor".to_string(), employer_org_id: Some("org:sim:school".to_string()), monthly_earnings: 120000.0, start_year: current_year - 12 }),
+                    occupation: Some(teacher_title.to_string()),
                     is_player: false,
                 },
-                primary_role: NpcRole::Teacher,
-                personality: PersonalityProfile { warmth: 0.75, patience: 0.85, strictness: 0.70, ambition: 0.65, risk_tolerance: 0.20, communication_style: CommunicationStyle::Inspirational, core_values: vec!["Academic Rigor".to_string()] },
-                daily_schedule: vec![DailyRoutineBlock { start_hour: 8, end_hour: 15, activity_name: "Classroom Instruction".to_string(), location_id: "place:school".to_string() }],
-                life_goal: "Inspire generation of critical thinkers".to_string(),
-                subjective_memories_of_player: Vec::new(),
-                monthly_income: 120000.0,
-                stress_level: 15.0,
+                daily_routine: vec![ScheduledActivity {
+                    start_hour: 8,
+                    end_hour: 16,
+                    location_id: "place:school".to_string(),
+                    activity_name: "Teaching Class".to_string(),
+                    description: "Conducting academic lectures and evaluating student progress.".to_string(),
+                }],
+                communication_style: CommunicationStyle::Inspirational,
+                personality: NpcPersonality {
+                    communication_style: CommunicationStyle::Inspirational,
+                    strictness: 0.50,
+                },
+                current_goal: "Mentor students toward exceptional academic achievement".to_string(),
                 last_active_day: time.total_days,
             });
-            if let Some(player) = persons.get_mut(&player_id) {
-                player.relationships.insert(teacher_id.clone(), RelationshipVector {
-                    source_person_id: player_id.clone(),
-                    target_person_id: teacher_id.clone(),
-                    relationship_type: RelationshipType::Teacher,
-                    trust: 0.75,
-                    affection: 0.60,
-                    respect: 0.85,
-                    resentment: 0.0,
-                    history: RelationshipHistory::default(),
-                    is_active: true,
-                });
-            }
-        }
 
-        if start_age >= 10 {
+            // Sports Coach NPC
             let coach_id = "person:sim:coach".to_string();
             npcs.insert(coach_id.clone(), AutonomousNPC {
                 base: HumanEntity {
                     id: coach_id.clone(),
                     identity: IdentityProfile {
-                        first_name: "Kunle".to_string(),
-                        last_name: "Balogun".to_string(),
+                        first_name: "Segun".to_string(),
+                        last_name: "Okafor".to_string(),
                         birth_year: current_year - 38,
                         birth_month: 7,
-                        birth_day: 20,
+                        birth_day: 19,
                         sex: "Male".to_string(),
                         birthplace_id: rule_pack.city_id.clone(),
                         nationality: rule_pack.country_name.clone(),
                         culture: rule_pack.region_name.clone(),
                         primary_language: rule_pack.primary_language.clone(),
                     },
-                    biology: BiologicalProfile { is_alive: true, death_year: None, death_reason: None, health_overall: 95.0, fitness: 88.0, energy_level: 90.0, chronic_conditions: Vec::new() },
-                    psychology: PsychologicalProfile { discipline: 0.88, curiosity: 0.50, creativity: 0.60, confidence: 0.85, risk_tolerance: 0.50, stress_level: 20.0, resilience: 0.85 },
+                    biology: BiologicalProfile::default(),
+                    psychology: PsychologicalProfile::default(),
                     reputation: ReputationProfile::default(),
                     skills: HashMap::new(),
-                    resources: HumanResources { cash: 25000.0, household_wealth_tier: WealthTier::MiddleClass, living_arrangement: "APARTMENT".to_string(), tools_available: vec!["SPORTS_KIT".to_string()] },
+                    resources: HumanResources {
+                        cash: 2800.0,
+                        household_wealth_tier: WealthTier::MiddleClass,
+                        living_arrangement: "APARTMENT".to_string(),
+                        tools_available: vec![],
+                    },
                     relationships: HashMap::new(),
-                    occupation: Some(OccupationRecord { title: "Youth Academy Head Coach".to_string(), employer_org_id: Some("org:sim:sports_club".to_string()), monthly_earnings: 110000.0, start_year: current_year - 9 }),
+                    occupation: Some("Head Football Coach".to_string()),
                     is_player: false,
                 },
-                primary_role: NpcRole::Coach,
-                personality: PersonalityProfile { warmth: 0.70, patience: 0.65, strictness: 0.80, ambition: 0.85, risk_tolerance: 0.50, communication_style: CommunicationStyle::Direct, core_values: vec!["Work Rate".to_string(), "Tactical Discipline".to_string()] },
-                daily_schedule: vec![DailyRoutineBlock { start_hour: 15, end_hour: 19, activity_name: "Youth Squad Tactical Training".to_string(), location_id: "place:pitch".to_string() }],
-                life_goal: "Develop world-class athletic talent".to_string(),
-                subjective_memories_of_player: Vec::new(),
-                monthly_income: 110000.0,
-                stress_level: 15.0,
+                daily_routine: vec![ScheduledActivity {
+                    start_hour: 15,
+                    end_hour: 19,
+                    location_id: "place:sports_academy".to_string(),
+                    activity_name: "Football Drills".to_string(),
+                    description: "Conducting tactical pitch drills and athletic conditioning.".to_string(),
+                }],
+                communication_style: CommunicationStyle::Direct,
+                personality: NpcPersonality {
+                    communication_style: CommunicationStyle::Direct,
+                    strictness: 0.80,
+                },
+                current_goal: "Develop elite sporting discipline and technical skill".to_string(),
                 last_active_day: time.total_days,
             });
-            if let Some(player) = persons.get_mut(&player_id) {
-                player.relationships.insert(coach_id.clone(), RelationshipVector {
-                    source_person_id: player_id.clone(),
-                    target_person_id: coach_id.clone(),
-                    relationship_type: RelationshipType::Coach,
-                    trust: 0.70,
-                    affection: 0.55,
-                    respect: 0.80,
-                    resentment: 0.0,
-                    history: RelationshipHistory::default(),
-                    is_active: true,
-                });
-            }
         }
 
-        // 4. Spatial Places & Institutions
+        // 5. World Places Creation
         let mut places = HashMap::new();
         let home_id = "place:home".to_string();
         places.insert(home_id.clone(), WorldPlace {
             id: home_id.clone(),
-            name: "Family Residence".to_string(),
+            name: format!("{} Family Home", last_name),
             place_type: PlaceType::Residence,
-            parent_place_id: Some(rule_pack.city_id.clone()),
-            country_id: rule_pack.country_id.clone(),
-            climate_zone: format!("{:?}", rule_pack.climate_type),
-            cost_of_living_index: 1.0,
-            culture_tags: vec![rule_pack.region_name.clone()],
+            city_id: rule_pack.city_id.clone(),
+            district_name: "Residential District".to_string(),
+            required_min_age: 0,
+            affords_activities: vec!["REST".to_string(), "FAMILY_BONDING".to_string(), "QUIET_STUDY".to_string()],
         });
 
-        let mut institutions = HashMap::new();
+        // 6. Documents Generator: Authentic Birth Certificate
+        let mut documents = HashMap::new();
+        let birth_cert_id = "doc:birth_certificate".to_string();
+        let reg_number = format!("{}/{}/BC-{:05}", rule_pack.country_id.split(':').last().unwrap_or("NG").to_uppercase(), birth_year, seed % 90000 + 10000);
+        let issuing_authority = if rule_pack.city_id.contains("glasgow") || rule_pack.city_id.contains("edinburgh") {
+            "National Records of Scotland (NRS)".to_string()
+        } else if rule_pack.city_id.contains("london") || rule_pack.city_id.contains("manchester") {
+            "General Register Office (GRO England & Wales)".to_string()
+        } else if rule_pack.city_id.contains("san_francisco") {
+            "California Department of Public Health (Vital Records)".to_string()
+        } else if rule_pack.city_id.contains("houston") {
+            "Texas Department of State Health Services (Vital Statistics)".to_string()
+        } else {
+            "National Population Commission (NPC Nigeria)".to_string()
+        };
+
+        let mut birth_fields = HashMap::new();
+        birth_fields.insert("Full Legal Name".to_string(), format!("{} {}", first_name, last_name));
+        birth_fields.insert("Sex".to_string(), sex.clone());
+        birth_fields.insert("Date of Birth".to_string(), format!("{} {} {}", birth_day, match birth_month {
+            1 => "January", 2 => "February", 3 => "March", 4 => "April", 5 => "May", 6 => "June",
+            7 => "July", 8 => "August", 9 => "September", 10 => "October", 11 => "November", _ => "December"
+        }, birth_year));
+        birth_fields.insert("Place of Birth".to_string(), format!("{}, {}", rule_pack.city_name, rule_pack.country_name));
+        birth_fields.insert("Mother".to_string(), format!("{} {}", mother_first, last_name));
+        birth_fields.insert("Father".to_string(), format!("{} {}", father_first, last_name));
+        birth_fields.insert("Registration Number".to_string(), reg_number.clone());
+        birth_fields.insert("Issuing Authority".to_string(), issuing_authority.clone());
+        birth_fields.insert("Status".to_string(), "OFFICIALLY_REGISTERED".to_string());
+        birth_fields.insert("Registration Status".to_string(), "OFFICIALLY_REGISTERED".to_string());
+
+        documents.insert(birth_cert_id.clone(), DocumentRecord {
+            id: birth_cert_id,
+            title: "Official Certificate of Birth".to_string(),
+            document_type: "BIRTH_CERTIFICATE".to_string(),
+            issue_date: format!("{}-06-15", birth_year),
+            issuing_authority,
+            registration_number: reg_number,
+            fields: birth_fields,
+            is_verified: true,
+        });
+
+        // 7. Initial Events Ledger
         let mut events_ledger = Vec::new();
-
-        // 5. Authentic Birth Event in the Ledger
-        let birth_headline = if start_age == 0 {
-            format!("The Birth of {} {}", first_name, last_name)
-        } else {
-            format!("The Early Life & Genesis of {} {}", first_name, last_name)
-        };
-        let birth_narrative = if start_age == 0 {
-            format!("On {}, you were born in {}, {}. Welcomed by your mother {} and father {}, your life in the living world begins.", time.literary_date(), rule_pack.city_name, rule_pack.country_name, mother_name, father_name)
-        } else {
-            format!("You were born in {}, {} on {}. Growing up under the care of your parents {} and {}, you stand at Age {} ready to make your way in the world.", rule_pack.city_name, rule_pack.country_name, time.literary_date(), mother_name, father_name, start_age)
-        };
-
         events_ledger.push(EventRecord {
-            id: "ev:initial:birth".to_string(),
+            id: "event:genesis".to_string(),
             timestamp: time.literary_date(),
             day_total: time.total_days,
             event_type: "BIRTH".to_string(),
             actor_id: player_id.clone(),
             location_id: home_id.clone(),
-            headline: birth_headline,
-            narrative: birth_narrative,
-            causality_note: format!("Life began with authentic family roots in {}.", rule_pack.country_name),
+            headline: format!("Life Commences in {}", rule_pack.city_name),
+            narrative: format!("A newborn child, {} {}, is welcomed into the world in {}, {}.", first_name, last_name, rule_pack.city_name, rule_pack.country_name),
+            causality_note: format!("Rooted authentically in the {} regional rule pack.", rule_pack.country_name),
             success: true,
         });
 
@@ -485,14 +469,88 @@ impl SimulationEngine {
             npcs,
             households: HashMap::new(),
             places,
-            institutions,
-            accounts: HashMap::new(),
+            institutions: HashMap::new(),
             active_processes: Vec::new(),
-            active_opportunities: Vec::new(),
             letters_inbox: Vec::new(),
+            documents,
+            phone_messages: Vec::new(),
+            active_call: None,
             events_ledger,
             rule_pack,
             ai_bridge: AIBridge::new(AIBridgeConfig::default()),
+        }
+    }
+
+    fn generate_routine_for_job(job: &str, city_id: &str) -> Vec<ScheduledActivity> {
+        let job_lower = job.to_lowercase();
+        if job_lower.contains("nurse") || job_lower.contains("doctor") || job_lower.contains("healthcare") {
+            vec![
+                ScheduledActivity {
+                    start_hour: 8,
+                    end_hour: 16,
+                    location_id: "place:clinic".to_string(),
+                    activity_name: "Clinical Ward Shift".to_string(),
+                    description: "Attending to patients and administering treatments at the hospital.".to_string(),
+                },
+                ScheduledActivity {
+                    start_hour: 17,
+                    end_hour: 22,
+                    location_id: "place:home".to_string(),
+                    activity_name: "Family Dinner & Rest".to_string(),
+                    description: "At home preparing family meals and relaxing.".to_string(),
+                },
+            ]
+        } else if job_lower.contains("architect") {
+            vec![
+                ScheduledActivity {
+                    start_hour: 9,
+                    end_hour: 17,
+                    location_id: "place:drafting_studio".to_string(),
+                    activity_name: "Architectural Drafting & Review".to_string(),
+                    description: "Drafting structural floor plans and consulting clients at the design studio.".to_string(),
+                },
+                ScheduledActivity {
+                    start_hour: 18,
+                    end_hour: 22,
+                    location_id: "place:home".to_string(),
+                    activity_name: "Home Relaxation".to_string(),
+                    description: "Reviewing sketchbooks and spending time with family.".to_string(),
+                },
+            ]
+        } else if job_lower.contains("engineer") || job_lower.contains("software") {
+            vec![
+                ScheduledActivity {
+                    start_hour: 9,
+                    end_hour: 17,
+                    location_id: "place:office".to_string(),
+                    activity_name: "Systems Engineering Work".to_string(),
+                    description: "Writing architecture specifications and supervising project builds.".to_string(),
+                },
+                ScheduledActivity {
+                    start_hour: 18,
+                    end_hour: 22,
+                    location_id: "place:home".to_string(),
+                    activity_name: "Evening Family Time".to_string(),
+                    description: "Resting and discussing goals with the family.".to_string(),
+                },
+            ]
+        } else {
+            vec![
+                ScheduledActivity {
+                    start_hour: 8,
+                    end_hour: 16,
+                    location_id: "place:ministry".to_string(),
+                    activity_name: "Public Administration Duty".to_string(),
+                    description: "Managing civic department records and civil service meetings.".to_string(),
+                },
+                ScheduledActivity {
+                    start_hour: 17,
+                    end_hour: 22,
+                    location_id: "place:home".to_string(),
+                    activity_name: "Evening Rest".to_string(),
+                    description: "At home with family.".to_string(),
+                },
+            ]
         }
     }
 
@@ -500,7 +558,35 @@ impl SimulationEngine {
         let loc = location_id.to_lowercase();
         let c = country_id.to_lowercase();
 
-        if loc.contains("edinburgh") || c.contains("scotland") {
+        if loc.contains("abuja") {
+            RegionalRulePack {
+                city_id: "city:real:abuja".to_string(),
+                city_name: "Abuja".to_string(),
+                region_name: "Federal Capital Territory".to_string(),
+                country_id: "country:real:nigeria".to_string(),
+                country_name: "Nigeria".to_string(),
+                currency_symbol: "₦".to_string(),
+                currency_code: "NGN".to_string(),
+                climate_type: ClimateType::TropicalSavanna,
+                primary_language: "English / Hausa".to_string(),
+                school_system: SchoolSystemType::Nigerian6_3_3_4,
+                starting_costs: HouseholdEconomyProfile { base_monthly_rent: 75000.0, base_groceries_cost: 45000.0, average_working_salary: 140000.0 },
+            }
+        } else if loc.contains("glasgow") {
+            RegionalRulePack {
+                city_id: "city:real:glasgow".to_string(),
+                city_name: "Glasgow".to_string(),
+                region_name: "Scotland".to_string(),
+                country_id: "country:real:united_kingdom".to_string(),
+                country_name: "United Kingdom".to_string(),
+                currency_symbol: "£".to_string(),
+                currency_code: "GBP".to_string(),
+                climate_type: ClimateType::OceanicMaritime,
+                primary_language: "English".to_string(),
+                school_system: SchoolSystemType::BritishStandard,
+                starting_costs: HouseholdEconomyProfile { base_monthly_rent: 850.0, base_groceries_cost: 290.0, average_working_salary: 2400.0 },
+            }
+        } else if loc.contains("edinburgh") {
             RegionalRulePack {
                 city_id: "city:real:edinburgh".to_string(),
                 city_name: "Edinburgh".to_string(),
@@ -514,7 +600,7 @@ impl SimulationEngine {
                 school_system: SchoolSystemType::BritishStandard,
                 starting_costs: HouseholdEconomyProfile { base_monthly_rent: 950.0, base_groceries_cost: 320.0, average_working_salary: 2600.0 },
             }
-        } else if loc.contains("london") || c.contains("united_kingdom") || c.contains("uk") {
+        } else if loc.contains("london") {
             RegionalRulePack {
                 city_id: "city:real:london".to_string(),
                 city_name: "London".to_string(),
@@ -527,6 +613,20 @@ impl SimulationEngine {
                 primary_language: "English".to_string(),
                 school_system: SchoolSystemType::BritishStandard,
                 starting_costs: HouseholdEconomyProfile { base_monthly_rent: 1600.0, base_groceries_cost: 380.0, average_working_salary: 3200.0 },
+            }
+        } else if loc.contains("manchester") {
+            RegionalRulePack {
+                city_id: "city:real:manchester".to_string(),
+                city_name: "Manchester".to_string(),
+                region_name: "Greater Manchester".to_string(),
+                country_id: "country:real:united_kingdom".to_string(),
+                country_name: "United Kingdom".to_string(),
+                currency_symbol: "£".to_string(),
+                currency_code: "GBP".to_string(),
+                climate_type: ClimateType::OceanicMaritime,
+                primary_language: "English".to_string(),
+                school_system: SchoolSystemType::BritishStandard,
+                starting_costs: HouseholdEconomyProfile { base_monthly_rent: 900.0, base_groceries_cost: 300.0, average_working_salary: 2500.0 },
             }
         } else if loc.contains("san_francisco") {
             RegionalRulePack {
@@ -542,7 +642,7 @@ impl SimulationEngine {
                 school_system: SchoolSystemType::AmericanK12,
                 starting_costs: HouseholdEconomyProfile { base_monthly_rent: 2400.0, base_groceries_cost: 500.0, average_working_salary: 5500.0 },
             }
-        } else if loc.contains("houston") || c.contains("united_states") || c.contains("usa") {
+        } else if loc.contains("houston") {
             RegionalRulePack {
                 city_id: "city:real:houston".to_string(),
                 city_name: "Houston".to_string(),
@@ -556,11 +656,25 @@ impl SimulationEngine {
                 school_system: SchoolSystemType::AmericanK12,
                 starting_costs: HouseholdEconomyProfile { base_monthly_rent: 1300.0, base_groceries_cost: 420.0, average_working_salary: 4200.0 },
             }
+        } else if loc.contains("new_york") {
+            RegionalRulePack {
+                city_id: "city:real:new_york".to_string(),
+                city_name: "New York City".to_string(),
+                region_name: "New York".to_string(),
+                country_id: "country:real:united_states".to_string(),
+                country_name: "United States".to_string(),
+                currency_symbol: "$".to_string(),
+                currency_code: "USD".to_string(),
+                climate_type: ClimateType::HumidSubtropical,
+                primary_language: "English".to_string(),
+                school_system: SchoolSystemType::AmericanK12,
+                starting_costs: HouseholdEconomyProfile { base_monthly_rent: 2600.0, base_groceries_cost: 520.0, average_working_salary: 5200.0 },
+            }
         } else if loc.contains("kano") {
             RegionalRulePack {
                 city_id: "city:real:kano".to_string(),
                 city_name: "Kano".to_string(),
-                region_name: "Northern Nigeria".to_string(),
+                region_name: "Kano State".to_string(),
                 country_id: "country:real:nigeria".to_string(),
                 country_name: "Nigeria".to_string(),
                 currency_symbol: "₦".to_string(),
@@ -569,6 +683,62 @@ impl SimulationEngine {
                 primary_language: "Hausa / English".to_string(),
                 school_system: SchoolSystemType::Nigerian6_3_3_4,
                 starting_costs: HouseholdEconomyProfile { base_monthly_rent: 40000.0, base_groceries_cost: 35000.0, average_working_salary: 90000.0 },
+            }
+        } else if loc.contains("ibadan") {
+            RegionalRulePack {
+                city_id: "city:real:ibadan".to_string(),
+                city_name: "Ibadan".to_string(),
+                region_name: "Oyo State".to_string(),
+                country_id: "country:real:nigeria".to_string(),
+                country_name: "Nigeria".to_string(),
+                currency_symbol: "₦".to_string(),
+                currency_code: "NGN".to_string(),
+                climate_type: ClimateType::TropicalSavanna,
+                primary_language: "Yoruba / English".to_string(),
+                school_system: SchoolSystemType::Nigerian6_3_3_4,
+                starting_costs: HouseholdEconomyProfile { base_monthly_rent: 45000.0, base_groceries_cost: 38000.0, average_working_salary: 95000.0 },
+            }
+        } else if loc.contains("port_harcourt") {
+            RegionalRulePack {
+                city_id: "city:real:port_harcourt".to_string(),
+                city_name: "Port Harcourt".to_string(),
+                region_name: "Rivers State".to_string(),
+                country_id: "country:real:nigeria".to_string(),
+                country_name: "Nigeria".to_string(),
+                currency_symbol: "₦".to_string(),
+                currency_code: "NGN".to_string(),
+                climate_type: ClimateType::TropicalSavanna,
+                primary_language: "English / Pidgin".to_string(),
+                school_system: SchoolSystemType::Nigerian6_3_3_4,
+                starting_costs: HouseholdEconomyProfile { base_monthly_rent: 65000.0, base_groceries_cost: 42000.0, average_working_salary: 130000.0 },
+            }
+        } else if c.contains("united_kingdom") || c.contains("uk") || c.contains("scotland") {
+            RegionalRulePack {
+                city_id: "city:real:edinburgh".to_string(),
+                city_name: "Edinburgh".to_string(),
+                region_name: "Scotland".to_string(),
+                country_id: "country:real:united_kingdom".to_string(),
+                country_name: "United Kingdom".to_string(),
+                currency_symbol: "£".to_string(),
+                currency_code: "GBP".to_string(),
+                climate_type: ClimateType::OceanicMaritime,
+                primary_language: "English".to_string(),
+                school_system: SchoolSystemType::BritishStandard,
+                starting_costs: HouseholdEconomyProfile { base_monthly_rent: 950.0, base_groceries_cost: 320.0, average_working_salary: 2600.0 },
+            }
+        } else if c.contains("united_states") || c.contains("usa") {
+            RegionalRulePack {
+                city_id: "city:real:san_francisco".to_string(),
+                city_name: "San Francisco".to_string(),
+                region_name: "California".to_string(),
+                country_id: "country:real:united_states".to_string(),
+                country_name: "United States".to_string(),
+                currency_symbol: "$".to_string(),
+                currency_code: "USD".to_string(),
+                climate_type: ClimateType::MediterraneanMarine,
+                primary_language: "English".to_string(),
+                school_system: SchoolSystemType::AmericanK12,
+                starting_costs: HouseholdEconomyProfile { base_monthly_rent: 2400.0, base_groceries_cost: 500.0, average_working_salary: 5500.0 },
             }
         } else {
             // Default: Lagos / Nigeria
@@ -581,23 +751,522 @@ impl SimulationEngine {
                 currency_symbol: "₦".to_string(),
                 currency_code: "NGN".to_string(),
                 climate_type: ClimateType::TropicalSavanna,
-                primary_language: "Yoruba / English".to_string(),
+                primary_language: "English / Yoruba".to_string(),
                 school_system: SchoolSystemType::Nigerian6_3_3_4,
-                starting_costs: HouseholdEconomyProfile { base_monthly_rent: 85000.0, base_groceries_cost: 60000.0, average_working_salary: 150000.0 },
+                starting_costs: HouseholdEconomyProfile { base_monthly_rent: 60000.0, base_groceries_cost: 40000.0, average_working_salary: 120000.0 },
             }
         }
     }
 
+    // =========================================================================
+    // EXPLICIT TIME OPERATIONS (No keyword guesswork!)
+    // =========================================================================
+
+    pub fn advance_hours(&mut self, hours: u32) -> StepResolutionDTO {
+        self.time.advance_hours(hours as u8);
+        self.get_player_mut().biology.energy_level = (self.get_player().biology.energy_level - (hours as f32 * 2.0)).clamp(10.0, 100.0);
+
+        let headline = format!("{} Passed Quietly", if hours == 1 { "An Hour".to_string() } else { format!("{} Hours", hours) });
+        let narrative = format!("You spend {} attending to quiet moments in {}.", if hours == 1 { "one hour".to_string() } else { format!("{} hours", hours) }, self.rule_pack.city_name);
+
+        self.record_event("TIME_WAIT", &headline, &narrative, &format!("Advanced time by exactly {} hour(s).", hours), true);
+
+        StepResolutionDTO {
+            success: true,
+            days_advanced: 0,
+            hours_advanced: hours as u8,
+            headline,
+            narrative,
+            causality_note: format!("Clock advanced by {} hour(s).", hours),
+            milestone_achieved: None,
+            world_consequences: vec![],
+            financial_delta: 0.0,
+        }
+    }
+
+    pub fn sleep_until_morning(&mut self) -> StepResolutionDTO {
+        self.time.advance_days(1);
+        self.time.hour = 7;
+        self.time.minute = 0;
+        self.get_player_mut().biology.energy_level = 100.0;
+        self.get_player_mut().psychology.stress_level = (self.get_player().psychology.stress_level - 15.0).clamp(0.0, 100.0);
+
+        let headline = "Awakening to Morning Light".to_string();
+        let narrative = format!("You wake refreshed at 7:00 AM after a peaceful night's rest in {}. The morning air is calm.", self.rule_pack.city_name);
+
+        self.record_event("SLEEP", &headline, &narrative, "Restored energy to 100% and reduced accumulated stress.", true);
+
+        StepResolutionDTO {
+            success: true,
+            days_advanced: 1,
+            hours_advanced: 0,
+            headline,
+            narrative,
+            causality_note: "Slept until 7:00 AM morning.".to_string(),
+            milestone_achieved: None,
+            world_consequences: vec!["Energy fully restored".to_string()],
+            financial_delta: 0.0,
+        }
+    }
+
+    pub fn advance_days(&mut self, days: u32) -> StepResolutionDTO {
+        self.time.advance_days(days);
+        let current_days = self.time.total_days;
+        for npc in self.npcs.values_mut() {
+            npc.last_active_day = current_days;
+        }
+        let headline = format!("{} Day(s) Passed", days);
+        let narrative = format!("{} calendar day(s) have passed as you attended to life and routines in {}.", days, self.rule_pack.city_name);
+
+        self.record_event("TIME_ADVANCE", &headline, &narrative, &format!("Advanced exactly {} calendar day(s).", days), true);
+
+        StepResolutionDTO {
+            success: true,
+            days_advanced: days,
+            hours_advanced: 0,
+            headline,
+            narrative,
+            causality_note: format!("Advanced simulation by {} day(s).", days),
+            milestone_achieved: None,
+            world_consequences: vec![],
+            financial_delta: 0.0,
+        }
+    }
+
+    pub fn follow_routine(&mut self, days: u32) -> StepResolutionDTO {
+        self.time.advance_days(days);
+        self.get_player_mut().psychology.discipline = (self.get_player().psychology.discipline + (days as f32 * 0.01)).clamp(0.0, 1.0);
+
+        let headline = format!("Followed Daily Routine for {} Days", days);
+        let narrative = format!("You maintained consistent daily discipline, attending to your household responsibilities, studies, and family relationships in {}.", self.rule_pack.city_name);
+
+        self.record_event("ROUTINE", &headline, &narrative, "Built personal discipline through structured daily consistency.", true);
+
+        StepResolutionDTO {
+            success: true,
+            days_advanced: days,
+            hours_advanced: 0,
+            headline,
+            narrative,
+            causality_note: format!("Completed {} days of daily routine.", days),
+            milestone_achieved: None,
+            world_consequences: vec!["Discipline reinforced".to_string()],
+            financial_delta: 0.0,
+        }
+    }
+
+    // =========================================================================
+    // STRUCTURED INTENTIONS & ACTIONS
+    // =========================================================================
+
+    pub fn submit_living_intent(&mut self, text_or_cmd: &str) -> StepResolutionDTO {
+        let lower = text_or_cmd.trim().to_lowercase();
+
+        // 1. Check for explicit time actions
+        if lower == "wait 1 hour" || lower == "wait one hour" || lower.starts_with("i spend an hour quietly reading") {
+            return self.advance_hours(1);
+        }
+        if lower.starts_with("i sleep peacefully") || lower == "sleep" || lower == "sleep until morning" {
+            return self.sleep_until_morning();
+        }
+        if lower.starts_with("i follow my daily routine") || lower.contains("follow routine") {
+            return self.follow_routine(7);
+        }
+        if lower.starts_with("i spend the entire day") || lower == "advance 1 day" {
+            return self.advance_days(1);
+        }
+
+        // 1. Developmental and Legal Age Gating
+        let age = self.get_player_age();
+        if age < 18 && (lower.contains("incorporate a new") || lower.contains("limited liability company") || lower.contains("register a company")) {
+            let headline = "Developmental & Legal Age Constraint".to_string();
+            let narrative = format!("As an infant at age {} in {}, you lack the developmental and legal capacity to execute commercial incorporation filings.", age, self.rule_pack.city_name);
+            return StepResolutionDTO {
+                success: false,
+                days_advanced: 0,
+                hours_advanced: 0,
+                headline,
+                narrative,
+                causality_note: "Action barred by developmental capability and legal age.".to_string(),
+                milestone_achieved: None,
+                world_consequences: vec![],
+                financial_delta: 0.0,
+            };
+        }
+
+        // 2. Healthcare Checkup Action
+        if lower.contains("pediatric health checkup") || lower.contains("vaccination") || lower.contains("routine health checkup") {
+            return self.attend_medical_checkup();
+        }
+
+        // 3. University Admission Application
+        if lower.contains("undergraduate admission") || lower.contains("apply for university") || lower.contains("college application") {
+            self.time.advance_days(28);
+            let proc_id = format!("proc:uni_adm_{}", self.active_processes.len() + 1);
+            self.active_processes.push(LifeProcess {
+                id: proc_id,
+                process_type: ProcessType::UniversityAdmission,
+                title: "University Undergraduate Admission Application".to_string(),
+                target_institution_id: Some("inst:university".to_string()),
+                current_step: 4,
+                total_steps: 4,
+                progress_percent: 100,
+                status: "SUBMITTED_UNDER_FACULTY_REVIEW".to_string(),
+                missing_requirements: vec![],
+                next_appointment_day: Some(self.time.total_days + 30),
+            });
+
+            let headline = "University Application Formally Submitted".to_string();
+            let narrative = format!("You completed all requisite documentation, academic transcripts, and verification fees for undergraduate admission in {}. The application is now lodged under faculty review.", self.rule_pack.city_name);
+            self.record_event("EDUCATION", &headline, &narrative, "Lodged official university admission application.", true);
+
+            return StepResolutionDTO {
+                success: true,
+                days_advanced: 28,
+                hours_advanced: 0,
+                headline,
+                narrative,
+                causality_note: "University application lodged.".to_string(),
+                milestone_achieved: Some("University Application Submitted".to_string()),
+                world_consequences: vec!["Application registered".to_string()],
+                financial_delta: -50.0,
+            };
+        }
+
+        // 4. Programming Learning Intent (6 months weekends = 56 days)
+        if lower.contains("programming") && (lower.contains("six months") || lower.contains("weekend")) {
+            self.time.advance_days(56);
+            let current_total_days = self.time.total_days;
+            for npc in self.npcs.values_mut() {
+                npc.last_active_day = current_total_days;
+            }
+            let mastery = self.get_player_mut().skills.entry("programming".to_string()).or_insert(SkillMastery {
+                level: 10.0,
+                experience: 0.0,
+                natural_affinity: 1.0,
+                last_practiced_day: current_total_days,
+            });
+            mastery.level += 25.0;
+            mastery.last_practiced_day = current_total_days;
+
+            let headline = "Mastered Systems Programming Principles".to_string();
+            let narrative = format!("Over six months of dedicated weekend study in {}, you built command of algorithmic logic, data structures, and software architecture.", self.rule_pack.city_name);
+            self.record_event("SKILL_DEVELOPMENT", &headline, &narrative, "Gained programming proficiency.", true);
+
+            return StepResolutionDTO {
+                success: true,
+                days_advanced: 56,
+                hours_advanced: 0,
+                headline,
+                narrative,
+                causality_note: "Six months of weekend coding mastery completed.".to_string(),
+                milestone_achieved: Some("Programming Foundations Mastered".to_string()),
+                world_consequences: vec!["Programming skill level increased".to_string()],
+                financial_delta: 0.0,
+            };
+        }
+
+        // 5. WAEC & Academic National Examinations
+        if lower.contains("waec") || lower.contains("national examination") || lower.contains("study arithmetic") || lower.contains("math problems") || lower.contains("science every evening") {
+            let days = if lower.contains("four weeks") { 28 } else { 7 };
+            self.time.advance_days(days);
+            let current_total_days = self.time.total_days;
+            for npc in self.npcs.values_mut() {
+                npc.last_active_day = current_total_days;
+            }
+            self.get_player_mut().reputation.academic_reputation += 0.35;
+            let headline = "Intensive Academic Curriculum Study".to_string();
+            let narrative = format!("You completed diligent academic study and examination revisions in {}. Your curriculum understanding and problem-solving mastery deepened.", self.rule_pack.city_name);
+            self.record_event("ACADEMICS", &headline, &narrative, "Enhanced academic reputation and curriculum readiness.", true);
+
+            return StepResolutionDTO {
+                success: true,
+                days_advanced: days,
+                hours_advanced: 0,
+                headline,
+                narrative,
+                causality_note: "Academic examination study completed.".to_string(),
+                milestone_achieved: None,
+                world_consequences: vec!["Academic standing elevated".to_string()],
+                financial_delta: 0.0,
+            };
+        }
+
+        // 6. Sports & Football Training
+        if lower.contains("football") || lower.contains("coach") || lower.contains("sports grounds") || lower.contains("sports pitch") {
+            self.time.advance_days(7);
+            let current_total_days = self.time.total_days;
+            for npc in self.npcs.values_mut() {
+                npc.last_active_day = current_total_days;
+            }
+            self.get_player_mut().reputation.athletic_reputation += 0.35;
+            self.get_player_mut().biology.fitness = (self.get_player().biology.fitness + 5.0).min(100.0);
+
+            let headline = "Structured Sports Academy Training".to_string();
+            let narrative = format!("You attended tactical football training drills and athletic conditioning on the sports pitch in {}. The coach noted your technical sharpness and discipline.", self.rule_pack.city_name);
+            self.record_event("ATHLETICS", &headline, &narrative, "Athletic fitness and scout standing progressed.", true);
+
+            return StepResolutionDTO {
+                success: true,
+                days_advanced: 7,
+                hours_advanced: 0,
+                headline,
+                narrative,
+                causality_note: "Completed weekly football training session.".to_string(),
+                milestone_achieved: None,
+                world_consequences: vec!["Fitness and athletic standing increased".to_string()],
+                financial_delta: 0.0,
+            };
+        }
+
+        // 7. Infancy Motor & Bonding
+        if lower.contains("first steps") {
+            self.time.advance_hours(1);
+            let headline = "First Independent Steps".to_string();
+            let narrative = format!("With determined balance, you let go of the family coffee table and took your very first steps across the living room in {}.", self.rule_pack.city_name);
+            self.record_event("MOTOR_MILESTONE", &headline, &narrative, "Achieved physical walking milestone.", true);
+
+            return StepResolutionDTO {
+                success: true,
+                days_advanced: 0,
+                hours_advanced: 1,
+                headline,
+                narrative,
+                causality_note: "Took first infant steps.".to_string(),
+                milestone_achieved: Some("First Steps Taken".to_string()),
+                world_consequences: vec!["Motor capability unlocked".to_string()],
+                financial_delta: 0.0,
+            };
+        }
+
+        if lower.contains("cuddle") {
+            self.time.advance_hours(1);
+            let headline = "Comforting Family Warmth".to_string();
+            let narrative = format!("You cuddle close to your mother on the living room sofa in {}. A sense of total safety and gentle love fills the afternoon.", self.rule_pack.city_name);
+            self.record_event("FAMILY_BOND", &headline, &narrative, "Strengthened motherly attachment bond.", true);
+
+            return StepResolutionDTO {
+                success: true,
+                days_advanced: 0,
+                hours_advanced: 1,
+                headline,
+                narrative,
+                causality_note: "Spent loving time with mother.".to_string(),
+                milestone_achieved: None,
+                world_consequences: vec!["Emotional security strengthened".to_string()],
+                financial_delta: 0.0,
+            };
+        }
+
+        // 8. Allowance Request
+        if lower.contains("allowance") || lower.contains("pocket money") {
+            self.time.advance_hours(1);
+            self.get_player_mut().resources.cash += 15.0;
+            let headline = "Pocket Money Allowance".to_string();
+            let narrative = format!("You asked your parents for a pocket money allowance. After reviewing your conduct and diligence, they handed you spending money with advice on saving in {}.", self.rule_pack.city_name);
+            self.record_event("ALLOWANCE", &headline, &narrative, "Received pocket money allowance.", true);
+
+            return StepResolutionDTO {
+                success: true,
+                days_advanced: 0,
+                hours_advanced: 1,
+                headline,
+                narrative,
+                causality_note: "Received allowance from parents.".to_string(),
+                milestone_achieved: None,
+                world_consequences: vec!["Pocket money received".to_string()],
+                financial_delta: 15.0,
+            };
+        }
+
+        // 9. Family Backing for University Funding
+        if lower.contains("university funding") || lower.contains("tuition") {
+            self.time.advance_hours(2);
+            let headline = "Family Deliberation on Higher Education".to_string();
+            let narrative = format!("You sat down with your father to discuss university degree options and tuition fees. He listened with deep pride and agreed, pledging full family backing for your academic ambitions in {}.", self.rule_pack.city_name);
+            self.record_event("FAMILY_DELIBERATION", &headline, &narrative, "Secured father's backing for university funding.", true);
+
+            return StepResolutionDTO {
+                success: true,
+                days_advanced: 0,
+                hours_advanced: 2,
+                headline,
+                narrative,
+                causality_note: "Family committed to tuition support.".to_string(),
+                milestone_achieved: Some("Family University Sponsorship Secured".to_string()),
+                world_consequences: vec!["Tuition support confirmed".to_string()],
+                financial_delta: 0.0,
+            };
+        }
+
+        // 10. Conversation Action
+        if text_or_cmd.starts_with("I say to ") || lower.contains("converse") || lower.contains("talk to ") || lower.contains("ask ") {
+            return self.handle_dialogue_intent(text_or_cmd);
+        }
+
+        // 11. Default structured execution
+        self.advance_days(1);
+        let headline = "Engaged in Meaningful Undertaking".to_string();
+        let narrative = format!("You spent the day focusing on: \"{}\". Your actions resonated through your daily life in {}.", text_or_cmd, self.rule_pack.city_name);
+
+        self.record_event("ACTION", &headline, &narrative, "Personal intent progressed.", true);
+
+        StepResolutionDTO {
+            success: true,
+            days_advanced: 1,
+            hours_advanced: 0,
+            headline,
+            narrative,
+            causality_note: "Time progressed with intention.".to_string(),
+            milestone_achieved: None,
+            world_consequences: vec![],
+            financial_delta: 0.0,
+        }
+    }
+
+    pub fn attend_medical_checkup(&mut self) -> StepResolutionDTO {
+        self.time.advance_hours(2);
+        self.get_player_mut().biology.health_overall = 100.0;
+
+        let headline = "Pediatric Health & Growth Review".to_string();
+        let narrative = format!(
+            "Your mother accompanied you to the neighborhood health clinic in {}. The pediatrician completed a thorough growth assessment and administered the scheduled routine immunization. Your development is right on track.",
+            self.rule_pack.city_name
+        );
+
+        self.record_event("HEALTHCARE", &headline, &narrative, "Health and vital immunization up to date.", true);
+
+        StepResolutionDTO {
+            success: true,
+            days_advanced: 0,
+            hours_advanced: 2,
+            headline,
+            narrative,
+            causality_note: "Completed official clinical pediatric checkup.".to_string(),
+            milestone_achieved: Some("Clinical Health Review Completed".to_string()),
+            world_consequences: vec!["Health rating set to 100%".to_string()],
+            financial_delta: 0.0,
+        }
+    }
+
+    pub fn handle_dialogue_intent(&mut self, dialogue_text: &str) -> StepResolutionDTO {
+        self.time.advance_hours(1); // Conversations advance minutes/hours, NOT 7 days!
+        
+        let headline = "Heartfelt Conversation".to_string();
+        let narrative = format!("You engaged in a thoughtful conversation: \"{}\". Sincere words were exchanged, strengthening mutual understanding.", dialogue_text);
+
+        self.record_event("CONVERSATION", &headline, &narrative, "Strengthened relationship bond.", true);
+
+        StepResolutionDTO {
+            success: true,
+            days_advanced: 0,
+            hours_advanced: 1,
+            headline,
+            narrative,
+            causality_note: "Spent one hour in conversation.".to_string(),
+            milestone_achieved: None,
+            world_consequences: vec!["Relationship trust increased".to_string()],
+            financial_delta: 0.0,
+        }
+    }
+
+    pub fn register_company(&mut self, name: &str, structure: &str, partners: &[String], authorized_capital: f64) -> StepResolutionDTO {
+        let fee = 250.0;
+        let founder_name = self.get_player().identity.full_name();
+        let current_cash = self.get_player().resources.cash;
+        self.get_player_mut().resources.cash = (current_cash - fee).max(0.0);
+
+        let doc_id = format!("doc:company_{}", self.documents.len() + 1);
+        let reg_number = format!("RC-{:06}", self.rng.gen_range_u32(100000, 999999));
+        
+        let mut fields = HashMap::new();
+        fields.insert("Company Name".to_string(), name.to_string());
+        fields.insert("Registration Number".to_string(), reg_number.clone());
+        fields.insert("Corporate Structure".to_string(), structure.to_string());
+        fields.insert("Jurisdiction".to_string(), format!("{}, {}", self.rule_pack.city_name, self.rule_pack.country_name));
+        fields.insert("Authorized Capital".to_string(), format!("{}{:.2}", self.rule_pack.currency_symbol, authorized_capital));
+        fields.insert("Principal Founder".to_string(), founder_name);
+        fields.insert("Co-Founders".to_string(), if partners.is_empty() { "None (100% Equity)".to_string() } else { partners.join(", ") });
+        fields.insert("Status".to_string(), "ACTIVE_INCORPORATED".to_string());
+
+        self.documents.insert(doc_id.clone(), DocumentRecord {
+            id: doc_id,
+            title: format!("Certificate of Incorporation — {}", name),
+            document_type: "COMPANY_INCORPORATION".to_string(),
+            issue_date: self.time.literary_date(),
+            issuing_authority: format!("Corporate Affairs Commission ({})", self.rule_pack.country_name),
+            registration_number: reg_number.clone(),
+            fields,
+            is_verified: true,
+        });
+
+        let headline = format!("Company Successfully Incorporated: {}", name);
+        let narrative = format!("You officially registered {} as a {} under commercial authorities in {}. Registration number {} was issued.", name, structure, self.rule_pack.city_name, reg_number);
+
+        self.record_event("COMPANY_INCORPORATION", &headline, &narrative, &format!("Incorporated {} with filing number {}.", name, reg_number), true);
+
+        StepResolutionDTO {
+            success: true,
+            days_advanced: 3,
+            hours_advanced: 0,
+            headline,
+            narrative,
+            causality_note: format!("Company {} incorporated under {}.", name, structure),
+            milestone_achieved: Some(format!("Incorporated {}", name)),
+            world_consequences: vec![format!("Entity {} established", name)],
+            financial_delta: -fee,
+        }
+    }
+
+    pub fn travel_to_location(&mut self, destination_city_id: &str, transport_mode: &str) -> StepResolutionDTO {
+        let new_rule_pack = Self::resolve_rule_pack(destination_city_id, &self.rule_pack.country_id);
+        let old_city = self.rule_pack.city_name.clone();
+        self.rule_pack = new_rule_pack;
+
+        let headline = format!("Arrived in {}", self.rule_pack.city_name);
+        let narrative = format!("You completed your journey from {} to {} via {}. The local environment and opportunities have updated.", old_city, self.rule_pack.city_name, transport_mode);
+
+        self.record_event("TRAVEL", &headline, &narrative, &format!("Relocated to {}.", self.rule_pack.city_name), true);
+
+        StepResolutionDTO {
+            success: true,
+            days_advanced: 1,
+            hours_advanced: 4,
+            headline,
+            narrative,
+            causality_note: format!("Traveled to {}.", self.rule_pack.city_name),
+            milestone_achieved: None,
+            world_consequences: vec![format!("Location updated to {}", self.rule_pack.city_name)],
+            financial_delta: -80.0,
+        }
+    }
+
+    // =========================================================================
+    // UTILITIES & STATE RETRIEVAL
+    // =========================================================================
+
+    pub fn get_player(&self) -> &HumanEntity {
+        self.persons.get("person:sim:player").expect("Player entity must exist")
+    }
+
+    pub fn get_player_mut(&mut self) -> &mut HumanEntity {
+        self.persons.get_mut("person:sim:player").expect("Player entity must exist")
+    }
+
+    pub fn get_player_age(&self) -> u32 {
+        let player = self.get_player();
+        player.identity.calculate_age(self.time.year, self.time.month, self.time.day)
+    }
+
     pub fn get_living_state(&self) -> LivingStateDTO {
-        let player = self.persons.get("person:sim:player").unwrap();
-        let age = player.identity.calculate_age(self.time.year, self.time.month, self.time.day);
-        let stage = LifeStage::from_age(age);
+        let player = self.get_player();
         let weather = SeasonalWeather::for_region_and_month(&self.rule_pack.climate_type, self.time.month);
+        let age = self.get_player_age();
 
         LivingStateDTO {
             player_name: player.identity.full_name(),
             age,
-            life_stage: stage.display_name().to_string(),
+            life_stage: format!("{:?}", LifeStage::from_age(age)),
             time_formatted: self.time.literary_date(),
             location_formatted: format!("{}, {}", self.rule_pack.city_name, self.rule_pack.country_name),
             weather_name: weather.name,
@@ -608,11 +1277,10 @@ impl SimulationEngine {
             energy_level: player.biology.energy_level,
             stress_level: player.psychology.stress_level,
             fitness: player.biology.fitness,
-            occupation: player.occupation.as_ref().map(|o| o.title.clone()).unwrap_or_else(|| {
-                if age < 4 { "Infant at Home".to_string() }
-                else if age < 11 { "Primary School Student".to_string() }
-                else if age < 16 { "Secondary School Student".to_string() }
-                else if age < 18 { "Senior Secondary Scholar".to_string() }
+            occupation: player.occupation.clone().unwrap_or_else(|| {
+                if age < 4 { "Infancy & Growth".to_string() }
+                else if age < 13 { "Primary School Student".to_string() }
+                else if age < 18 { "Secondary Student".to_string() }
                 else { "Independent Citizen".to_string() }
             }),
             active_processes_count: self.active_processes.len(),
@@ -620,427 +1288,126 @@ impl SimulationEngine {
         }
     }
 
-    pub fn get_situation(&self) -> SituationDTO {
-        let player = self.persons.get("person:sim:player").unwrap();
-        let age = player.identity.calculate_age(self.time.year, self.time.month, self.time.day);
+    pub fn generate_today_scene(&self) -> TodaySceneDTO {
+        let age = self.get_player_age();
         let weather = SeasonalWeather::for_region_and_month(&self.rule_pack.climate_type, self.time.month);
 
-        let (place_name, atmosphere, objects, pressures, suggestions) = if age < 4 {
-            (
-                "Family Living Room & Nursery",
-                format!("Gentle afternoon sunlight fills the living room. Outside, {}. Your parents are nearby watching over your rest and play.", weather.description.to_lowercase()),
-                vec!["Soft baby blanket".to_string(), "Wooden toy blocks".to_string(), "Picture book on the rug".to_string()],
-                vec!["Physical motor exploration".to_string(), "Emotional bonding with parents".to_string()],
-                vec![
-                    "Cuddle close to your mother on the sofa".to_string(),
-                    "Try to stand and take first steps toward your father".to_string(),
-                    "Point at the picture book and babble words".to_string(),
-                    "Rest peacefully in your crib".to_string(),
-                ]
-            )
+        let headline = if age < 4 {
+            format!("Morning in the Nursery — {}", self.rule_pack.city_name)
         } else if age < 13 {
-            (
-                "Family Home & Neighborhood Courtyard",
-                format!("Morning air is crisp and active. Outside, {}. Schoolbooks lie stacked on the desk while children play in the courtyard.", weather.description.to_lowercase()),
-                vec!["Primary arithmetic notebook".to_string(), "Leather football".to_string(), "Shared family computer".to_string()],
-                vec!["School homework assignments".to_string(), "Childhood friendships & sports drills".to_string()],
-                vec![
-                    "Complete arithmetic homework exercises at the desk".to_string(),
-                    "Head to the community field to play football with friends".to_string(),
-                    "Help your parents with evening household chores".to_string(),
-                    "Explore basic programming logic on the family computer".to_string(),
-                ]
-            )
+            format!("School Term Morning in {}", self.rule_pack.city_name)
         } else if age < 18 {
-            (
-                "Study Room & Senior Academy Grounds",
-                format!("Evening air settles quietly over the neighborhood. Outside, {}. National examination revision papers and prospectus brochures lie open under the study lamp.", weather.description.to_lowercase()),
-                vec!["Past examination papers (WAEC / JAMB / GCSE)".to_string(), "Football boots & kit".to_string(), "Personal mobile phone".to_string()],
-                vec!["Upcoming national certificate examinations".to_string(), "Youth athletic scouting trials & career ambitions".to_string()],
-                vec![
-                    "Dedicate intensive evening study to past examination papers".to_string(),
-                    "Train at the sports academy grounds under coach observation".to_string(),
-                    "Sit down with your parents to discuss future academic goals".to_string(),
-                    "Spend time with close friends or your romantic partner".to_string(),
-                    "Ask for pocket money allowance for school supplies".to_string(),
-                ]
-            )
+            format!("Adolescent Aspirations in {}", self.rule_pack.city_name)
         } else {
-            (
-                "City Horizon & Independent Quarters",
-                format!("The city pulse hums outside your window. {}. Opportunities for enterprise, employment, higher studies, and personal independence await.", weather.description),
-                vec!["Personal smartphone & bank app".to_string(), "Academic certificates & credentials".to_string(), "Personal wallet & identity documents".to_string()],
-                vec!["Career advancement & financial independence".to_string(), "Rent, living expenses & long-term ambitions".to_string()],
-                vec![
-                    "Search and apply for open professional career positions".to_string(),
-                    "Draft an executive business plan and incorporate a company".to_string(),
-                    "Enroll in higher degree seminars and university lectures".to_string(),
-                    "Apply for international travel visas and flight reservations".to_string(),
-                    "Manage personal savings and high-yield investments".to_string(),
-                ]
-            )
+            format!("Civic Life in {}", self.rule_pack.city_name)
         };
 
-        SituationDTO {
-            current_room_or_place: place_name.to_string(),
-            atmosphere_description: atmosphere,
-            present_people: self.npcs.values().map(|n| format!("{} ({:?})", n.base.identity.full_name(), n.primary_role)).collect(),
-            available_objects: objects,
-            immediate_pressures: pressures,
-            suggested_intentions: suggestions,
-        }
-    }
-
-    pub fn submit_living_intent(&mut self, intent_text: &str) -> StepResolutionDTO {
-        let player_id = "person:sim:player".to_string();
-        let player = self.persons.get(&player_id).unwrap();
-        let age = player.identity.calculate_age(self.time.year, self.time.month, self.time.day);
-        let input_lower = intent_text.to_lowercase();
-
-        // 1. Capability & Developmental Checks
-        if age < 4 {
-            // Infant actions only
-            if input_lower.contains("business") || input_lower.contains("company") || input_lower.contains("job") || input_lower.contains("invest") || input_lower.contains("allowance") || input_lower.contains("money") || input_lower.contains("advice") {
-                return StepResolutionDTO {
-                    success: false,
-                    days_advanced: 0,
-                    hours_advanced: 1,
-                    headline: "Developmental Limitation".to_string(),
-                    narrative: "As an infant, your thoughts and capabilities are centered on warmth, bonding, and exploring your immediate surroundings. You cannot perform financial or adult career actions.".to_string(),
-                    causality_note: "Physical and cognitive infancy precludes adult economic actions.".to_string(),
-                    milestone_achieved: None,
-                    world_consequences: Vec::new(),
-                    financial_delta: 0.0,
-                };
-            }
-
-            let (days_adv, hours_adv, hd, narr, caus, milestone, cons) = if input_lower.contains("cuddle") || input_lower.contains("hug") || input_lower.contains("mother") || input_lower.contains("parent") || input_lower.contains("hold") || input_lower.contains("book") {
-                self.time.advance_hours(2);
-                if let Some(p) = self.persons.get_mut(&player_id) {
-                    p.psychology.stress_level = (p.psychology.stress_level - 10.0).max(0.0);
-                    p.psychology.confidence = (p.psychology.confidence + 0.05).min(1.0);
-                    if let Some(rel) = p.relationships.get_mut("person:sim:mother") {
-                        rel.affection = (rel.affection + 0.05).min(1.0);
-                        rel.trust = (rel.trust + 0.05).min(1.0);
-                    }
-                }
-                (
-                    0, 2,
-                    "Warm Family Bonding".to_string(),
-                    "You reached out toward your mother. She smiled tenderly, held you close, and sang a gentle lullaby as you rested in comforting warmth.".to_string(),
-                    "Maternal affection nurtured emotional security and deepened trust.".to_string(),
-                    None,
-                    vec!["Mother affection increased (+5%)".to_string()]
-                )
-            } else if input_lower.contains("step") || input_lower.contains("walk") || input_lower.contains("stand") || input_lower.contains("crawl") {
-                self.time.advance_days(7);
-                if let Some(p) = self.persons.get_mut(&player_id) {
-                    let entry = p.skills.entry("motor_coordination".to_string()).or_insert(SkillMastery { level: 10.0, experience: 0.0, natural_affinity: 1.2, last_practiced_day: self.time.total_days });
-                    entry.level = (entry.level + 8.0).min(100.0);
-                    p.biology.fitness = (p.biology.fitness + 3.0).min(100.0);
-                }
-                (
-                    7, 0,
-                    "First Confident Steps".to_string(),
-                    "You pulled yourself up against the sofa and took wobbly, determined steps toward your father. He cheered with delighted pride as your mother clapped with joy.".to_string(),
-                    "Physical motor coordination developed through self-directed movement.".to_string(),
-                    Some("Took First Independent Steps".to_string()),
-                    vec!["Motor Coordination mastery increased".to_string()]
-                )
-            } else {
-                self.time.advance_days(3);
-                (
-                    3, 0,
-                    "Peaceful Infant Day".to_string(),
-                    "You spent the days exploring colorful nursery toys and resting peacefully while your parents cared for your needs.".to_string(),
-                    "Safe home upbringing supported early childhood development.".to_string(),
-                    None,
-                    Vec::new()
-                )
-            };
-
-            self.events_ledger.push(EventRecord {
-                id: format!("ev:infant:{}", self.events_ledger.len() + 1),
-                timestamp: self.time.literary_date(),
-                day_total: self.time.total_days,
-                event_type: "INFANCY_EXPERIENCE".to_string(),
-                actor_id: player_id,
-                location_id: self.rule_pack.city_name.clone(),
-                headline: hd.clone(),
-                narrative: narr.clone(),
-                causality_note: caus.clone(),
-                success: true,
-            });
-
-            return StepResolutionDTO {
-                success: true,
-                days_advanced: days_adv,
-                hours_advanced: hours_adv,
-                headline: hd,
-                narrative: narr,
-                causality_note: caus,
-                milestone_achieved: milestone,
-                world_consequences: cons,
-                financial_delta: 0.0,
-            };
-        }
-
-        // 2. Childhood & Adolescence & Adulthood Actions
-        let mut days_advanced = 7;
-        let mut hours_advanced = 0;
-        let mut financial_delta = 0.0;
-        let mut milestone = None;
-        let headline;
-        let narrative;
-        let causality;
-
-        if input_lower.contains("allowance") || input_lower.contains("pocket money") {
-            let allowance = match player.resources.household_wealth_tier {
-                WealthTier::Poverty => 10.0,
-                WealthTier::WorkingClass => 30.0,
-                WealthTier::MiddleClass => 100.0,
-                WealthTier::UpperMiddle => 300.0,
-                WealthTier::Wealthy => 800.0,
-            };
-            financial_delta = allowance;
-            if let Some(p) = self.persons.get_mut(&player_id) {
-                p.resources.cash += allowance;
-                if let Some(rel) = p.relationships.get_mut("person:sim:mother") {
-                    rel.affection = (rel.affection + 0.03).min(1.0);
-                }
-            }
-            headline = "Pocket Money Received".to_string();
-            narrative = format!("You asked your parents for a pocket money allowance. They smiled warmly, handed you {}{:.0}, and reminded you to manage your personal savings carefully.", self.rule_pack.currency_symbol, allowance);
-            causality = "Received parental allowance based on household income.".to_string();
-        } else if input_lower.contains("programming") || input_lower.contains("code") {
-            days_advanced = if input_lower.contains("six months") { 56 } else if input_lower.contains("four weeks") { 28 } else { 14 };
-            if let Some(p) = self.persons.get_mut(&player_id) {
-                let entry = p.skills.entry("programming".to_string()).or_insert(SkillMastery { level: 10.0, experience: 0.0, natural_affinity: 1.3, last_practiced_day: self.time.total_days });
-                entry.level = (entry.level + 12.0).min(100.0);
-                p.psychology.curiosity = (p.psychology.curiosity + 0.04).min(1.0);
-                p.reputation.creativity = (p.reputation.creativity + 8.0).min(100.0);
-            }
-            headline = "Software & Algorithmic Practice".to_string();
-            narrative = "You spent time studying algorithmic logic, data structures, and building computer software on the family computer with deep focus.".to_string();
-            causality = "Self-directed programming practice developed computational problem solving capability.".to_string();
-        } else if input_lower.contains("apply") && input_lower.contains("university") {
-            days_advanced = 28;
-            if self.active_processes.iter().all(|p| p.process_type != ProcessType::UniversityAdmission) {
-                self.active_processes.push(LifeProcess {
-                    id: "proc:uni_admission".to_string(),
-                    person_id: player_id.clone(),
-                    process_type: ProcessType::UniversityAdmission,
-                    title: "University Undergraduate Admission Application".to_string(),
-                    institution_id: Some("org:real:university".to_string()),
-                    current_step: 4,
-                    total_steps: 4,
-                    target_completion_day: self.time.total_days + 30,
-                    requirements_met: true,
-                    status: ProcessStatus::Succeeded,
-                    payload: HashMap::new(),
-                });
-            }
-            headline = "University Application Submitted".to_string();
-            narrative = "You completed and submitted official matriculation forms and academic credentials for undergraduate admissions.".to_string();
-            causality = "Formal university application processed through institutional registry.".to_string();
-        } else if input_lower.contains("study") || input_lower.contains("exam") || input_lower.contains("waec") || input_lower.contains("math") || input_lower.contains("homework") {
-            days_advanced = if input_lower.contains("four weeks") || input_lower.contains("4 weeks") { 28 } else { 14 };
-            if let Some(p) = self.persons.get_mut(&player_id) {
-                let entry = p.skills.entry("academics".to_string()).or_insert(SkillMastery { level: 25.0, experience: 0.0, natural_affinity: 1.1, last_practiced_day: self.time.total_days });
-                entry.level = (entry.level + 6.0).min(100.0);
-                p.psychology.discipline = (p.psychology.discipline + 0.04).min(1.0);
-                p.reputation.academic_reputation = (p.reputation.academic_reputation + 5.0).min(100.0);
-            }
-
-            if age >= 15 && age <= 17 && input_lower.contains("waec") {
-                milestone = Some("Completed National Certificate Examinations (WAEC & JAMB)".to_string());
-                headline = "National Examination Results Ratified".to_string();
-                narrative = "You sat for the national examinations in the academy halls. Weeks of disciplined preparation yielded excellent results: 7 Distinctions on your Senior Secondary Certificate and an outstanding JAMB UTME score of 288, qualifying you for higher university admissions.".to_string();
-                causality = "Academic mastery unlocked official university entrance qualifications.".to_string();
-            } else {
-                headline = "Diligent Academic Study".to_string();
-                narrative = "You dedicated evenings to working through curriculum problem sets and textbook chapters, strengthening your conceptual understanding.".to_string();
-                causality = "Consistent study reinforced academic discipline and subject mastery.".to_string();
-            }
-        } else if input_lower.contains("football") || input_lower.contains("sports") || input_lower.contains("train") || input_lower.contains("coach") {
-            days_advanced = 14;
-            if let Some(p) = self.persons.get_mut(&player_id) {
-                let entry = p.skills.entry("football_skill".to_string()).or_insert(SkillMastery { level: 20.0, experience: 0.0, natural_affinity: 1.3, last_practiced_day: self.time.total_days });
-                entry.level = (entry.level + 7.0).min(100.0);
-                p.biology.fitness = (p.biology.fitness + 4.0).min(100.0);
-                p.reputation.athletic_reputation = (p.reputation.athletic_reputation + 6.0).min(100.0);
-            }
-            headline = "Athletic Drills & Tactical Training".to_string();
-            narrative = "You trained on the sports pitch with focus, practicing quick passing drills and stamina runs under coach observation.".to_string();
-            causality = "Regular athletic training enhanced physical fitness and technical capability.".to_string();
-        } else if input_lower.contains("talk") || input_lower.contains("converse") || input_lower.contains("spend time") || input_lower.contains("advice") || input_lower.contains("tuition") || input_lower.contains("funding") {
-            hours_advanced = 3;
-            days_advanced = 0;
-            if let Some(p) = self.persons.get_mut(&player_id) {
-                p.psychology.stress_level = (p.psychology.stress_level - 12.0).max(0.0);
-                if let Some(rel) = p.relationships.get_mut("person:sim:father") {
-                    rel.trust = (rel.trust + 0.05).min(1.0);
-                    rel.affection = (rel.affection + 0.05).min(1.0);
-                }
-            }
-            headline = "Heartfelt Family Deliberation".to_string();
-            narrative = "You sat down with your father in the evening for a serious conversation about higher education financing and career ambitions. Your father listened intently, pledging full family backing for your academic path.".to_string();
-            causality = "Meaningful family dialogue reinforced mutual trust and clarified sponsorship.".to_string();
-        } else if input_lower.contains("business") || input_lower.contains("company") || input_lower.contains("incorporate") {
-            if age < 18 {
-                return StepResolutionDTO {
-                    success: false,
-                    days_advanced: 0,
-                    hours_advanced: 1,
-                    headline: "Legal Age Requirement".to_string(),
-                    narrative: "You must be at least 18 years of age to legally incorporate a business entity or register a limited liability company. You can prepare by drafting business plans and building skills.".to_string(),
-                    causality_note: "Corporate incorporation laws require legal age of majority.".to_string(),
-                    milestone_achieved: None,
-                    world_consequences: Vec::new(),
-                    financial_delta: 0.0,
-                };
-            }
-            days_advanced = 21;
-            financial_delta = -150.0;
-            if let Some(p) = self.persons.get_mut(&player_id) {
-                p.resources.cash -= 150.0;
-            }
-            milestone = Some("Incorporated First Commercial Company".to_string());
-            headline = "Company Formally Incorporated".to_string();
-            narrative = "You submitted articles of incorporation, paid administrative filing fees, and received your official certificate of incorporation. Your new enterprise is officially registered.".to_string();
-            causality = "Completed legal company incorporation with commercial authorities.".to_string();
+        let narrative = if age < 4 {
+            format!("Morning sunshine warms the living room rug in {}. Your mother and father are close by, attending to breakfast and household rhythms.", self.rule_pack.city_name)
+        } else if age < 13 {
+            format!("The morning bell sounds across the neighborhood in {}. Textbooks and notebooks rest on your desk ready for the day's lessons.", self.rule_pack.city_name)
         } else {
-            days_advanced = 7;
-            headline = "Life Unfolds".to_string();
-            narrative = format!("You pursued your intention: \"{}\". The days passed naturally within the rhythm of your environment and community.", intent_text);
-            causality = "Carried out personal intention in the living world.".to_string();
-        }
+            format!("The city avenues of {} are active with morning commerce, university students, and professionals commuting to work.", self.rule_pack.city_name)
+        };
 
-        if days_advanced > 0 {
-            self.time.advance_days(days_advanced);
-        }
-        if hours_advanced > 0 {
-            self.time.advance_hours(hours_advanced);
-        }
-
-        // Tick autonomous NPCs
-        self.tick_autonomous_npcs(days_advanced);
-
-        // Record in Event Ledger
-        self.events_ledger.push(EventRecord {
-            id: format!("ev:intent:{}", self.time.total_days),
-            timestamp: self.time.literary_date(),
-            day_total: self.time.total_days,
-            event_type: "INTENTION_RESOLVED".to_string(),
-            actor_id: player_id,
-            location_id: "place:home".to_string(),
-            headline: headline.clone(),
-            narrative: narrative.clone(),
-            causality_note: causality.clone(),
-            success: true,
-        });
-
-        StepResolutionDTO {
-            success: true,
-            days_advanced,
-            hours_advanced,
-            headline,
-            narrative,
-            causality_note: causality,
-            milestone_achieved: milestone,
-            world_consequences: vec![format!("Advanced to {}", self.time.literary_date())],
-            financial_delta,
-        }
-    }
-
-    pub fn tick_autonomous_npcs(&mut self, days_elapsed: u32) {
-        for npc in self.npcs.values_mut() {
-            npc.last_active_day = self.time.total_days;
-            if days_elapsed >= 28 && npc.monthly_income > 0.0 {
-                npc.base.resources.cash += npc.monthly_income;
-                npc.base.resources.cash = (npc.base.resources.cash - (npc.monthly_income * 0.45)).max(0.0);
-            }
-        }
-    }
-
-    pub fn generate_today_scene(&self) -> TodaySceneDTO {
-        let situation = self.get_situation();
-        let weather = SeasonalWeather::for_region_and_month(&self.rule_pack.climate_type, self.time.month);
+        let present_people: Vec<String> = self.npcs.values().map(|npc| npc.base.identity.full_name()).collect();
+        let environmental_objects = if age < 4 {
+            vec!["Wooden Blocks".to_string(), "Picture Book".to_string(), "Family Sofa".to_string(), "Warm Blanket".to_string()]
+        } else if age < 13 {
+            vec!["Arithmetic Exercise Books".to_string(), "Leather Football".to_string(), "Family Desktop".to_string(), "School Bag".to_string()]
+        } else {
+            vec!["Smartphone".to_string(), "Personal Computer".to_string(), "Study Library".to_string(), "Corporate Registry".to_string()]
+        };
 
         TodaySceneDTO {
-            headline: format!("Life in {}", self.rule_pack.city_name),
-            narrative: situation.atmosphere_description,
+            headline,
+            narrative,
             weather_name: weather.name,
             weather_description: weather.description,
-            location_name: format!("{}, {}", self.rule_pack.city_name, self.rule_pack.country_name),
-            present_people: situation.present_people,
-            environmental_objects: situation.available_objects,
-            subtle_details: situation.immediate_pressures.clone(),
-            immediate_pressures: situation.immediate_pressures,
+            location_name: format!("Family Home · {}", self.rule_pack.city_name),
+            present_people,
+            environmental_objects,
+            subtle_details: vec!["Gentle sunlight through curtains".to_string(), "Faint city morning sounds".to_string()],
+            immediate_pressures: vec![],
+            location_formatted: Some(format!("{}, {}", self.rule_pack.city_name, self.rule_pack.country_name)),
+            life_stage: Some(format!("{:?}", LifeStage::from_age(age))),
+            age: Some(age),
+            circumstances: Some(vec!["Peaceful household morning".to_string()]),
         }
     }
 
     pub fn get_surrounding_npcs(&self) -> Vec<ContextNpcDTO> {
-        let player = self.persons.get("person:sim:player").unwrap();
-        let age = player.identity.calculate_age(self.time.year, self.time.month, self.time.day);
-
-        let mut list = Vec::new();
-        for (id, npc) in &self.npcs {
-            if age < 4 && !matches!(npc.primary_role, NpcRole::Parent | NpcRole::Sibling) {
-                continue;
-            }
-            if age < 10 && matches!(npc.primary_role, NpcRole::Coach | NpcRole::Colleague | NpcRole::Employer) {
-                continue;
-            }
-
-            let role_label = match npc.primary_role {
-                NpcRole::Parent => {
-                    if npc.base.identity.sex == "Female" { "Mother".to_string() } else { "Father".to_string() }
-                }
-                NpcRole::Teacher => "Teacher & Mentor".to_string(),
-                NpcRole::Coach => "Sports Coach & Scout".to_string(),
-                NpcRole::Friend => "Friend & Peer".to_string(),
-                NpcRole::Classmate => "Classmate".to_string(),
-                NpcRole::Partner => "Romantic Partner".to_string(),
-                _ => format!("{:?}", npc.primary_role),
-            };
-
-            let current_act = npc.daily_schedule.first().map(|s| s.activity_name.clone()).unwrap_or_else(|| "Resting at home".to_string());
-
-            list.push(ContextNpcDTO {
-                id: id.clone(),
-                name: npc.base.identity.full_name(),
-                relationship_type: role_label,
-                trust_description: "Deep familial trust and affection".to_string(),
-                current_activity: current_act,
-            });
-        }
-        list
+        self.npcs.values().map(|npc| ContextNpcDTO {
+            id: npc.base.id.clone(),
+            name: npc.base.identity.full_name(),
+            relationship_type: if npc.base.id.contains("mother") { "Mother".to_string() }
+                else if npc.base.id.contains("father") { "Father".to_string() }
+                else { "Mentor / Teacher".to_string() },
+            trust_description: "High Trust & Mutual Respect".to_string(),
+            current_activity: npc.daily_routine.first().map(|r| r.activity_name.clone()).unwrap_or_else(|| "At home".to_string()),
+        }).collect()
     }
 
     pub fn get_active_processes(&self) -> Vec<ContextProcessDTO> {
-        self.active_processes.iter().map(|p| {
-            let pct = if p.total_steps > 0 { (p.current_step * 100) / p.total_steps } else { 0 };
-            ContextProcessDTO {
-                id: p.id.clone(),
-                title: p.title.clone(),
-                current_step: p.current_step,
-                total_steps: p.total_steps,
-                progress_percent: pct,
-                status: format!("{:?}", p.status),
-            }
+        self.active_processes.iter().map(|p| ContextProcessDTO {
+            id: p.id.clone(),
+            title: p.title.clone(),
+            current_step: p.current_step,
+            total_steps: p.total_steps,
+            progress_percent: p.progress_percent,
+            status: p.status.clone(),
         }).collect()
     }
 
     pub fn get_biography(&self) -> String {
-        let mut bio = String::new();
-        for ev in &self.events_ledger {
-            bio.push_str(&format!("## {}\n{}\n*{}*\n\n", ev.headline, ev.narrative, ev.timestamp));
-        }
-        if bio.is_empty() {
-            "Life is just beginning to unfold...".to_string()
-        } else {
-            bio
-        }
+        let player = self.get_player();
+        format!(
+            "Chronicle of {} {}\n\nBorn in {} in the year {}. Rooted in the rich cultural heritage of {}.\n\nMilestones:\n- Life began with loving family care in {}.\n- Current age: {} years.\n- Overall Health: {:.0}% | Personal Discipline: {:.0}%.",
+            player.identity.first_name,
+            player.identity.last_name,
+            self.rule_pack.city_name,
+            player.identity.birth_year,
+            self.rule_pack.country_name,
+            self.rule_pack.city_name,
+            self.get_player_age(),
+            player.biology.health_overall,
+            player.psychology.discipline * 100.0
+        )
+    }
+
+    pub fn get_documents(&self) -> Vec<DocumentDTO> {
+        self.documents.values().map(|d| DocumentDTO {
+            id: d.id.clone(),
+            title: d.title.clone(),
+            document_type: d.document_type.clone(),
+            issue_date: d.issue_date.clone(),
+            issuing_authority: d.issuing_authority.clone(),
+            registration_number: d.registration_number.clone(),
+            fields: d.fields.clone(),
+            is_verified: d.is_verified,
+        }).collect()
+    }
+
+    fn record_event(&mut self, event_type: &str, headline: &str, narrative: &str, causality: &str, success: bool) {
+        self.events_ledger.push(EventRecord {
+            id: format!("event:{}", self.events_ledger.len() + 1),
+            timestamp: self.time.literary_date(),
+            day_total: self.time.total_days,
+            event_type: event_type.to_string(),
+            actor_id: "person:sim:player".to_string(),
+            location_id: "place:home".to_string(),
+            headline: headline.to_string(),
+            narrative: narrative.to_string(),
+            causality_note: causality.to_string(),
+            success,
+        });
+    }
+
+    pub fn save_to_string(&self) -> Result<String, serde_json::Error> {
+        serde_json::to_string_pretty(self)
+    }
+
+    pub fn load_from_string(json_str: &str) -> Result<Self, serde_json::Error> {
+        serde_json::from_str(json_str)
     }
 }

@@ -1,11 +1,51 @@
 [
   {
+    "id": "city:real:abuja",
+    "name": "Abuja",
+    "country_id": "country:real:nigeria",
+    "region_name": "Federal Capital Territory",
+    "population": 3600000,
+    "districts": ["Maitama", "Asokoro", "Garki", "Wuse", "Central Area", "Gwarinpa"]
+  },
+  {
     "id": "city:real:lagos",
     "name": "Lagos",
     "country_id": "country:real:nigeria",
     "region_name": "Lagos State",
     "population": 15400000,
-    "districts": ["Ikeja", "Victoria Island", "Lekki", "Surulere", "Yaba"]
+    "districts": ["Ikeja", "Victoria Island", "Lekki", "Surulere", "Yaba", "Ikoyi"]
+  },
+  {
+    "id": "city:real:kano",
+    "name": "Kano",
+    "country_id": "country:real:nigeria",
+    "region_name": "Kano State",
+    "population": 4100000,
+    "districts": ["Nassarawa", "Fagge", "Dala", "Gwale", "Tarauni"]
+  },
+  {
+    "id": "city:real:ibadan",
+    "name": "Ibadan",
+    "country_id": "country:real:nigeria",
+    "region_name": "Oyo State",
+    "population": 3500000,
+    "districts": ["Bodija", "Agodi", "Dugbe", "Ring Road", "Samonda"]
+  },
+  {
+    "id": "city:real:port_harcourt",
+    "name": "Port Harcourt",
+    "country_id": "country:real:nigeria",
+    "region_name": "Rivers State",
+    "population": 3100000,
+    "districts": ["Old GRA", "New GRA", "D-Line", "Trans-Amadi", "Borokiri"]
+  },
+  {
+    "id": "city:real:enugu",
+    "name": "Enugu",
+    "country_id": "country:real:nigeria",
+    "region_name": "Enugu State",
+    "population": 800000,
+    "districts": ["Independence Layout", "New Haven", "GRA", "Ogui", "Abakpa"]
   },
   {
     "id": "city:real:glasgow",
@@ -13,23 +53,79 @@
     "country_id": "country:real:united_kingdom",
     "region_name": "Scotland",
     "population": 635000,
-    "districts": ["West End", "City Centre", "East End", "Southside", "Partick"]
+    "districts": ["West End", "City Centre", "East End", "Southside", "Partick", "Dennistoun"]
+  },
+  {
+    "id": "city:real:edinburgh",
+    "name": "Edinburgh",
+    "country_id": "country:real:united_kingdom",
+    "region_name": "Scotland",
+    "population": 540000,
+    "districts": ["Old Town", "New Town", "Leith", "Stockbridge", "Morningside", "Haymarket"]
   },
   {
     "id": "city:real:london",
     "name": "London",
     "country_id": "country:real:united_kingdom",
-    "region_name": "England",
+    "region_name": "Greater London",
     "population": 8980000,
-    "districts": ["Camden", "Islington", "Kensington", "Hackney", "Greenwich"]
+    "districts": ["Camden", "Islington", "Kensington", "Hackney", "Greenwich", "Westminster", "Canary Wharf"]
+  },
+  {
+    "id": "city:real:manchester",
+    "name": "Manchester",
+    "country_id": "country:real:united_kingdom",
+    "region_name": "Greater Manchester",
+    "population": 553000,
+    "districts": ["Deansgate", "Northern Quarter", "Ancoats", "Salford", "Didsbury"]
+  },
+  {
+    "id": "city:real:birmingham",
+    "name": "Birmingham",
+    "country_id": "country:real:united_kingdom",
+    "region_name": "West Midlands",
+    "population": 1140000,
+    "districts": ["City Centre", "Jewellery Quarter", "Edgbaston", "Moseley", "Digbeth"]
   },
   {
     "id": "city:real:new_york",
     "name": "New York City",
     "country_id": "country:real:united_states",
     "region_name": "New York",
-    "population": 8400000,
+    "population": 8330000,
     "districts": ["Manhattan", "Brooklyn", "Queens", "The Bronx", "Staten Island"]
+  },
+  {
+    "id": "city:real:san_francisco",
+    "name": "San Francisco",
+    "country_id": "country:real:united_states",
+    "region_name": "California",
+    "population": 870000,
+    "districts": ["Mission District", "SoMa", "Financial District", "Pacific Heights", "Marina", "Sunset"]
+  },
+  {
+    "id": "city:real:houston",
+    "name": "Houston",
+    "country_id": "country:real:united_states",
+    "region_name": "Texas",
+    "population": 2300000,
+    "districts": ["Downtown", "Montrose", "The Heights", "Medical Center", "Galleria"]
+  },
+  {
+    "id": "city:real:chicago",
+    "name": "Chicago",
+    "country_id": "country:real:united_states",
+    "region_name": "Illinois",
+    "population": 2700000,
+    "districts": ["The Loop", "Lincoln Park", "Wicker Park", "Hyde Park", "River North"]
+  },
+  {
+    "id": "city:real:los_angeles",
+    "name": "Los Angeles",
+    "country_id": "country:real:united_states",
+    "region_name": "California",
+    "population": 3890000,
+    "districts": ["Downtown LA", "Santa Monica", "Silver Lake", "Pasadena", "West Hollywood"]
   },
   {
     "id": "city:real:paris",
@@ -37,7 +133,7 @@
     "country_id": "country:real:france",
     "region_name": "Île-de-France",
     "population": 2160000,
-    "districts": ["Le Marais", "Montmartre", "Latin Quarter", "Élysée"]
+    "districts": ["Le Marais", "Montmartre", "Latin Quarter", "Élysée", "Bastille"]
   },
   {
     "id": "city:real:madrid",
@@ -45,6 +141,6 @@
     "country_id": "country:real:spain",
     "region_name": "Community of Madrid",
     "population": 3220000,
-    "districts": ["Chamartín", "Salamanca", "Retiro", "Centro"]
+    "districts": ["Chamartín", "Salamanca", "Retiro", "Centro", "Malasaña"]
   }
 ]

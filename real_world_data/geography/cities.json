@@ -1,12 +1,75 @@
 [
   {
+    "id": "city:real:abuja",
+    "name": "Abuja",
+    "country_id": "country:real:nigeria",
+    "region_id": "region:real:fct",
+    "population": 3600000,
+    "cost_of_living_index": 0.90,
+    "districts": ["Maitama", "Asokoro", "Garki", "Wuse", "Central Area", "Gwarinpa"]
+  },
+  {
+    "id": "city:real:lagos",
+    "name": "Lagos",
+    "country_id": "country:real:nigeria",
+    "region_id": "region:real:lagos_state",
+    "population": 15400000,
+    "cost_of_living_index": 0.85,
+    "districts": ["Ikeja", "Victoria Island", "Lekki", "Surulere", "Yaba", "Ikoyi"]
+  },
+  {
+    "id": "city:real:kano",
+    "name": "Kano",
+    "country_id": "country:real:nigeria",
+    "region_id": "region:real:kano_state",
+    "population": 4100000,
+    "cost_of_living_index": 0.65,
+    "districts": ["Nassarawa", "Fagge", "Dala", "Gwale", "Tarauni"]
+  },
+  {
+    "id": "city:real:ibadan",
+    "name": "Ibadan",
+    "country_id": "country:real:nigeria",
+    "region_id": "region:real:oyo_state",
+    "population": 3500000,
+    "cost_of_living_index": 0.70,
+    "districts": ["Bodija", "Agodi", "Dugbe", "Ring Road", "Samonda"]
+  },
+  {
+    "id": "city:real:port_harcourt",
+    "name": "Port Harcourt",
+    "country_id": "country:real:nigeria",
+    "region_id": "region:real:rivers_state",
+    "population": 3100000,
+    "cost_of_living_index": 0.95,
+    "districts": ["Old GRA", "New GRA", "D-Line", "Trans-Amadi", "Borokiri"]
+  },
+  {
+    "id": "city:real:enugu",
+    "name": "Enugu",
+    "country_id": "country:real:nigeria",
+    "region_id": "region:real:enugu_state",
+    "population": 800000,
+    "cost_of_living_index": 0.75,
+    "districts": ["Independence Layout", "New Haven", "GRA", "Ogui", "Abakpa"]
+  },
+  {
     "id": "city:real:glasgow",
     "name": "Glasgow",
     "country_id": "country:real:united_kingdom",
     "region_id": "region:real:scotland",
     "population": 635000,
     "cost_of_living_index": 1.0,
-    "districts": ["West End", "City Centre", "East End", "Southside", "Partick"]
+    "districts": ["West End", "City Centre", "East End", "Southside", "Partick", "Dennistoun"]
+  },
+  {
+    "id": "city:real:edinburgh",
+    "name": "Edinburgh",
+    "country_id": "country:real:united_kingdom",
+    "region_id": "region:real:scotland",
+    "population": 540000,
+    "cost_of_living_index": 1.15,
+    "districts": ["Old Town", "New Town", "Leith", "Stockbridge", "Morningside", "Haymarket"]
   },
   {
     "id": "city:real:london",
@@ -15,7 +78,7 @@
     "region_id": "region:real:england",
     "population": 8980000,
     "cost_of_living_index": 1.65,
-    "districts": ["Camden", "Islington", "Kensington", "Hackney", "Greenwich"]
+    "districts": ["Camden", "Islington", "Kensington", "Hackney", "Greenwich", "Westminster", "Canary Wharf"]
   },
   {
     "id": "city:real:manchester",
@@ -27,40 +90,58 @@
     "districts": ["Deansgate", "Northern Quarter", "Ancoats", "Salford", "Didsbury"]
   },
   {
-    "id": "city:real:newcastle",
-    "name": "Newcastle",
+    "id": "city:real:birmingham",
+    "name": "Birmingham",
     "country_id": "country:real:united_kingdom",
     "region_id": "region:real:england",
-    "population": 300000,
-    "cost_of_living_index": 1.05,
-    "districts": ["City Centre", "Jesmond", "Gosforth", "Ouseburn"]
-  },
-  {
-    "id": "city:real:lagos",
-    "name": "Lagos",
-    "country_id": "country:real:nigeria",
-    "region_id": "region:real:lagos_state",
-    "population": 15400000,
-    "cost_of_living_index": 0.85,
-    "districts": ["Ikeja", "Victoria Island", "Lekki", "Surulere", "Yaba"]
-  },
-  {
-    "id": "city:real:abuja",
-    "name": "Abuja",
-    "country_id": "country:real:nigeria",
-    "region_id": "region:real:fct",
-    "population": 3600000,
-    "cost_of_living_index": 0.90,
-    "districts": ["Maitama", "Asokoro", "Garki", "Wuse"]
+    "population": 1140000,
+    "cost_of_living_index": 1.10,
+    "districts": ["City Centre", "Jewellery Quarter", "Edgbaston", "Moseley", "Digbeth"]
   },
   {
     "id": "city:real:new_york",
-    "name": "New York",
+    "name": "New York City",
     "country_id": "country:real:united_states",
     "region_id": "region:real:new_york_state",
     "population": 8330000,
     "cost_of_living_index": 1.80,
-    "districts": ["Manhattan", "Brooklyn", "Queens", "Bronx", "Staten Island"]
+    "districts": ["Manhattan", "Brooklyn", "Queens", "The Bronx", "Staten Island"]
+  },
+  {
+    "id": "city:real:san_francisco",
+    "name": "San Francisco",
+    "country_id": "country:real:united_states",
+    "region_id": "region:real:california",
+    "population": 870000,
+    "cost_of_living_index": 2.10,
+    "districts": ["Mission District", "SoMa", "Financial District", "Pacific Heights", "Marina", "Sunset"]
+  },
+  {
+    "id": "city:real:houston",
+    "name": "Houston",
+    "country_id": "country:real:united_states",
+    "region_id": "region:real:texas",
+    "population": 2300000,
+    "cost_of_living_index": 1.15,
+    "districts": ["Downtown", "Montrose", "The Heights", "Medical Center", "Galleria"]
+  },
+  {
+    "id": "city:real:chicago",
+    "name": "Chicago",
+    "country_id": "country:real:united_states",
+    "region_id": "region:real:illinois",
+    "population": 2700000,
+    "cost_of_living_index": 1.35,
+    "districts": ["The Loop", "Lincoln Park", "Wicker Park", "Hyde Park", "River North"]
+  },
+  {
+    "id": "city:real:los_angeles",
+    "name": "Los Angeles",
+    "country_id": "country:real:united_states",
+    "region_id": "region:real:california",
+    "population": 3890000,
+    "cost_of_living_index": 1.65,
+    "districts": ["Downtown LA", "Santa Monica", "Silver Lake", "Pasadena", "West Hollywood"]
   },
   {
     "id": "city:real:paris",
@@ -69,7 +150,7 @@
     "region_id": "region:real:ile_de_france",
     "population": 2160000,
     "cost_of_living_index": 1.50,
-    "districts": ["Le Marais", "Montmartre", "Latin Quarter", "Élysée"]
+    "districts": ["Le Marais", "Montmartre", "Latin Quarter", "Élysée", "Bastille"]
   },
   {
     "id": "city:real:madrid",
@@ -78,6 +159,6 @@
     "region_id": "region:real:madrid",
     "population": 3220000,
     "cost_of_living_index": 1.15,
-    "districts": ["Chamartín", "Salamanca", "Retiro", "Centro"]
+    "districts": ["Chamartín", "Salamanca", "Retiro", "Centro", "Malasaña"]
   }
 ]

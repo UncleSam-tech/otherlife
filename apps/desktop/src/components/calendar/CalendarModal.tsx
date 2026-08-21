@@ -6,6 +6,7 @@ interface CalendarModalProps {
   playerAge: number;
   onClose: () => void;
   onAdvanceTime: (intentText: string) => void;
+  onAdvanceExplicit?: (actionType: 'HOURS' | 'DAYS' | 'SLEEP' | 'ROUTINE', amount?: number) => void;
   isLoading: boolean;
 }
 
@@ -14,9 +15,15 @@ export const CalendarModal: React.FC<CalendarModalProps> = ({
   playerAge,
   onClose,
   onAdvanceTime,
+  onAdvanceExplicit,
   isLoading,
 }) => {
-  const [pendingAdvance, setPendingAdvance] = useState<{ intent: string; label: string; warning?: string } | null>(null);
+  const [pendingAdvance, setPendingAdvance] = useState<{
+    actionType: 'HOURS' | 'DAYS' | 'SLEEP' | 'ROUTINE';
+    amount?: number;
+    intentText: string;
+    warning?: string;
+  } | null>(null);
 
   const getUpcomingEvents = () => {
     if (playerAge < 4) {
@@ -44,18 +51,31 @@ export const CalendarModal: React.FC<CalendarModalProps> = ({
 
   const upcomingEvents = getUpcomingEvents();
 
-  const handleAdvanceClick = (intent: string, label: string, warning?: string) => {
+  const handleAdvanceClick = (
+    actionType: 'HOURS' | 'DAYS' | 'SLEEP' | 'ROUTINE',
+    amount: number | undefined,
+    intentText: string,
+    warning?: string
+  ) => {
     if (warning) {
-      setPendingAdvance({ intent, label, warning });
+      setPendingAdvance({ actionType, amount, intentText, warning });
     } else {
-      onAdvanceTime(intent);
+      if (onAdvanceExplicit) {
+        onAdvanceExplicit(actionType, amount);
+      } else {
+        onAdvanceTime(intentText);
+      }
       onClose();
     }
   };
 
   const handleConfirmAdvance = () => {
     if (pendingAdvance) {
-      onAdvanceTime(pendingAdvance.intent);
+      if (onAdvanceExplicit) {
+        onAdvanceExplicit(pendingAdvance.actionType, pendingAdvance.amount);
+      } else {
+        onAdvanceTime(pendingAdvance.intentText);
+      }
       setPendingAdvance(null);
       onClose();
     }
@@ -146,9 +166,9 @@ export const CalendarModal: React.FC<CalendarModalProps> = ({
               <div className="grid grid-cols-2 gap-2">
                 <button
                   type="button"
-                  onClick={() => handleAdvanceClick('I spend an hour quietly reading and resting.', 'Wait 1 Hour')}
+                  onClick={() => handleAdvanceClick('HOURS', 1, 'Wait 1 Hour')}
                   disabled={isLoading}
-                  className="bg-[#121622] hover:bg-[#1a2133] border border-[#20273a] p-2.5 rounded-xl text-left text-xs font-serif text-slate-200 hover:text-amber-200 transition-colors flex items-center gap-2"
+                  className="bg-[#121622] hover:bg-[#1a2133] border border-[#20273a] p-2.5 rounded-xl text-left text-xs font-serif text-slate-200 hover:text-amber-200 transition-colors flex items-center gap-2 cursor-pointer"
                 >
                   <Clock className="w-3.5 h-3.5 text-slate-400" />
                   <span>Wait 1 Hour</span>
@@ -156,19 +176,19 @@ export const CalendarModal: React.FC<CalendarModalProps> = ({
 
                 <button
                   type="button"
-                  onClick={() => handleAdvanceClick('I sleep peacefully through the night and wake up refreshed in the morning.', 'Sleep until Morning')}
+                  onClick={() => handleAdvanceClick('SLEEP', undefined, 'Sleep until Morning')}
                   disabled={isLoading}
-                  className="bg-[#121622] hover:bg-[#1a2133] border border-[#20273a] p-2.5 rounded-xl text-left text-xs font-serif text-slate-200 hover:text-amber-200 transition-colors flex items-center gap-2"
+                  className="bg-[#121622] hover:bg-[#1a2133] border border-[#20273a] p-2.5 rounded-xl text-left text-xs font-serif text-slate-200 hover:text-amber-200 transition-colors flex items-center gap-2 cursor-pointer"
                 >
                   <Moon className="w-3.5 h-3.5 text-slate-400" />
-                  <span>Sleep</span>
+                  <span>Sleep (7:00 AM)</span>
                 </button>
 
                 <button
                   type="button"
-                  onClick={() => handleAdvanceClick('I spend the entire day attending to quiet personal routines.', 'Advance 1 Day')}
+                  onClick={() => handleAdvanceClick('DAYS', 1, 'Advance 1 Day')}
                   disabled={isLoading}
-                  className="bg-[#121622] hover:bg-[#1a2133] border border-[#20273a] p-2.5 rounded-xl text-left text-xs font-serif text-slate-200 hover:text-amber-200 transition-colors flex items-center gap-2"
+                  className="bg-[#121622] hover:bg-[#1a2133] border border-[#20273a] p-2.5 rounded-xl text-left text-xs font-serif text-slate-200 hover:text-amber-200 transition-colors flex items-center gap-2 cursor-pointer"
                 >
                   <CalendarIcon className="w-3.5 h-3.5 text-slate-400" />
                   <span>Advance 1 Day</span>
@@ -178,13 +198,14 @@ export const CalendarModal: React.FC<CalendarModalProps> = ({
                   type="button"
                   onClick={() =>
                     handleAdvanceClick(
-                      'I follow my daily routine diligently for the next week.',
-                      'Follow Routine (1 Week)',
-                      'Advancing one week will progress ongoing commitments and schedules.'
+                      'ROUTINE',
+                      7,
+                      'Follow Routine for 7 Days',
+                      'Advancing one week will progress ongoing schedules and build discipline.'
                     )
                   }
                   disabled={isLoading}
-                  className="bg-[#121622] hover:bg-[#1a2133] border border-[#20273a] p-2.5 rounded-xl text-left text-xs font-serif text-slate-200 hover:text-amber-200 transition-colors flex items-center gap-2"
+                  className="bg-[#121622] hover:bg-[#1a2133] border border-[#20273a] p-2.5 rounded-xl text-left text-xs font-serif text-slate-200 hover:text-amber-200 transition-colors flex items-center gap-2 cursor-pointer"
                 >
                   <CheckCircle className="w-3.5 h-3.5 text-slate-400" />
                   <span>Routine (1 Week)</span>

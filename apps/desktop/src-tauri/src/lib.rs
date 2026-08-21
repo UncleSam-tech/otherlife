@@ -1,7 +1,7 @@
 use otherlife_simulation::SimulationEngine;
 use otherlife_world::{
-    ContextNpcDTO, ContextProcessDTO, LivingStateDTO, LivingStepResultDTO, NewLifeConfig,
-    TodaySceneDTO,
+    ContextNpcDTO, ContextProcessDTO, DocumentDTO, LivingStateDTO, LivingStepResultDTO,
+    NewLifeConfig, TodaySceneDTO,
 };
 use serde::{Deserialize, Serialize};
 use std::fs;
@@ -65,6 +65,13 @@ fn read_json_data(base: &Path, rel: &str) -> serde_json::Value {
     serde_json::json!([])
 }
 
+fn get_saves_dir(app: &AppHandle) -> PathBuf {
+    let base = app.path().app_data_dir().unwrap_or_else(|_| PathBuf::from("."));
+    let saves_dir = base.join("saves");
+    fs::create_dir_all(&saves_dir).ok();
+    saves_dir
+}
+
 pub mod commands {
     use super::*;
 
@@ -88,12 +95,30 @@ pub mod commands {
 
     #[tauri::command]
     pub fn start_new_life(
+        app: AppHandle,
         state: State<'_, AppState>,
         config: NewLifeConfig,
         seed: Option<u64>,
     ) -> (LivingStateDTO, TodaySceneDTO, Vec<ContextNpcDTO>, Vec<ContextProcessDTO>) {
         let mut engine = state.engine.lock().unwrap();
         *engine = SimulationEngine::new_game(config, seed.unwrap_or(42));
+
+        // Auto-save initial world state
+        let saves_dir = get_saves_dir(&app);
+        if let Ok(json_str) = engine.save_to_string() {
+            fs::write(saves_dir.join("autosave.json"), json_str).ok();
+            let meta = SaveMetadataDTO {
+                id: "autosave".to_string(),
+                filename: "autosave.json".to_string(),
+                player_name: engine.get_player().identity.full_name(),
+                age: engine.get_player_age(),
+                location: engine.rule_pack.city_name.clone(),
+                timestamp: engine.time.literary_date(),
+            };
+            if let Ok(meta_json) = serde_json::to_string(&meta) {
+                fs::write(saves_dir.join("autosave_meta.json"), meta_json).ok();
+            }
+        }
 
         let living_state = engine.get_living_state();
         let scene = engine.generate_today_scene();
@@ -105,11 +130,71 @@ pub mod commands {
 
     #[tauri::command]
     pub fn submit_living_intent(
+        app: AppHandle,
         state: State<'_, AppState>,
         intent_text: String,
     ) -> (LivingStateDTO, LivingStepResultDTO, TodaySceneDTO, Vec<ContextNpcDTO>, Vec<ContextProcessDTO>) {
         let mut engine = state.engine.lock().unwrap();
         let step_res = engine.submit_living_intent(&intent_text);
+
+        // Auto-save on each turn
+        let saves_dir = get_saves_dir(&app);
+        if let Ok(json_str) = engine.save_to_string() {
+            fs::write(saves_dir.join("autosave.json"), json_str).ok();
+            let meta = SaveMetadataDTO {
+                id: "autosave".to_string(),
+                filename: "autosave.json".to_string(),
+                player_name: engine.get_player().identity.full_name(),
+                age: engine.get_player_age(),
+                location: engine.rule_pack.city_name.clone(),
+                timestamp: engine.time.literary_date(),
+            };
+            if let Ok(meta_json) = serde_json::to_string(&meta) {
+                fs::write(saves_dir.join("autosave_meta.json"), meta_json).ok();
+            }
+        }
+
+        let living_state = engine.get_living_state();
+        let scene = engine.generate_today_scene();
+        let npcs = engine.get_surrounding_npcs();
+        let procs = engine.get_active_processes();
+
+        (living_state, step_res, scene, npcs, procs)
+    }
+
+    #[tauri::command]
+    pub fn advance_time_explicit(
+        app: AppHandle,
+        state: State<'_, AppState>,
+        action_type: String,
+        amount: Option<u32>,
+    ) -> (LivingStateDTO, LivingStepResultDTO, TodaySceneDTO, Vec<ContextNpcDTO>, Vec<ContextProcessDTO>) {
+        let mut engine = state.engine.lock().unwrap();
+        let step_res = match action_type.as_str() {
+            "HOURS" => engine.advance_hours(amount.unwrap_or(1)),
+            "DAYS" => engine.advance_days(amount.unwrap_or(1)),
+            "SLEEP" => engine.sleep_until_morning(),
+            "ROUTINE" => engine.follow_routine(amount.unwrap_or(7)),
+            _ => engine.advance_days(1),
+        };
+
+        // Auto-save on each turn
+        let saves_dir = get_saves_dir(&app);
+        if let Ok(json_str) = engine.save_to_string() {
+            fs::write(saves_dir.join("autosave.json"), json_str).ok();
+            let meta = SaveMetadataDTO {
+                id: "autosave".to_string(),
+                filename: "autosave.json".to_string(),
+                player_name: engine.get_player().identity.full_name(),
+                age: engine.get_player_age(),
+                location: engine.rule_pack.city_name.clone(),
+                timestamp: engine.time.literary_date(),
+            };
+            if let Ok(meta_json) = serde_json::to_string(&meta) {
+                fs::write(saves_dir.join("autosave_meta.json"), meta_json).ok();
+            }
+        }
+
         let living_state = engine.get_living_state();
         let scene = engine.generate_today_scene();
         let npcs = engine.get_surrounding_npcs();
@@ -137,16 +222,91 @@ pub mod commands {
     }
 
     #[tauri::command]
+    pub fn get_documents(state: State<'_, AppState>) -> Vec<DocumentDTO> {
+        let engine = state.engine.lock().unwrap();
+        engine.get_documents()
+    }
+
+    #[tauri::command]
     pub fn get_letters_inbox(state: State<'_, AppState>) -> Vec<otherlife_world::LetterNotification> {
         let engine = state.engine.lock().unwrap();
         engine.letters_inbox.clone()
     }
 
-    fn get_saves_dir(app: &AppHandle) -> PathBuf {
-        let base = app.path().app_data_dir().unwrap_or_else(|_| PathBuf::from("."));
-        let saves_dir = base.join("saves");
-        fs::create_dir_all(&saves_dir).ok();
-        saves_dir
+    #[tauri::command]
+    pub fn save_game(app: AppHandle, state: State<'_, AppState>, slot_name: Option<String>) -> bool {
+        let engine = state.engine.lock().unwrap();
+        let saves_dir = get_saves_dir(&app);
+        let filename = slot_name.unwrap_or_else(|| format!("save_{}.json", engine.time.total_days));
+
+        if let Ok(json_str) = engine.save_to_string() {
+            if fs::write(saves_dir.join(&filename), json_str).is_ok() {
+                let meta = SaveMetadataDTO {
+                    id: filename.clone(),
+                    filename: filename.clone(),
+                    player_name: engine.get_player().identity.full_name(),
+                    age: engine.get_player_age(),
+                    location: engine.rule_pack.city_name.clone(),
+                    timestamp: engine.time.literary_date(),
+                };
+                let meta_file = format!("{}_meta.json", filename.trim_end_matches(".json"));
+                if let Ok(meta_json) = serde_json::to_string(&meta) {
+                    fs::write(saves_dir.join(meta_file), meta_json).ok();
+                }
+                return true;
+            }
+        }
+        false
+    }
+
+    #[tauri::command]
+    pub fn load_game(
+        app: AppHandle,
+        state: State<'_, AppState>,
+        filename: String,
+    ) -> Option<(LivingStateDTO, TodaySceneDTO, Vec<ContextNpcDTO>, Vec<ContextProcessDTO>)> {
+        let saves_dir = get_saves_dir(&app);
+        let path = saves_dir.join(&filename);
+        if let Ok(content) = fs::read_to_string(path) {
+            if let Ok(loaded_engine) = SimulationEngine::load_from_string(&content) {
+                let mut engine = state.engine.lock().unwrap();
+                *engine = loaded_engine;
+
+                let living_state = engine.get_living_state();
+                let scene = engine.generate_today_scene();
+                let npcs = engine.get_surrounding_npcs();
+                let procs = engine.get_active_processes();
+
+                return Some((living_state, scene, npcs, procs));
+            }
+        }
+        None
+    }
+
+    #[tauri::command]
+    pub fn continue_recent_save(
+        app: AppHandle,
+        state: State<'_, AppState>,
+    ) -> Option<(LivingStateDTO, TodaySceneDTO, Vec<ContextNpcDTO>, Vec<ContextProcessDTO>)> {
+        let saves_dir = get_saves_dir(&app);
+        let autosave_path = saves_dir.join("autosave.json");
+        if autosave_path.exists() {
+            return load_game(app, state, "autosave.json".to_string());
+        }
+
+        // Fallback to any save file in directory
+        if let Ok(entries) = fs::read_dir(&saves_dir) {
+            for entry in entries.flatten() {
+                let p = entry.path();
+                if p.extension().and_then(|s| s.to_str()) == Some("json")
+                    && !p.file_name().unwrap().to_str().unwrap().ends_with("_meta.json")
+                {
+                    let fname = p.file_name().unwrap().to_str().unwrap().to_string();
+                    return load_game(app, state, fname);
+                }
+            }
+        }
+        None
     }
 
     #[tauri::command]
@@ -157,7 +317,8 @@ pub mod commands {
         if let Ok(entries) = fs::read_dir(saves_dir) {
             for entry in entries.flatten() {
                 let path = entry.path();
-                if path.extension().and_then(|s| s.to_str()) == Some("json") {
+                let fname = path.file_name().unwrap().to_str().unwrap_or("");
+                if fname.ends_with("_meta.json") {
                     if let Ok(content) = fs::read_to_string(&path) {
                         if let Ok(dto) = serde_json::from_str::<SaveMetadataDTO>(&content) {
                             saves.push(dto);
@@ -167,6 +328,7 @@ pub mod commands {
             }
         }
 
+        saves.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
         saves
     }
 
@@ -174,7 +336,10 @@ pub mod commands {
     pub fn delete_save(app: AppHandle, filename: String) -> bool {
         let saves_dir = get_saves_dir(&app);
         let json_path = saves_dir.join(&filename);
-        fs::remove_file(json_path).is_ok()
+        let meta_path = saves_dir.join(format!("{}_meta.json", filename.trim_end_matches(".json")));
+        fs::remove_file(json_path).ok();
+        fs::remove_file(meta_path).ok();
+        true
     }
 }
 
@@ -193,9 +358,15 @@ pub fn run() {
             commands::get_registries,
             commands::start_new_life,
             commands::submit_living_intent,
+            commands::advance_time_explicit,
             commands::get_living_state,
             commands::get_today_scene,
             commands::get_biography,
+            commands::get_documents,
+            commands::get_letters_inbox,
+            commands::save_game,
+            commands::load_game,
+            commands::continue_recent_save,
             commands::list_saves,
             commands::delete_save,
         ])
