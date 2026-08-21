@@ -9,6 +9,8 @@ export interface LivingStateDTO {
   life_stage: string;
   time_formatted: string;
   location_formatted: string;
+  weather_name?: string;
+  weather_description?: string;
   cash: number;
   currency_symbol: string;
   household_tier: string;

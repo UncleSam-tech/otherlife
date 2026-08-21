@@ -31,9 +31,9 @@ export const WorldStage: React.FC<WorldStageProps> = ({
       {/* 2D Illustrated Environment Layer with Dynamic Weather */}
       <div className="relative w-full rounded-2xl overflow-hidden shadow-2xl border border-amber-500/20">
         <EnvironmentLayer
-          lifeStage={scene.life_stage}
-          age={scene.age}
-          locationFormatted={scene.location_formatted}
+          lifeStage={scene.life_stage || 'Infancy'}
+          age={scene.age || 0}
+          locationFormatted={scene.location_formatted || scene.location_name || 'Living World'}
         />
         <WeatherLayer weatherName={weatherName} />
       </div>

@@ -2,15 +2,22 @@ import React from 'react';
 import { Sparkles, Eye } from 'lucide-react';
 
 export interface TodaySceneDTO {
-  greeting: string;
-  date_formatted: string;
-  location_formatted: string;
-  age: number;
-  life_stage: string;
+  greeting?: string;
+  date_formatted?: string;
+  location_formatted?: string;
+  age?: number;
+  life_stage?: string;
   headline: string;
   narrative: string;
-  circumstances: string[];
-  prompt_suggestions: string[];
+  circumstances?: string[];
+  prompt_suggestions?: string[];
+  subtle_details?: string[];
+  weather_name?: string;
+  weather_description?: string;
+  location_name?: string;
+  present_people?: string[];
+  environmental_objects?: string[];
+  immediate_pressures?: string[];
 }
 
 export interface LastStepResultDTO {
@@ -67,14 +74,14 @@ export const SceneRenderer: React.FC<SceneRendererProps> = ({
         </p>
 
         {/* Sensory Environmental Observations */}
-        {scene.circumstances.length > 0 && (
+        {((scene.circumstances && scene.circumstances.length > 0) || (scene.environmental_objects && scene.environmental_objects.length > 0)) && (
           <div className="pt-4 border-t border-slate-800/60 space-y-2">
             <p className="text-xs font-serif italic text-amber-300/80 flex items-center gap-1.5">
               <Eye className="w-3.5 h-3.5 text-amber-400" />
               <span>You notice:</span>
             </p>
             <div className="flex flex-wrap gap-2">
-              {scene.circumstances.map((c, i) => (
+              {(scene.circumstances || scene.environmental_objects || []).map((c, i) => (
                 <span
                   key={i}
                   className="text-xs font-sans bg-slate-900/90 text-slate-300 px-3.5 py-1.5 rounded-full border border-slate-800 shadow-sm"

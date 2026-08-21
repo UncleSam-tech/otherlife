@@ -3,7 +3,8 @@ import { LifeHeader } from './LifeHeader';
 import { LifeNavigation, NavLens } from '../navigation/LifeNavigation';
 import { WorldStage } from '../world/WorldStage';
 import { ContextPanel, LivingStateDTO } from '../context/ContextPanel';
-import { ActivityDrawer } from '../interaction/ActivityDrawer';
+import { IntentionComposer } from '../interaction/IntentionComposer';
+import { DiegeticDeviceModal } from '../devices/DiegeticDeviceModal';
 import { MemoryTimeline } from '../context/MemoryTimeline';
 import { TodaySceneDTO, LastStepResultDTO } from '../world/SceneRenderer';
 import { ContextNpcDTO } from '../characters/NPCDisplay';
@@ -46,6 +47,7 @@ export const GameShell: React.FC<GameShellProps> = ({
   const playerAge = livingState?.age || 0;
   const [selectedNpc, setSelectedNpc] = useState<ContextNpcDTO | null>(null);
   const [selectedPlace, setSelectedPlace] = useState<PlaceLocationDTO | null>(null);
+  const [activeDevice, setActiveDevice] = useState<'phone' | 'computer' | 'wallet' | 'documents' | 'mail' | null>(null);
 
   const getPlacesForAge = (): PlaceLocationDTO[] => {
     if (playerAge < 4) {
@@ -140,6 +142,11 @@ export const GameShell: React.FC<GameShellProps> = ({
   };
 
   const currentPlaces = getPlacesForAge();
+  const suggestions = todayScene?.subtle_details || [
+    playerAge < 4 ? 'Cuddle close to your mother on the sofa' : playerAge < 13 ? 'Complete arithmetic homework at the desk' : 'Study past national examination papers',
+    playerAge < 4 ? 'Try to stand and take first steps' : 'Spend time with family and discuss goals',
+    'Rest and restore energy peacefully',
+  ];
 
   return (
     <div className="flex flex-col h-screen w-screen bg-[#07090e] text-slate-100 overflow-hidden font-sans select-none">
@@ -150,7 +157,7 @@ export const GameShell: React.FC<GameShellProps> = ({
         lifeStage={livingState?.life_stage || 'Infancy'}
         timeFormatted={livingState?.time_formatted || ''}
         locationFormatted={livingState?.location_formatted || 'Living World'}
-        weatherName="Harmattan Haze"
+        weatherName={livingState?.weather_name || 'Seasonal Weather'}
         currencySymbol={livingState?.currency_symbol || '₦'}
         cash={livingState?.cash || 0}
         onReturnToMainMenu={onReturnToMainMenu}
@@ -173,12 +180,14 @@ export const GameShell: React.FC<GameShellProps> = ({
               <WorldStage
                 scene={todayScene}
                 lastStepResult={lastStepResult}
-                weatherName="Harmattan Haze"
+                weatherName={livingState?.weather_name || 'Seasonal Weather'}
               />
-              {/* Structured Activities Menu Drawer (BitLife Style) */}
-              <ActivityDrawer
+              {/* Scene-First Natural Intention Composer */}
+              <IntentionComposer
                 playerAge={playerAge}
+                suggestions={suggestions}
                 onSubmitIntent={onSubmitIntent}
+                onOpenDevice={(dev) => setActiveDevice(dev)}
                 isLoading={isLoading}
               />
             </div>
@@ -373,6 +382,19 @@ export const GameShell: React.FC<GameShellProps> = ({
         <PlaceInteractionModal
           place={selectedPlace}
           onClose={() => setSelectedPlace(null)}
+          onExecuteAction={onSubmitIntent}
+          isLoading={isLoading}
+        />
+      )}
+
+      {/* Diegetic Device Modal */}
+      {activeDevice && (
+        <DiegeticDeviceModal
+          deviceType={activeDevice}
+          onClose={() => setActiveDevice(null)}
+          playerAge={playerAge}
+          cash={livingState?.cash || 0}
+          currencySymbol={livingState?.currency_symbol || '₦'}
           onExecuteAction={onSubmitIntent}
           isLoading={isLoading}
         />

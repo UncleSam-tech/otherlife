@@ -162,6 +162,7 @@ impl Database {
             Ok(EventRecord {
                 id,
                 timestamp,
+                day_total: 0,
                 event_type,
                 actor_id,
                 location_id,
@@ -240,6 +241,7 @@ mod tests {
         let ev = EventRecord {
             id: "ev:1".to_string(),
             timestamp: time.literary_date(),
+            day_total: time.total_days,
             event_type: "EDUCATION_PRACTICE".to_string(),
             actor_id: p.id.clone(),
             location_id: "city:real:abuja".to_string(),
