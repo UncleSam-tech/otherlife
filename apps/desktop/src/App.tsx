@@ -119,7 +119,7 @@ export const App: React.FC = () => {
   if (appMode === 'MAIN_MENU') {
     return (
       <MainMenu
-        onStartNewLife={() => handleStartNewLife()}
+        onStartNewLife={(cfg) => handleStartNewLife(cfg)}
         onContinueRecentSave={() => handleStartNewLife()}
         onLoadSave={(filename) => console.log('Load save:', filename)}
         onOpenSettings={() => {}}

@@ -57,17 +57,31 @@ struct LocationContext {
 
 impl SimulationEngine {
     fn resolve_location_context(country_id: &str, location_id: &str, wealth_tier: &WealthTier, last_name: &str) -> LocationContext {
-        let is_uk = country_id.contains("united_kingdom") || country_id.contains("scotland") || country_id.contains("england");
-        let is_us = country_id.contains("united_states") || country_id.contains("california") || country_id.contains("new_york");
+        let c_lower = country_id.to_lowercase();
+        let l_lower = location_id.to_lowercase();
 
-        if is_uk {
-            let is_glasgow = location_id.contains("glasgow");
-            let city = if is_glasgow { "Glasgow" } else { "London" };
-            let district = if is_glasgow { "West End" } else { "Camden" };
+        if c_lower.contains("united_kingdom") || c_lower.contains("uk") || c_lower.contains("scotland") || c_lower.contains("england") {
+            let is_glasgow = l_lower.contains("glasgow");
+            let is_manchester = l_lower.contains("manchester");
+            let is_birmingham = l_lower.contains("birmingham");
+            let is_edinburgh = l_lower.contains("edinburgh");
+
+            let (city, district, school, club, uni, mother_first, father_first, teacher_n, coach_n, friend_n) = if is_glasgow {
+                ("Glasgow", "West End", "Hillhead Primary School", "Partick Community Sports Club", "University of Glasgow", "Fiona", "Callum", "Mr. Alistair MacLeod", "Coach Gordon Smith", "Liam Robertson")
+            } else if is_edinburgh {
+                ("Edinburgh", "Old Town", "Royal Mile Primary School", "Meadows Youth Athletics", "University of Edinburgh", "Isobel", "Hamish", "Mrs. Morag Fraser", "Coach Scott Brown", "Euan Campbell")
+            } else if is_manchester {
+                ("Manchester", "Didsbury", "Didsbury Community Primary", "Salford Youth Football Academy", "University of Manchester", "Claire", "Simon", "Mr. Thomas Wright", "Coach Paul Barnes", "Jack Harrison")
+            } else if is_birmingham {
+                ("Birmingham", "Edgbaston", "Edgbaston Hall Primary", "Digbeth Community Sports Grounds", "University of Birmingham", "Gemma", "Richard", "Mr. David Clarke", "Coach Tony Evans", "Harry Lewis")
+            } else {
+                ("London", "Camden", "Camden Primary Academy", "North London Youth Sports Centre", "University College London (UCL)", "Emma", "Arthur", "Mr. Julian Vance", "Coach Dave Miller", "Oliver Taylor")
+            };
+
             let (m_job, f_job, m_sal, f_sal) = match wealth_tier {
-                WealthTier::Poverty | WealthTier::WorkingClass => ("Care Worker", "Bus Driver", 1800.0, 2100.0),
-                WealthTier::UpperMiddle | WealthTier::Wealthy => ("Senior Consultant Physician", "Civil Engineering Director", 6500.0, 7800.0),
-                _ => ("Staff Nurse (NHS)", "Mechanical Engineer", 2900.0, 3400.0),
+                WealthTier::Poverty | WealthTier::WorkingClass => ("Healthcare Assistant (NHS)", "Transit Logistics Driver", 1950.0, 2200.0),
+                WealthTier::UpperMiddle | WealthTier::Wealthy => ("Consultant Surgeon", "Managing Engineering Director", 6800.0, 8200.0),
+                _ => ("Staff Nurse (NHS)", "Mechanical Engineer", 3100.0, 3600.0),
             };
 
             LocationContext {
@@ -75,30 +89,44 @@ impl SimulationEngine {
                 city_name: city.to_string(),
                 district_name: district.to_string(),
                 currency_symbol: "£".to_string(),
-                culture_name: if is_glasgow { "Scottish / British Contemporary".to_string() } else { "British Contemporary".to_string() },
+                culture_name: if is_glasgow || is_edinburgh { "Scottish / British Contemporary".to_string() } else { "British Contemporary".to_string() },
                 language_name: "English".to_string(),
-                mother_name: format!("Fiona {}", last_name),
-                father_name: format!("Callum {}", last_name),
-                teacher_name: "Mr. Alistair MacLeod".to_string(),
-                coach_name: "Coach Gordon Smith".to_string(),
-                friend_name: "Liam Robertson".to_string(),
+                mother_name: format!("{} {}", mother_first, last_name),
+                father_name: format!("{} {}", father_first, last_name),
+                teacher_name: teacher_n.to_string(),
+                coach_name: coach_n.to_string(),
+                friend_name: friend_n.to_string(),
                 mother_job: m_job.to_string(),
                 father_job: f_job.to_string(),
                 mother_salary: m_sal,
                 father_salary: f_sal,
-                primary_school_name: if is_glasgow { "Hillhead Primary School".to_string() } else { "Camden Primary School".to_string() },
-                sports_club_name: if is_glasgow { "Partick Community Sports Club".to_string() } else { "North London Youth Sports Centre".to_string() },
-                university_name: if is_glasgow { "University of Glasgow".to_string() } else { "University College London (UCL)".to_string() },
-                exam_name: if is_glasgow { "Scottish Higher Examinations".to_string() } else { "GCSE & A-Level Examinations".to_string() },
+                primary_school_name: school.to_string(),
+                sports_club_name: club.to_string(),
+                university_name: uni.to_string(),
+                exam_name: if is_glasgow || is_edinburgh { "Scottish Higher Examinations".to_string() } else { "GCSE & A-Level Examinations".to_string() },
             }
-        } else if is_us {
-            let is_sf = location_id.contains("san_francisco") || location_id.contains("california");
-            let city = if is_sf { "San Francisco" } else { "New York" };
-            let district = if is_sf { "Sunset District" } else { "Brooklyn" };
+        } else if c_lower.contains("united_states") || c_lower.contains("usa") || c_lower.contains("america") {
+            let is_sf = l_lower.contains("san_francisco");
+            let is_la = l_lower.contains("los_angeles");
+            let is_chicago = l_lower.contains("chicago");
+            let is_houston = l_lower.contains("houston");
+
+            let (city, district, school, club, uni, mother_first, father_first, teacher_n, coach_n, friend_n) = if is_sf {
+                ("San Francisco", "Sunset District", "Sunset Elementary School", "Mission District Athletic Complex", "University of California, Berkeley", "Elena", "Marcus", "Mrs. Jennifer Hayes", "Coach Dave Miller", "Ethan Vance")
+            } else if is_la {
+                ("Los Angeles", "Silver Lake", "Silver Lake Arts & Science Elementary", "Westwood Youth Athletic Ground", "University of California, Los Angeles (UCLA)", "Maya", "Daniel", "Mr. Robert Chen", "Coach Mike Martinez", "Lucas Rivera")
+            } else if is_chicago {
+                ("Chicago", "Lincoln Park", "Lincoln Park Community Elementary", "Lakeshore Youth Sports Complex", "University of Chicago", "Sarah", "James", "Mrs. Karen O'Connor", "Coach Patrick Flynn", "Noah Murphy")
+            } else if is_houston {
+                ("Houston", "Montrose", "Montrose Academy for Young Scholars", "Bayou City Youth Soccer Grounds", "Rice University", "Laura", "Carlos", "Mr. Anthony Reed", "Coach Greg Jenkins", "Benjamin Brooks")
+            } else {
+                ("New York", "Brooklyn", "Public School 29 Brooklyn", "Prospect Park Youth Sports Grounds", "Columbia University", "Rachel", "David", "Mrs. Rebecca Stern", "Coach Brian Walsh", "Samuel Goldberg")
+            };
+
             let (m_job, f_job, m_sal, f_sal) = match wealth_tier {
-                WealthTier::Poverty | WealthTier::WorkingClass => ("Retail Associate", "Logistics Courier", 2800.0, 3100.0),
-                WealthTier::UpperMiddle | WealthTier::Wealthy => ("Biotech Research Scientist", "Software Architecture Director", 11500.0, 14000.0),
-                _ => ("School Counselor", "Systems Analyst", 4800.0, 5600.0),
+                WealthTier::Poverty | WealthTier::WorkingClass => ("Retail Specialist", "Express Courier", 2900.0, 3300.0),
+                WealthTier::UpperMiddle | WealthTier::Wealthy => ("Biotech Research Scientist", "Software Architecture Director", 11500.0, 14500.0),
+                _ => ("Guidance Counselor", "Systems Project Manager", 5200.0, 6000.0),
             };
 
             LocationContext {
@@ -108,29 +136,46 @@ impl SimulationEngine {
                 currency_symbol: "$".to_string(),
                 culture_name: "American Contemporary".to_string(),
                 language_name: "English".to_string(),
-                mother_name: format!("Elena {}", last_name),
-                father_name: format!("Marcus {}", last_name),
-                teacher_name: "Mrs. Jennifer Hayes".to_string(),
-                coach_name: "Coach Dave Miller".to_string(),
-                friend_name: "Ethan Vance".to_string(),
+                mother_name: format!("{} {}", mother_first, last_name),
+                father_name: format!("{} {}", father_first, last_name),
+                teacher_name: teacher_n.to_string(),
+                coach_name: coach_n.to_string(),
+                friend_name: friend_n.to_string(),
                 mother_job: m_job.to_string(),
                 father_job: f_job.to_string(),
                 mother_salary: m_sal,
                 father_salary: f_sal,
-                primary_school_name: if is_sf { "Sunset Elementary School".to_string() } else { "Public School 29 Brooklyn".to_string() },
-                sports_club_name: if is_sf { "Mission District Athletic Complex".to_string() } else { "Prospect Park Youth Sports".to_string() },
-                university_name: if is_sf { "University of California, Berkeley".to_string() } else { "Columbia University".to_string() },
+                primary_school_name: school.to_string(),
+                sports_club_name: club.to_string(),
+                university_name: uni.to_string(),
                 exam_name: "Advanced Placement (AP) & SAT Examinations".to_string(),
             }
         } else {
-            // Nigeria / West Africa Default Context
-            let is_lagos = location_id.contains("lagos");
-            let city = if is_lagos { "Lagos" } else { "Abuja" };
-            let district = if is_lagos { "Ikeja" } else { "Garki" };
+            // Nigeria / West Africa Multi-City Context
+            let is_lagos = l_lower.contains("lagos");
+            let is_ibadan = l_lower.contains("ibadan");
+            let is_ph = l_lower.contains("port_harcourt") || l_lower.contains("ph");
+            let is_kano = l_lower.contains("kano");
+            let is_enugu = l_lower.contains("enugu");
+
+            let (city, district, school, club, uni, mother_first, father_first, teacher_n, coach_n, friend_n, culture) = if is_lagos {
+                ("Lagos", "Ikeja", "Lagos Model Primary School, Ikeja", "Surulere Community Stadium", "University of Lagos (UNILAG)", "Funke", "Babajide", "Mr. Babatunde Adewale", "Coach Segun Odegbami", "Chidi Nwosu", "Yoruba / Urban Nigerian")
+            } else if is_ibadan {
+                ("Ibadan", "Bodija", "Bodija International Primary School", "Liberty Stadium Training Pitch", "University of Ibadan", "Yetunde", "Adegoke", "Mr. Oladipo Johnson", "Coach Kunle Balogun", "Femi Adeleke", "Yoruba / Southwestern Nigerian")
+            } else if is_ph {
+                ("Port Harcourt", "Old GRA", "Rivers State Primary Model School", "Civic Centre Sports Complex", "University of Port Harcourt", "Blessing", "Tamuno", "Mr. Goodluck Briggs", "Coach Taribo Douglas", "Precious Wike", "Niger Delta / Coastal Nigerian")
+            } else if is_kano {
+                ("Kano", "Nasarawa", "Kano Capital School", "Sani Abacha Youth Sports Centre", "Bayero University Kano", "Amina", "Ibrahim", "Malam Usman Bello", "Coach Sani Danladi", "Musa Garba", "Hausa-Fulani / Northern Nigerian")
+            } else if is_enugu {
+                ("Enugu", "Independence Layout", "Enugu State Primary Academy", "Nnamdi Azikiwe Sports Ground", "University of Nigeria, Nsukka", "Nkechi", "Emeka", "Mr. Chukwuemeka Okoye", "Coach Ifeanyi Eze", "Tochukwu Nnamani", "Igbo / Southeastern Nigerian")
+            } else {
+                ("Abuja", "Garki", "Abuja Model Primary School", "Area 10 Community Sports Ground", "University of Abuja", "Sarah", "David", "Mr. Babatunde Adewale", "Coach Ibrahim Bello", "Chidi Nwosu", "West African / Urban Nigerian")
+            };
+
             let (m_job, f_job, m_sal, f_sal) = match wealth_tier {
-                WealthTier::Poverty | WealthTier::WorkingClass => ("Market Provisions Trader", "Automotive Technician", 75000.0, 95000.0),
-                WealthTier::UpperMiddle | WealthTier::Wealthy => ("Chief Medical Director", "Federal Permanent Secretary", 850000.0, 1200000.0),
-                _ => ("Healthcare Officer", "Senior Ministry Director", 280000.0, 320000.0),
+                WealthTier::Poverty | WealthTier::WorkingClass => ("Market Provisions Trader", "Automotive Specialist", 75000.0, 95000.0),
+                WealthTier::UpperMiddle | WealthTier::Wealthy => ("Senior Medical Consultant", "Director of Public Enterprise", 900000.0, 1350000.0),
+                _ => ("Healthcare Officer", "Senior Ministry Administrator", 280000.0, 340000.0),
             };
 
             LocationContext {
@@ -138,20 +183,20 @@ impl SimulationEngine {
                 city_name: city.to_string(),
                 district_name: district.to_string(),
                 currency_symbol: "₦".to_string(),
-                culture_name: if is_lagos { "Yoruba / Urban Nigerian".to_string() } else { "West African / Urban Nigerian".to_string() },
-                language_name: "English & Yoruba".to_string(),
-                mother_name: format!("Sarah {}", last_name),
-                father_name: format!("David {}", last_name),
-                teacher_name: "Mr. Babatunde Adewale".to_string(),
-                coach_name: "Coach Ibrahim Bello".to_string(),
-                friend_name: "Chidi Nwosu".to_string(),
+                culture_name: culture.to_string(),
+                language_name: "English & Local Languages".to_string(),
+                mother_name: format!("{} {}", mother_first, last_name),
+                father_name: format!("{} {}", father_first, last_name),
+                teacher_name: teacher_n.to_string(),
+                coach_name: coach_n.to_string(),
+                friend_name: friend_n.to_string(),
                 mother_job: m_job.to_string(),
                 father_job: f_job.to_string(),
                 mother_salary: m_sal,
                 father_salary: f_sal,
-                primary_school_name: if is_lagos { "Lagos Model Primary School, Ikeja".to_string() } else { "Abuja Model Primary School".to_string() },
-                sports_club_name: if is_lagos { "Surulere Community Stadium".to_string() } else { "Area 10 Community Sports Ground".to_string() },
-                university_name: if is_lagos { "University of Lagos (UNILAG)".to_string() } else { "University of Abuja".to_string() },
+                primary_school_name: school.to_string(),
+                sports_club_name: club.to_string(),
+                university_name: uni.to_string(),
                 exam_name: "West African Senior School Certificate (WAEC / JAMB)".to_string(),
             }
         }
@@ -1155,40 +1200,53 @@ impl SimulationEngine {
         let age = (self.time.year - player.identity.birth_year) as u32;
         let stage = LifeStage::from_age(age);
 
+        let mother_opt = self.npcs.get("person:sim:mother");
+        let father_opt = self.npcs.get("person:sim:father");
+        let teacher_opt = self.npcs.get("person:sim:adewale_teacher");
+        let coach_opt = self.npcs.get("person:sim:coach_ibrahim");
+        let friend_opt = self.npcs.get("person:sim:chidi_nwosu");
+
+        let m_name = mother_opt.map(|m| m.base.identity.first_name.clone()).unwrap_or_else(|| "your mother".to_string());
+        let f_name = father_opt.map(|f| f.base.identity.first_name.clone()).unwrap_or_else(|| "your father".to_string());
+        let t_name = teacher_opt.map(|t| format!("{} {}", t.base.identity.first_name, t.base.identity.last_name)).unwrap_or_else(|| "your teacher".to_string());
+        let c_name = coach_opt.map(|c| format!("{} {}", c.base.identity.first_name, c.base.identity.last_name)).unwrap_or_else(|| "your coach".to_string());
+        let fr_name = friend_opt.map(|f| f.base.identity.first_name.clone()).unwrap_or_else(|| "your friend".to_string());
+
         let narrative;
         let mut circumstances = Vec::new();
         let mut prompt_suggestions = Vec::new();
 
         match stage {
             LifeStage::Infancy => {
-                narrative = "Morning sunlight illuminates the family home. Your mother hums softly as she arranges breakfast, while your father reads the morning news at the dining table.".to_string();
-                circumstances.push("Early Home Upbringing & Family Care".to_string());
-                circumstances.push("Secure Household Environment".to_string());
-                prompt_suggestions.push("Take confident steps across the rug towards your parents".to_string());
-                prompt_suggestions.push("Listen to picture book stories and learn new words".to_string());
-                prompt_suggestions.push("Play with colorful wooden building blocks".to_string());
+                narrative = format!("Morning sunlight illuminates the family apartment. {} hums quietly while preparing breakfast, occasionally glancing over with a gentle smile. Nearby, {} reads the morning paper near the window. You are too young to understand their words, but their presence, laughter, and warmth are becoming familiar.", m_name, f_name);
+                circumstances.push("A colorful picture book resting on the woven rug".to_string());
+                circumstances.push("The comforting sound of breakfast preparations in the kitchen".to_string());
+                circumstances.push("Warm sunlight streaming across the living room floor".to_string());
+                prompt_suggestions.push("Take wobbly, confident steps across the rug toward your parents".to_string());
+                prompt_suggestions.push("Reach for the picture book and repeat words with your mother".to_string());
+                prompt_suggestions.push("Play quietly with the wooden building blocks on the carpet".to_string());
             }
             LifeStage::Childhood => {
-                narrative = "The morning bell chimes across the school grounds. Pupils gather in the courtyard for the morning assembly. Nearby, your classmate waves you over.".to_string();
-                circumstances.push("Primary Education Term in Session".to_string());
-                circumstances.push("Supportive Teacher Mentorship".to_string());
-                circumstances.push("Active Peer Playground Network".to_string());
-                prompt_suggestions.push("Attend mathematics and solve problem sets on the chalkboard".to_string());
-                prompt_suggestions.push("Help father repair and clean the family desktop computer".to_string());
-                prompt_suggestions.push("Review mistakes with your teacher after a difficult quiz".to_string());
-                prompt_suggestions.push("Play courtyard sports with friends during break".to_string());
-                prompt_suggestions.push("Help parents with evening household chores to earn weekly allowance".to_string());
+                narrative = format!("The morning assembly bell chimes across the school grounds. In the classroom, {} commends thoughtful problem-solving on the chalkboard, encouraging everyone to work through formulas with patience. Outside during break, {} waves a football and calls you over to the courtyard pitch.", t_name, fr_name);
+                circumstances.push("Arithmetic and reading textbooks neatly stacked on your desk".to_string());
+                circumstances.push("Lively courtyard football games starting after classes".to_string());
+                circumstances.push("The family desktop computer in the study, ready for repair or learning".to_string());
+                prompt_suggestions.push("Solve arithmetic problem sets in class and ask your teacher questions".to_string());
+                prompt_suggestions.push("Help your father repair and clean the family desktop computer".to_string());
+                prompt_suggestions.push("Stay after class with your teacher to review difficult quiz questions".to_string());
+                prompt_suggestions.push("Play courtyard football with friends during break".to_string());
+                prompt_suggestions.push("Help with evening household chores to earn pocket allowance".to_string());
             }
             LifeStage::Adolescence => {
-                narrative = "Early morning air settles over the neighborhood. Final secondary certificate examinations approach in the coming months. At the local community grounds, training drills are beginning for youth athletes.".to_string();
-                circumstances.push("Senior Secondary Education & Examination Preparation".to_string());
-                circumstances.push("Community Sports Training".to_string());
-                circumstances.push("Higher Education Admission Planning".to_string());
+                narrative = format!("Early evening air settles over the neighborhood. Final secondary certificate examinations approach in the coming months, with textbooks and practice papers open under your desk lamp. Down at the community grounds, {} is concluding tactical training with youth players under the floodlights.", c_name);
+                circumstances.push("Chemistry and advanced mathematics question papers on the desk".to_string());
+                circumstances.push("Community sports training sessions under the floodlights".to_string());
+                circumstances.push("University admission requirements and prospectus brochures".to_string());
                 prompt_suggestions.push("Study mathematics and science every evening for four weeks for final exams".to_string());
                 prompt_suggestions.push("Train sports at the community grounds three times weekly with the coach".to_string());
                 prompt_suggestions.push("Learn computer programming every weekend for six months".to_string());
                 prompt_suggestions.push("Apply for regional university undergraduate admission".to_string());
-                prompt_suggestions.push("Talk to father about university funding and career ambitions".to_string());
+                prompt_suggestions.push("Talk to your father about university tuition and career aspirations".to_string());
             }
             _ => {
                 narrative = "A vibrant new morning begins. Life in the city moves forward with commercial, civic, and professional opportunities.".to_string();
