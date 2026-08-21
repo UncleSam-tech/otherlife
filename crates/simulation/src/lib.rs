@@ -3,18 +3,19 @@ use otherlife_ai_bridge::{AIBridge, AIBridgeConfig};
 use otherlife_relationships::{RelationshipMatrix, RelationshipVector};
 use otherlife_rng::WorldRng;
 use otherlife_world::{
-    AcademicDegree, ActivityType, AgeGate, BeliefComponent, BusinessEntity, CanonicalEntity, CovertOperation,
-    CosmicLegacy, CosmicMegastructure, CreativeRelease, CriminalRecord, CyberneticImplant, DigitalPost,
-    EducationComponent, EmploymentComponent, EntityNamespace, EntityType, EnvironmentalRating, EventRecord,
-    FaithMovement, FameComponent, FinancesComponent, FootballContract, FootballMatch, FootballPlayerAttributes,
-    FootballRole, FootballScoutReport, GeopoliticalConflict, HealthComponent, HousingComponent, IdentityComponent,
-    KnowledgeRecord, LegalStatus, LifeSituation, LifeSituationChoice, LifeStage, MacroEconomy, MedicalRecord,
-    MilitaryRecord, MindUpload, NaturalDisaster, NewLifeConfig, NpcSchedule, NpcTier, OrganizationSubunit, Passport,
-    Patent, Person, PersonalityComponent, Place, PolicyProposal, PoliticalCampaign, PostScarcityEconomy,
-    PrisonSentence, ProcessChain, ProcessStep, Qualification, ResearchProject, ResolutionContext, ResolutionResult,
-    RomanceComponent, SecretMembership, SecretSociety, SimTime, SituationCategory, SocialMediaAccount, SpaceAgency,
-    SpaceMission, SurgicalProcedure, TravelRecord, Visa, WeatherEvent, WillAndTestament, WorldEntityResolver,
-    WorldNewsItem,
+    AcademicDegree, AcademicProgram, ActivityType, AgeGate, BeliefComponent, BusinessEntity, CanonicalEntity,
+    CovertOperation, CosmicLegacy, CosmicMegastructure, CreativeRelease, CriminalRecord, CyberneticImplant,
+    DigitalPost, EducationComponent, EmploymentComponent, EntityNamespace, EntityType, EnvironmentalRating,
+    EventRecord, FaithMovement, FameComponent, FinancesComponent, FootballContract, FootballMatch,
+    FootballPlayerAttributes, FootballRole, FootballScoutReport, GeopoliticalConflict, HealthComponent,
+    HousingComponent, IdentityComponent, KnowledgeRecord, LegalStatus, LifeSituation, LifeSituationChoice,
+    LifeStage, MacroEconomy, MedicalRecord, MilitaryRecord, MindUpload, NaturalDisaster, NewLifeConfig,
+    NpcSchedule, NpcTier, OrganizationSubunit, Passport, Patent, Person, PersonalityComponent, Place,
+    PolicyProposal, PoliticalCampaign, PostScarcityEconomy, PrisonSentence, ProcessChain, ProcessStep,
+    Qualification, ResearchProject, ResolutionContext, ResolutionResult, RomanceComponent, SecretMembership,
+    SecretSociety, SimTime, SituationCategory, SocialMediaAccount, SpaceAgency, SpaceMission, SurgicalProcedure,
+    TodayChoice, TodayScene, ActiveDeadline, TravelRecord, Visa, WeatherEvent, WillAndTestament,
+    WorldEntityResolver, WorldNewsItem,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
@@ -134,6 +135,8 @@ pub struct SimulationEngine {
     pub resolver: WorldEntityResolver,
     pub active_situations: Vec<LifeSituation>,
     pub active_processes: Vec<ProcessChain>,
+    pub active_deadlines: Vec<ActiveDeadline>,
+    pub academic_program: Option<AcademicProgram>,
     pub events: Vec<EventRecord>,
     pub world_news: Vec<WorldNewsItem>,
     pub ai_bridge: AIBridge,
@@ -570,10 +573,24 @@ impl SimulationEngine {
             resolver,
             active_situations: Vec::new(),
             active_processes: Vec::new(),
+            active_deadlines: Vec::new(),
+            academic_program: None,
             events: Vec::new(),
             world_news: Vec::new(),
             ai_bridge,
         };
+
+        let player_age = config.starting_age;
+        if (14..=17).contains(&player_age) && config.interests.contains(&"football".to_string()) {
+            let deadline_day = engine.time.total_days() + 30;
+            engine.active_deadlines.push(ActiveDeadline {
+                id: "football_trial_youth".to_string(),
+                title: "Regional Youth Football Trial".to_string(),
+                description: "Open trial session with scouts in the region.".to_string(),
+                deadline_day_total: deadline_day,
+                category: "FOOTBALL".to_string(),
+            });
+        }
 
         engine.generate_active_situations();
 
@@ -621,7 +638,91 @@ impl SimulationEngine {
 
     pub fn step_time_forward(&mut self, days: u32) {
         self.time.advance_days(days);
+        self.update_deadlines_and_education(days);
         SimulationInvariantValidator::validate(self).expect("Simulation invariants broken during time advance");
+    }
+
+    pub fn update_deadlines_and_education(&mut self, days_passed: u32) {
+        let current_day_total = self.time.total_days();
+        let player_id = "person:sim:player".to_string();
+
+        // 1. Process and expire deadlines
+        let mut remaining_deadlines = Vec::new();
+        for dl in self.active_deadlines.drain(..) {
+            if current_day_total >= dl.deadline_day_total {
+                // Deadline expired naturally
+                let event = EventRecord {
+                    id: uuid::Uuid::new_v4().to_string(),
+                    timestamp: self.time.formatted(),
+                    event_type: "OPPORTUNITY_EXPIRED".to_string(),
+                    actor_id: player_id.clone(),
+                    target_id: None,
+                    summary: format!("The window for '{}' has closed.", dl.title),
+                    metadata: serde_json::json!({ "deadline_id": dl.id }),
+                    causality_parent_id: None,
+                };
+                self.events.push(event);
+            } else {
+                remaining_deadlines.push(dl);
+            }
+        }
+        self.active_deadlines = remaining_deadlines;
+
+        // 2. Multi-year university progression
+        if let Some(ref mut prog) = self.academic_program {
+            if !prog.is_graduated {
+                if days_passed >= 30 {
+                    if self.time.month == 6 && prog.current_semester == 1 {
+                        prog.current_semester = 2;
+                        self.events.push(EventRecord {
+                            id: uuid::Uuid::new_v4().to_string(),
+                            timestamp: self.time.formatted(),
+                            event_type: "ACADEMIC_SEMESTER_PASSED".to_string(),
+                            actor_id: player_id.clone(),
+                            target_id: None,
+                            summary: format!("Completed Semester 1 examinations for Year {} in {} at {}.", prog.current_year, prog.degree_title, prog.university_name),
+                            metadata: serde_json::json!({ "year": prog.current_year, "semester": 1 }),
+                            causality_parent_id: None,
+                        });
+                    } else if self.time.month == 12 && prog.current_semester == 2 {
+                        if prog.current_year < prog.total_years {
+                            prog.current_year += 1;
+                            prog.current_semester = 1;
+                            self.events.push(EventRecord {
+                                id: uuid::Uuid::new_v4().to_string(),
+                                timestamp: self.time.formatted(),
+                                event_type: "ACADEMIC_YEAR_ADVANCED".to_string(),
+                                actor_id: player_id.clone(),
+                                target_id: None,
+                                summary: format!("Advanced to Year {} of {} at {}!", prog.current_year, prog.degree_title, prog.university_name),
+                                metadata: serde_json::json!({ "year": prog.current_year }),
+                                causality_parent_id: None,
+                            });
+                        } else {
+                            prog.is_graduated = true;
+                            if let Some(p) = self.persons.get_mut(&player_id) {
+                                p.education.qualifications.push(Qualification {
+                                    title: prog.degree_title.clone(),
+                                    field: prog.faculty.clone(),
+                                    year_obtained: self.time.year,
+                                });
+                                p.education.degree_program = Some(prog.degree_title.clone());
+                            }
+                            self.events.push(EventRecord {
+                                id: uuid::Uuid::new_v4().to_string(),
+                                timestamp: self.time.formatted(),
+                                event_type: "UNIVERSITY_GRADUATION".to_string(),
+                                actor_id: player_id.clone(),
+                                target_id: None,
+                                summary: format!("Graduated from {} with a {} in {}!", prog.university_name, prog.degree_title, prog.faculty),
+                                metadata: serde_json::json!({ "degree": prog.degree_title, "faculty": prog.faculty }),
+                                causality_parent_id: None,
+                            });
+                        }
+                    }
+                }
+            }
+        }
     }
 
     pub fn resolve_role_for_person(&self, role_title: &str) -> Option<String> {
@@ -3694,6 +3795,131 @@ impl SimulationEngine {
                     causality_note = "Living at home enabled maximum savings accumulation.".to_string();
                     days_to_advance = 30;
                 }
+                "apply_university_science" => {
+                    let uni_name = if player.location_id.contains("nigeria") {
+                        "University of Abuja"
+                    } else if player.location_id.contains("glasgow") || player.location_id.contains("united_kingdom") {
+                        "University of Glasgow"
+                    } else if player.location_id.contains("new_york") {
+                        "Columbia University"
+                    } else {
+                        "National University"
+                    };
+                    self.academic_program = Some(AcademicProgram {
+                        university_name: uni_name.to_string(),
+                        faculty: "School of Computing & Mathematical Sciences".to_string(),
+                        degree_title: "Bachelor of Science (B.Sc.) in Computer Science".to_string(),
+                        current_year: 1,
+                        total_years: 4,
+                        current_semester: 1,
+                        gpa: 3.65,
+                        is_graduated: false,
+                    });
+                    if let Some(p) = self.persons.get_mut(&player_id) {
+                        p.education.degree_program = Some("B.Sc. Computer Science".to_string());
+                    }
+                    narrative = format!("You were formally accepted into the B.Sc. Computer Science program at {}! Classes commence this academic semester.", uni_name);
+                    causality_note = "Enrolled in 4-year undergraduate degree program.".to_string();
+                    days_to_advance = 14;
+                }
+                "apply_university_law" => {
+                    let uni_name = if player.location_id.contains("nigeria") {
+                        "University of Abuja"
+                    } else if player.location_id.contains("glasgow") || player.location_id.contains("united_kingdom") {
+                        "University of Glasgow"
+                    } else {
+                        "National University"
+                    };
+                    self.academic_program = Some(AcademicProgram {
+                        university_name: uni_name.to_string(),
+                        faculty: "Faculty of Law & Jurisprudence".to_string(),
+                        degree_title: "Bachelor of Laws (LL.B.)".to_string(),
+                        current_year: 1,
+                        total_years: 5,
+                        current_semester: 1,
+                        gpa: 3.50,
+                        is_graduated: false,
+                    });
+                    if let Some(p) = self.persons.get_mut(&player_id) {
+                        p.education.degree_program = Some("LL.B. Law".to_string());
+                    }
+                    narrative = format!("You were admitted to study Law at {}! You received your matriculation package.", uni_name);
+                    causality_note = "Enrolled in 5-year undergraduate legal curriculum.".to_string();
+                    days_to_advance = 14;
+                }
+                "attend_lectures" => {
+                    narrative = "You attended all scheduled morning and afternoon lectures, participating in tutorial problem sets.".to_string();
+                    causality_note = "Steady academic attendance improved course mastery (+cognition).".to_string();
+                    if let Some(p) = self.persons.get_mut(&player_id) {
+                        let entry = p.skills.entry("cognition".to_string()).or_insert(50.0);
+                        *entry = (*entry + 1.5).min(100.0);
+                    }
+                    days_to_advance = 7;
+                }
+                "study_library_uni" => {
+                    narrative = "You spent quiet evenings in the university library reading research journals and completing assignments.".to_string();
+                    causality_note = "Diligent coursework revision boosted academic performance.".to_string();
+                    if let Some(p) = self.persons.get_mut(&player_id) {
+                        p.education.academic_performance = (p.education.academic_performance + 2.0).min(100.0);
+                    }
+                    days_to_advance = 7;
+                }
+                "campus_social" => {
+                    narrative = "You attended student union discussions and relaxed with friends on campus, forming meaningful friendships.".to_string();
+                    causality_note = "Active social life strengthened emotional well-being.".to_string();
+                    if let Some(p) = self.persons.get_mut(&player_id) {
+                        p.health.stress = (p.health.stress - 6.0).max(0.0);
+                    }
+                    days_to_advance = 7;
+                }
+                "action_football_trial_youth" => {
+                    // Scout assessment
+                    let football_skill = player.skills.get("football_control").copied().unwrap_or(50.0);
+                    let athleticism = player.skills.get("athleticism").copied().unwrap_or(50.0);
+                    let score = (football_skill * 0.6) + (athleticism * 0.4);
+
+                    // Remove trial deadline
+                    self.active_deadlines.retain(|d| d.id != "football_trial_youth");
+
+                    if score >= 65.0 {
+                        narrative = "You performed brilliantly at the regional trial! Scouts praised your technical flair and offered you a youth academy training agreement.".to_string();
+                        causality_note = "Exceptional trial performance resulted in regional academy invitation.".to_string();
+                        if let Some(p) = self.persons.get_mut(&player_id) {
+                            p.football_contract = Some(FootballContract {
+                                club_id: "club:sim:regional_youth_fc".to_string(),
+                                club_name: "Regional Youth Academy FC".to_string(),
+                                weekly_wage: 80.0,
+                                years_remaining: 2,
+                                release_clause: 5000.0,
+                                goal_bonus: 20.0,
+                                agent_id: None,
+                            });
+                        }
+                    } else {
+                        narrative = "You gave your all at the trial. The scouts commended your work ethic and gave you clear technical areas to develop before next season.".to_string();
+                        causality_note = "Valuable match trial experience gained with constructive scout feedback.".to_string();
+                        if let Some(p) = self.persons.get_mut(&player_id) {
+                            let entry = p.skills.entry("football_control".to_string()).or_insert(50.0);
+                            *entry = (*entry + 4.0).min(100.0);
+                        }
+                    }
+                    days_to_advance = 7;
+                }
+                "pass_day" => {
+                    narrative = "A quiet day passed in routine. You reflected on your journey and prepared for the days ahead.".to_string();
+                    causality_note = "1 day passed peacefully.".to_string();
+                    days_to_advance = 1;
+                }
+                "pass_week" => {
+                    narrative = "A steady week passed in routine. Daily responsibilities were handled quietly.".to_string();
+                    causality_note = "7 days elapsed.".to_string();
+                    days_to_advance = 7;
+                }
+                "pass_month" => {
+                    narrative = "A full month passed. Seasons changed as you continued through your life journey.".to_string();
+                    causality_note = "30 days elapsed.".to_string();
+                    days_to_advance = 30;
+                }
                 _ => {
                     narrative = format!("You chose to: {}.", choice_id);
                     causality_note = "Situational choice executed.".to_string();
@@ -3990,6 +4216,204 @@ impl SimulationEngine {
             None => "Player".to_string(),
         };
         otherlife_ai_bridge::BiographyWriter::generate_lifetime_biography(&player, &self.events)
+    }
+
+    pub fn generate_today_scene(&mut self) -> TodayScene {
+        let current_total_days = self.time.total_days();
+        self.update_deadlines_and_education(0);
+
+        let player = match self.persons.get("person:sim:player") {
+            Some(p) => p.clone(),
+            None => {
+                return TodayScene {
+                    greeting: "No active life.".to_string(),
+                    date_formatted: self.time.literary_date(),
+                    location_formatted: "Unknown".to_string(),
+                    age: 0,
+                    headline: "Simulation Idle".to_string(),
+                    narrative: "No active character exists in this timeline.".to_string(),
+                    circumstances: Vec::new(),
+                    choices: Vec::new(),
+                    pending_deadlines: Vec::new(),
+                    life_stage: "Unknown".to_string(),
+                };
+            }
+        };
+
+        let age = (self.time.year - player.identity.birth_year) as u32;
+        let loc_clean = player.location_id.replace("city:real:", "").replace("city:sim:", "").replace('_', " ");
+        let loc_title = loc_clean.chars().enumerate().map(|(i, c)| if i == 0 || loc_clean.chars().nth(i-1) == Some(' ') { c.to_ascii_uppercase() } else { c }).collect::<String>();
+        let country_id = player.identity.nationalities.first().cloned().unwrap_or_else(|| "country:real:united_kingdom".to_string());
+        let country_clean = country_id.replace("country:real:", "").replace('_', " ");
+        let country_title = country_clean.chars().enumerate().map(|(i, c)| if i == 0 || country_clean.chars().nth(i-1) == Some(' ') { c.to_ascii_uppercase() } else { c }).collect::<String>();
+        let full_location = format!("{}, {}", loc_title, country_title);
+
+        let parent_name = player.parent_ids.first()
+            .and_then(|pid| self.persons.get(pid))
+            .map(|p| p.identity.first_name.clone())
+            .unwrap_or_else(|| "Your family".to_string());
+
+        let mut circumstances = Vec::new();
+        let mut choices = Vec::new();
+        let mut narrative_lines = Vec::new();
+        let headline: String;
+
+        let stage_str = if age <= 3 { "Infancy" }
+            else if age <= 12 { "Childhood" }
+            else if age <= 18 { "Adolescence" }
+            else if age <= 29 { "Early Adulthood" }
+            else if age <= 64 { "Adulthood" }
+            else { "Senior Years" };
+
+        if !player.is_alive {
+            return TodayScene {
+                greeting: "Journey's End".to_string(),
+                date_formatted: self.time.literary_date(),
+                location_formatted: full_location,
+                age,
+                headline: format!("Reflecting on the Life of {} {}", player.identity.first_name, player.identity.last_name),
+                narrative: format!("The story of {} has drawn to its quiet close. Memories of your journey remain in the chronicle.", player.identity.first_name),
+                circumstances: vec!["This lifetime has concluded.".to_string()],
+                choices: vec![TodayChoice {
+                    id: "view_chronicle".to_string(),
+                    label: "Review the full chronicle of your journey".to_string(),
+                    consequence_hint: None,
+                    category: "ROUTINE".to_string(),
+                    remaining_days: None,
+                }],
+                pending_deadlines: Vec::new(),
+                life_stage: "Passed Away".to_string(),
+            };
+        }
+
+        match age {
+            0..=3 => {
+                headline = format!("Morning at Home in {}", loc_title);
+                if age == 0 {
+                    narrative_lines.push(format!("You wake to soft light filtering into your nursery. {} is humming gently while preparing your morning feed.", parent_name));
+                    narrative_lines.push("The familiar warmth of your home provides comfort as another peaceful day begins.".to_string());
+                    circumstances.push("Family household care & early infancy".to_string());
+                    choices.push(TodayChoice { id: "sleep_calmly".to_string(), label: "Rest comfortably in your crib".to_string(), consequence_hint: Some("Promotes health and growth".to_string()), category: "IMMEDIATE".to_string(), remaining_days: None });
+                    choices.push(TodayChoice { id: "reach_out".to_string(), label: format!("Reach toward {} and smile", parent_name), consequence_hint: Some("Strengthens family bond".to_string()), category: "FAMILY".to_string(), remaining_days: None });
+                    choices.push(TodayChoice { id: "listen_sounds".to_string(), label: "Listen to the sounds of morning outside".to_string(), consequence_hint: Some("Early sensory awareness".to_string()), category: "PERSONAL".to_string(), remaining_days: None });
+                } else {
+                    narrative_lines.push(format!("You are up early, exploring the living room in {}. Toys and household books are scattered nearby.", loc_title));
+                    circumstances.push("Toddler exploration & home routine".to_string());
+                    choices.push(TodayChoice { id: "play_building".to_string(), label: "Stack colourful wooden building blocks".to_string(), consequence_hint: Some("Builds focus and spatial curiosity".to_string()), category: "IMMEDIATE".to_string(), remaining_days: None });
+                    choices.push(TodayChoice { id: "learn_words".to_string(), label: format!("Ask {} to read a picture storybook", parent_name), consequence_hint: Some("Language development".to_string()), category: "FAMILY".to_string(), remaining_days: None });
+                    choices.push(TodayChoice { id: "garden_walk".to_string(), label: "Walk around the courtyard watching birds".to_string(), consequence_hint: Some("Physical motor coordination".to_string()), category: "PERSONAL".to_string(), remaining_days: None });
+                }
+            }
+            4..=12 => {
+                headline = format!("School Day in {}", loc_title);
+                narrative_lines.push(format!("Morning bells ring across {} as you prepare for primary school. Your classmates are gathering in the courtyard.", loc_title));
+                circumstances.push(format!("Enrolled in Primary School (Academic Performance: {:.0}%)", player.education.academic_performance));
+                
+                choices.push(TodayChoice { id: "attend_school".to_string(), label: "Attend classes and participate actively".to_string(), consequence_hint: Some("Strengthens academic understanding".to_string()), category: "IMMEDIATE".to_string(), remaining_days: None });
+                choices.push(TodayChoice { id: "play_friends".to_string(), label: "Play football and games with friends at break".to_string(), consequence_hint: Some("Builds athleticism and peer friendships".to_string()), category: "PERSONAL".to_string(), remaining_days: None });
+                choices.push(TodayChoice { id: "study_library".to_string(), label: "Spend the afternoon reading library books".to_string(), consequence_hint: Some("Expands reading comprehension".to_string()), category: "ROUTINE".to_string(), remaining_days: None });
+                choices.push(TodayChoice { id: "family_evening".to_string(), label: format!("Help {} with evening household chores", parent_name), consequence_hint: Some("Fosters family trust and responsibility".to_string()), category: "FAMILY".to_string(), remaining_days: None });
+            }
+            13..=18 => {
+                headline = format!("Youth & Aspirations in {}", loc_title);
+                narrative_lines.push(format!("You wake up early in {}. Term coursework is underway, and thoughts about your future path are becoming more frequent.", loc_title));
+                circumstances.push(format!("Secondary School Classes (Academic Performance: {:.0}%)", player.education.academic_performance));
+
+                for dl in &self.active_deadlines {
+                    let rem = (dl.deadline_day_total - current_total_days).max(0);
+                    narrative_lines.push(format!("Active Matter: {} has {} days remaining.", dl.title, rem));
+                    choices.push(TodayChoice {
+                        id: format!("action_{}", dl.id),
+                        label: format!("{} ({}d remaining)", dl.title, rem),
+                        consequence_hint: Some("Takes action before the deadline closes".to_string()),
+                        category: "OPPORTUNITY".to_string(),
+                        remaining_days: Some(rem),
+                    });
+                }
+
+                choices.push(TodayChoice { id: "school_revision".to_string(), label: "Dedicate hours to exam revision and past papers".to_string(), consequence_hint: Some("Raises academic standing".to_string()), category: "IMMEDIATE".to_string(), remaining_days: None });
+                choices.push(TodayChoice { id: "train_football".to_string(), label: "Head to the pitch for intensive football drills".to_string(), consequence_hint: Some("Sharpens match fitness and technical control".to_string()), category: "PERSONAL".to_string(), remaining_days: None });
+                choices.push(TodayChoice { id: "civic_debate".to_string(), label: "Attend the youth student assembly and debate".to_string(), consequence_hint: Some("Builds public speaking and confidence".to_string()), category: "PERSONAL".to_string(), remaining_days: None });
+                choices.push(TodayChoice { id: "family_future".to_string(), label: format!("Talk with {} about your ambitions after graduation", parent_name), consequence_hint: Some("Deepens parental understanding".to_string()), category: "FAMILY".to_string(), remaining_days: None });
+
+                if age >= 17 && self.academic_program.is_none() {
+                    choices.push(TodayChoice {
+                        id: "apply_university_science".to_string(),
+                        label: "Apply for University Degree in Computer Science (4-Year B.Sc.)".to_string(),
+                        consequence_hint: Some("Begins 4-year higher education journey".to_string()),
+                        category: "OPPORTUNITY".to_string(),
+                        remaining_days: None,
+                    });
+                    choices.push(TodayChoice {
+                        id: "apply_university_law".to_string(),
+                        label: "Apply for University Degree in Law & Jurisprudence (5-Year LL.B.)".to_string(),
+                        consequence_hint: Some("Begins legal qualification pathway".to_string()),
+                        category: "OPPORTUNITY".to_string(),
+                        remaining_days: None,
+                    });
+                }
+            }
+            _ => {
+                if let Some(ref prog) = self.academic_program {
+                    if !prog.is_graduated {
+                        headline = format!("University Life · Year {}, Semester {} at {}", prog.current_year, prog.current_semester, prog.university_name);
+                        narrative_lines.push(format!("Campus life is bustling at {}. You are currently in Year {}, Semester {} of your {} program in {}.", prog.university_name, prog.current_year, prog.current_semester, prog.degree_title, prog.faculty));
+                        circumstances.push(format!("Enrolled: {} ({}) · Year {}/{}", prog.degree_title, prog.university_name, prog.current_year, prog.total_years));
+                        choices.push(TodayChoice { id: "attend_lectures".to_string(), label: "Attend university lectures and tutorials".to_string(), consequence_hint: Some("Progresses semester coursework".to_string()), category: "IMMEDIATE".to_string(), remaining_days: None });
+                        choices.push(TodayChoice { id: "study_library_uni".to_string(), label: "Spend the evening studying research papers".to_string(), consequence_hint: Some("Boosts GPA and academic mastery".to_string()), category: "ROUTINE".to_string(), remaining_days: None });
+                        choices.push(TodayChoice { id: "campus_social".to_string(), label: "Join campus student association activities".to_string(), consequence_hint: Some("Expands networking and social ties".to_string()), category: "PERSONAL".to_string(), remaining_days: None });
+                    } else {
+                        headline = format!("Professional Life in {}", loc_title);
+                        narrative_lines.push(format!("As a graduate with a {} in {}, you navigate career opportunities in {}.", prog.degree_title, prog.faculty, loc_title));
+                    }
+                } else if let Some(ref job) = player.employment.job_title {
+                    headline = format!("Workday in {}", loc_title);
+                    narrative_lines.push(format!("You head into work as a {}. Projects and workplace expectations require your attention today.", job));
+                    let curr_sym = if country_id.contains("nigeria") { "₦" } else { "£" };
+                    circumstances.push(format!("Employed: {} (Monthly Salary: {}{:.0})", job, curr_sym, player.employment.monthly_salary));
+                    choices.push(TodayChoice { id: "work_shift".to_string(), label: format!("Complete your work responsibilities as {}", job), consequence_hint: Some("Advances job standing and career reputation".to_string()), category: "IMMEDIATE".to_string(), remaining_days: None });
+                    choices.push(TodayChoice { id: "career_network".to_string(), label: "Network with professional colleagues after hours".to_string(), consequence_hint: Some("Builds industry connections".to_string()), category: "PERSONAL".to_string(), remaining_days: None });
+                } else {
+                    headline = format!("Life & Opportunity in {}", loc_title);
+                    narrative_lines.push(format!("You are currently seeking employment or new directions in {}. The city offers varied paths to explore.", loc_title));
+                    circumstances.push("Seeking new career direction".to_string());
+                    choices.push(TodayChoice { id: "apply_entry_job".to_string(), label: "Apply for junior professional openings in the city".to_string(), consequence_hint: Some("Initiates employment opportunities".to_string()), category: "IMMEDIATE".to_string(), remaining_days: None });
+                    choices.push(TodayChoice { id: "independent_freelance".to_string(), label: "Take on independent consulting and freelance tasks".to_string(), consequence_hint: Some("Earns immediate income without contracts".to_string()), category: "PERSONAL".to_string(), remaining_days: None });
+                }
+
+                for dl in &self.active_deadlines {
+                    let rem = (dl.deadline_day_total - current_total_days).max(0);
+                    narrative_lines.push(format!("Active Matter: {} ({} days remaining).", dl.title, rem));
+                    choices.push(TodayChoice {
+                        id: format!("action_{}", dl.id),
+                        label: format!("{} ({}d remaining)", dl.title, rem),
+                        consequence_hint: Some("Addresses this urgent deadline".to_string()),
+                        category: "OPPORTUNITY".to_string(),
+                        remaining_days: Some(rem),
+                    });
+                }
+            }
+        }
+
+        // Standard time progression choices
+        choices.push(TodayChoice { id: "pass_day".to_string(), label: "Let a quiet day pass in routine (+1 Day)".to_string(), consequence_hint: Some("Time moves forward 1 day".to_string()), category: "ROUTINE".to_string(), remaining_days: None });
+        choices.push(TodayChoice { id: "pass_week".to_string(), label: "Let a week pass steadily (+1 Week)".to_string(), consequence_hint: Some("Time moves forward 7 days".to_string()), category: "ROUTINE".to_string(), remaining_days: None });
+        choices.push(TodayChoice { id: "pass_month".to_string(), label: "Advance through the month (+1 Month)".to_string(), consequence_hint: Some("Time moves forward 30 days".to_string()), category: "ROUTINE".to_string(), remaining_days: None });
+
+        let narrative = narrative_lines.join(" ");
+
+        TodayScene {
+            greeting: format!("OTHERLIFE · Age {}", age),
+            date_formatted: self.time.literary_date(),
+            location_formatted: full_location,
+            age,
+            headline,
+            narrative,
+            circumstances,
+            choices,
+            pending_deadlines: self.active_deadlines.clone(),
+            life_stage: stage_str.to_string(),
+        }
     }
 
     pub fn execute_player_action(&mut self, action_payload: ActionPayload) -> StepResult {

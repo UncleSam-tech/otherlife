@@ -1156,6 +1156,26 @@ impl SimTime {
             self.advance_days(days);
         }
     }
+
+    pub fn total_days(&self) -> i64 {
+        // Approximate total epoch days from year 0
+        (self.year as i64) * 365 + (self.year as i64 / 4) + (self.month as i64 * 30) + (self.day as i64)
+    }
+
+    pub fn day_of_week(&self) -> &'static str {
+        let days = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+        let idx = (self.total_days().rem_euclid(7)) as usize;
+        days[idx]
+    }
+
+    pub fn literary_date(&self) -> String {
+        let months = [
+            "January", "February", "March", "April", "May", "June",
+            "July", "August", "September", "October", "November", "December"
+        ];
+        let m_idx = (self.month.saturating_sub(1) as usize).min(11);
+        format!("{}, {} {} {}", self.day_of_week(), self.day, months[m_idx], self.year)
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -1568,5 +1588,50 @@ impl AgeGate {
         age >= 15
     }
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TodayChoice {
+    pub id: String,
+    pub label: String,
+    pub consequence_hint: Option<String>,
+    pub category: String, // "IMMEDIATE", "OPPORTUNITY", "ROUTINE", "FAMILY", "PERSONAL"
+    pub remaining_days: Option<i64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ActiveDeadline {
+    pub id: String,
+    pub title: String,
+    pub description: String,
+    pub deadline_day_total: i64,
+    pub category: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TodayScene {
+    pub greeting: String,
+    pub date_formatted: String,
+    pub location_formatted: String,
+    pub age: u32,
+    pub headline: String,
+    pub narrative: String,
+    pub circumstances: Vec<String>,
+    pub choices: Vec<TodayChoice>,
+    pub pending_deadlines: Vec<ActiveDeadline>,
+    pub life_stage: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AcademicProgram {
+    pub university_name: String,
+    pub faculty: String,
+    pub degree_title: String,
+    pub current_year: u32,
+    pub total_years: u32,
+    pub current_semester: u32,
+    pub gpa: f32,
+    pub is_graduated: bool,
+}
+
 
 

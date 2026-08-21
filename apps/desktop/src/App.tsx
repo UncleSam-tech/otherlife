@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { Header } from './components/Header';
-import { LifeFeed, FeedEvent } from './components/LifeFeed';
-import { SituationCard, LifeSituationDTO } from './components/SituationCard';
-import { NowSidebar, SidebarStateData } from './components/NowSidebar';
+import { TodayView, TodaySceneDTO } from './components/TodayView';
+import { LifeChronicle } from './components/LifeChronicle';
+import { LifeJournalDrawer } from './components/LifeJournalDrawer';
+import { FeedEvent } from './components/LifeFeed';
+import { SidebarStateData } from './components/NowSidebar';
 import { ActionPromptBar } from './components/ActionPromptBar';
 import { CausalityInspector } from './components/CausalityInspector';
 import { MainMenu, SaveMetadata } from './components/MainMenu';
@@ -50,14 +52,16 @@ export const App: React.FC = () => {
   const [devMode, setDevMode] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [inspectingEvent, setInspectingEvent] = useState<FeedEvent | null>(null);
+  const [isJournalOpen, setIsJournalOpen] = useState(false);
 
   const [registries, setRegistries] = useState<any>(null);
   const [savesList, setSavesList] = useState<SaveMetadata[]>([]);
   const [activeGame, setActiveGame] = useState<GameStateDTO | null>(null);
 
-  const [activeSituations, setActiveSituations] = useState<LifeSituationDTO[]>([]);
+  const [todayScene, setTodayScene] = useState<TodaySceneDTO | null>(null);
   const [sidebarData, setSidebarData] = useState<SidebarStateData | null>(null);
   const [events, setEvents] = useState<FeedEvent[]>([]);
+  const [biographyText, setBiographyText] = useState<string>('');
 
   // Derived currency symbol
   const getCurrencySymbol = (locId?: string): string => {
@@ -77,6 +81,13 @@ export const App: React.FC = () => {
     }
   };
 
+  const refreshBiography = async () => {
+    const bio = await callTauriCommand<string>('get_biography');
+    if (bio) {
+      setBiographyText(bio);
+    }
+  };
+
   useEffect(() => {
     const initBoot = async () => {
       const reg = await callTauriCommand<any>('get_registries');
@@ -89,7 +100,7 @@ export const App: React.FC = () => {
     initBoot();
   }, []);
 
-  const updateGameStateFromBackend = (dto: any, sits: any[], sbar: any) => {
+  const updateGameStateFromBackend = (dto: any, scene: any, _sits: any[], sbar: any) => {
     const gameDto: GameStateDTO = {
       timeFormatted: dto.time_formatted,
       year: dto.year,
@@ -114,7 +125,7 @@ export const App: React.FC = () => {
     };
 
     setActiveGame(gameDto);
-    setActiveSituations(sits || []);
+    setTodayScene(scene);
     setSidebarData(sbar);
   };
 
@@ -137,11 +148,11 @@ export const App: React.FC = () => {
       goals: formState.goals,
     };
 
-    const res = await callTauriCommand<[any, any[], any]>('start_new_life', { config: configPayload, seed: Date.now() % 100000 });
+    const res = await callTauriCommand<[any, any, any[], any]>('start_new_life', { config: configPayload, seed: Date.now() % 100000 });
 
     if (res && res[0]) {
-      const [dto, sits, sbar] = res;
-      updateGameStateFromBackend(dto, sits, sbar);
+      const [dto, scene, sits, sbar] = res;
+      updateGameStateFromBackend(dto, scene, sits, sbar);
 
       const locName = dto.location.replace('city:real:', '').replace('city:sim:', '').replace('_', ' ');
       setEvents([
@@ -154,6 +165,7 @@ export const App: React.FC = () => {
         },
       ]);
       setAppMode('PLAYING');
+      refreshBiography();
     } else {
       alert('Unable to initialize backend life engine. Please verify Tauri backend is running.');
       setAppMode('MAIN_MENU');
@@ -169,11 +181,11 @@ export const App: React.FC = () => {
 
   const handleLoadSave = async (filename: string) => {
     setIsLoading(true);
-    const res = await callTauriCommand<[any, any[], any]>('load_game_state', { filename });
+    const res = await callTauriCommand<[any, any, any[], any]>('load_game_state', { filename });
 
     if (res && res[0]) {
-      const [dto, sits, sbar] = res;
-      updateGameStateFromBackend(dto, sits, sbar);
+      const [dto, scene, sits, sbar] = res;
+      updateGameStateFromBackend(dto, scene, sits, sbar);
 
       setEvents([
         {
@@ -185,6 +197,7 @@ export const App: React.FC = () => {
         },
       ]);
       setAppMode('PLAYING');
+      refreshBiography();
     } else {
       alert('Failed to load save file.');
     }
@@ -196,15 +209,18 @@ export const App: React.FC = () => {
     await refreshSavesList();
   };
 
-  const handleSelectSituationChoice = async (situationId: string, choiceId: string) => {
+  const handleSelectChoice = async (choiceId: string) => {
     if (!activeGame) return;
     setIsLoading(true);
 
-    const res = await callTauriCommand<[any, any, any[], any]>('resolve_situation_choice', { situationId, choiceId });
+    const res = await callTauriCommand<[any, any, any, any[], any]>('resolve_situation_choice', {
+      situation_id: 'today_scene_situation',
+      choice_id: choiceId,
+    });
 
     if (res && res[0] && res[1]) {
-      const [dto, stepRes, sits, sbar] = res;
-      updateGameStateFromBackend(dto, sits, sbar);
+      const [dto, stepRes, scene, sits, sbar] = res;
+      updateGameStateFromBackend(dto, scene, sits, sbar);
 
       const newEv: FeedEvent = {
         id: stepRes.event_record.id,
@@ -216,8 +232,9 @@ export const App: React.FC = () => {
       };
 
       setEvents((prev) => [newEv, ...prev]);
+      refreshBiography();
     } else {
-      alert('Unable to process situation choice.');
+      alert('Unable to process choice.');
     }
 
     setIsLoading(false);
@@ -227,11 +244,11 @@ export const App: React.FC = () => {
     if (!activeGame) return;
     setIsLoading(true);
 
-    const res = await callTauriCommand<[any, any, any[], any]>('advance_time', { days });
+    const res = await callTauriCommand<[any, any, any, any[], any]>('advance_time', { days });
 
     if (res && res[0] && res[1]) {
-      const [dto, stepRes, sits, sbar] = res;
-      updateGameStateFromBackend(dto, sits, sbar);
+      const [dto, stepRes, scene, sits, sbar] = res;
+      updateGameStateFromBackend(dto, scene, sits, sbar);
 
       const newEv: FeedEvent = {
         id: stepRes.event_record.id,
@@ -243,6 +260,7 @@ export const App: React.FC = () => {
       };
 
       setEvents((prev) => [newEv, ...prev]);
+      refreshBiography();
     } else {
       alert('Unable to advance time.');
     }
@@ -254,11 +272,11 @@ export const App: React.FC = () => {
     if (!activeGame) return;
     setIsLoading(true);
 
-    const res = await callTauriCommand<[any, any, any[], any]>('submit_player_action', { inputText });
+    const res = await callTauriCommand<[any, any, any, any[], any]>('submit_player_action', { input_text: inputText });
 
     if (res && res[0] && res[1]) {
-      const [dto, stepRes, sits, sbar] = res;
-      updateGameStateFromBackend(dto, sits, sbar);
+      const [dto, stepRes, scene, sits, sbar] = res;
+      updateGameStateFromBackend(dto, scene, sits, sbar);
 
       const newEv: FeedEvent = {
         id: stepRes.event_record.id,
@@ -270,8 +288,9 @@ export const App: React.FC = () => {
       };
 
       setEvents((prev) => [newEv, ...prev]);
+      refreshBiography();
     } else {
-      alert('Unable to process action. Game state was not changed.');
+      alert('Unable to process action.');
     }
 
     setIsLoading(false);
@@ -301,69 +320,76 @@ export const App: React.FC = () => {
     );
   }
 
-  // Derived suggested action prompts from active situations
-  const actionSuggestions = activeSituations.flatMap((s) => s.choices.map((c) => c.label)).slice(0, 3);
+  const actionSuggestions = todayScene?.choices.map((c) => c.label).slice(0, 3) || [];
 
-  // PLAYING MODE — Living an alternate life, not managing a dashboard
+  // PLAYING MODE — Living an alternate life in an immersive world
   return (
     <div style={{
       width: '100vw',
       height: '100vh',
       display: 'grid',
-      gridTemplateRows: 'auto 1fr auto auto',
-      gridTemplateColumns: '1fr auto',
+      gridTemplateRows: 'auto 1fr auto',
+      gridTemplateColumns: '1fr',
       backgroundColor: 'var(--bg-app)',
       color: 'var(--text-primary)',
       overflow: 'hidden',
     }}>
-      <div style={{ gridColumn: '1 / -1' }}>
-        <Header
-          timeFormatted={activeGame.timeFormatted}
-          age={activeGame.age}
-          cash={activeGame.cash}
-          location={activeGame.location}
-          playerName={activeGame.playerName}
-          currencySymbol={getCurrencySymbol(activeGame.location)}
-          devMode={devMode}
-          onToggleDevMode={() => setDevMode(!devMode)}
-          onReturnToMainMenu={() => {
-            refreshSavesList();
-            setAppMode('MAIN_MENU');
-          }}
-        />
-      </div>
+      {/* Header */}
+      <Header
+        timeFormatted={activeGame.timeFormatted}
+        age={activeGame.age}
+        cash={activeGame.cash}
+        location={activeGame.location}
+        playerName={activeGame.playerName}
+        currencySymbol={getCurrencySymbol(activeGame.location)}
+        devMode={devMode}
+        onToggleDevMode={() => setDevMode(!devMode)}
+        onReturnToMainMenu={() => {
+          refreshSavesList();
+          setAppMode('MAIN_MENU');
+        }}
+      />
 
-      <div style={{ overflow: 'hidden', display: 'flex', flexDirection: 'column', gridRow: '2 / 3', gridColumn: '1 / 2' }}>
-        <LifeFeed
+      {/* Main Living Experience Screen */}
+      <main style={{
+        overflowY: 'auto',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '24px',
+      }}>
+        {todayScene && (
+          <TodayView
+            scene={todayScene}
+            onSelectChoice={handleSelectChoice}
+            onAdvanceTime={handleAdvanceTime}
+            onOpenJournal={() => setIsJournalOpen(true)}
+            isLoading={isLoading}
+          />
+        )}
+
+        <LifeChronicle
           events={events}
-          onInspectCausality={(ev) => setInspectingEvent(ev)}
-          devMode={devMode}
+          playerName={activeGame.playerName}
         />
-      </div>
+      </main>
 
-      {sidebarData && (
-        <div style={{ gridRow: '2 / 4', gridColumn: '2 / 3' }}>
-          <NowSidebar sidebarData={sidebarData} devMode={devMode} />
-        </div>
-      )}
+      {/* Bottom Action Prompt Bar */}
+      <ActionPromptBar
+        suggestions={actionSuggestions}
+        onSubmitAction={handleSubmitAction}
+        isLoading={isLoading}
+      />
 
-      <div style={{ gridRow: '3 / 4', gridColumn: '1 / 2' }}>
-        <SituationCard
-          situations={activeSituations}
-          onSelectChoice={handleSelectSituationChoice}
-          onAdvanceTime={handleAdvanceTime}
-          isLoading={isLoading}
-        />
-      </div>
+      {/* Slide-out Personal Journal Drawer */}
+      <LifeJournalDrawer
+        isOpen={isJournalOpen}
+        onClose={() => setIsJournalOpen(false)}
+        gameState={activeGame}
+        sidebarData={sidebarData}
+        biography={biographyText}
+      />
 
-      <div style={{ gridColumn: '1 / -1' }}>
-        <ActionPromptBar
-          suggestions={actionSuggestions}
-          onSubmitAction={handleSubmitAction}
-          isLoading={isLoading}
-        />
-      </div>
-
+      {/* Causality Inspector (Dev Mode only) */}
       {inspectingEvent && (
         <CausalityInspector
           event={inspectingEvent}
@@ -373,4 +399,5 @@ export const App: React.FC = () => {
     </div>
   );
 };
+
 

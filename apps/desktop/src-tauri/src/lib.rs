@@ -191,7 +191,7 @@ fn start_new_life(
     state: State<AppState>,
     config: Option<NewLifeConfig>,
     seed: Option<u64>,
-) -> Result<(GameStateDTO, Vec<otherlife_world::LifeSituation>, SidebarStateDTO), String> {
+) -> Result<(GameStateDTO, otherlife_world::TodayScene, Vec<otherlife_world::LifeSituation>, SidebarStateDTO), String> {
     let mut engine = state.engine.lock().map_err(|e| e.to_string())?;
 
     if let Some(cfg) = config {
@@ -201,10 +201,17 @@ fn start_new_life(
     }
 
     let dto = GameStateDTO::from_engine(&engine);
+    let today_scene = engine.generate_today_scene();
     let situations = engine.active_situations.clone();
     let sidebar = engine.get_sidebar_state();
 
-    Ok((dto, situations, sidebar))
+    Ok((dto, today_scene, situations, sidebar))
+}
+
+#[tauri::command]
+fn get_today_scene(state: State<AppState>) -> Result<otherlife_world::TodayScene, String> {
+    let mut engine = state.engine.lock().map_err(|e| e.to_string())?;
+    Ok(engine.generate_today_scene())
 }
 
 #[tauri::command]
@@ -218,37 +225,39 @@ fn resolve_situation_choice(
     state: State<AppState>,
     situation_id: String,
     choice_id: String,
-) -> Result<(GameStateDTO, StepResult, Vec<otherlife_world::LifeSituation>, SidebarStateDTO), String> {
+) -> Result<(GameStateDTO, StepResult, otherlife_world::TodayScene, Vec<otherlife_world::LifeSituation>, SidebarStateDTO), String> {
     let mut engine = state.engine.lock().map_err(|e| e.to_string())?;
 
     let result = engine.resolve_situation_choice(&situation_id, &choice_id);
     let dto = GameStateDTO::from_engine(&engine);
+    let today_scene = engine.generate_today_scene();
     let situations = engine.active_situations.clone();
     let sidebar = engine.get_sidebar_state();
 
-    Ok((dto, result, situations, sidebar))
+    Ok((dto, result, today_scene, situations, sidebar))
 }
 
 #[tauri::command]
 fn advance_time(
     state: State<AppState>,
     days: u32,
-) -> Result<(GameStateDTO, StepResult, Vec<otherlife_world::LifeSituation>, SidebarStateDTO), String> {
+) -> Result<(GameStateDTO, StepResult, otherlife_world::TodayScene, Vec<otherlife_world::LifeSituation>, SidebarStateDTO), String> {
     let mut engine = state.engine.lock().map_err(|e| e.to_string())?;
 
     let result = engine.advance_time_with_events(days);
     let dto = GameStateDTO::from_engine(&engine);
+    let today_scene = engine.generate_today_scene();
     let situations = engine.active_situations.clone();
     let sidebar = engine.get_sidebar_state();
 
-    Ok((dto, result, situations, sidebar))
+    Ok((dto, result, today_scene, situations, sidebar))
 }
 
 #[tauri::command]
 fn submit_player_action(
     state: State<AppState>,
     input_text: String,
-) -> Result<(GameStateDTO, StepResult, Vec<otherlife_world::LifeSituation>, SidebarStateDTO), String> {
+) -> Result<(GameStateDTO, StepResult, otherlife_world::TodayScene, Vec<otherlife_world::LifeSituation>, SidebarStateDTO), String> {
     let mut engine = state.engine.lock().map_err(|e| e.to_string())?;
 
     let payload = engine.ai_bridge.parse_intent(
@@ -260,10 +269,11 @@ fn submit_player_action(
     let result = engine.execute_player_action(payload);
     engine.generate_active_situations();
     let dto = GameStateDTO::from_engine(&engine);
+    let today_scene = engine.generate_today_scene();
     let situations = engine.active_situations.clone();
     let sidebar = engine.get_sidebar_state();
 
-    Ok((dto, result, situations, sidebar))
+    Ok((dto, result, today_scene, situations, sidebar))
 }
 
 #[tauri::command]
@@ -321,7 +331,7 @@ fn list_saves() -> Result<Vec<SaveMetadataDTO>, String> {
 fn load_game_state(
     state: State<AppState>,
     filename: String,
-) -> Result<(GameStateDTO, Vec<otherlife_world::LifeSituation>, SidebarStateDTO), String> {
+) -> Result<(GameStateDTO, otherlife_world::TodayScene, Vec<otherlife_world::LifeSituation>, SidebarStateDTO), String> {
     let path = if filename.starts_with("saves/") {
         filename
     } else {
@@ -341,10 +351,11 @@ fn load_game_state(
     engine.generate_active_situations();
 
     let dto = GameStateDTO::from_engine(&engine);
+    let today_scene = engine.generate_today_scene();
     let situations = engine.active_situations.clone();
     let sidebar = engine.get_sidebar_state();
 
-    Ok((dto, situations, sidebar))
+    Ok((dto, today_scene, situations, sidebar))
 }
 
 #[tauri::command]
@@ -376,6 +387,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             get_registries,
             start_new_life,
+            get_today_scene,
             get_active_situations,
             resolve_situation_choice,
             advance_time,
