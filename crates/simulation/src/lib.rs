@@ -4,18 +4,18 @@ use otherlife_relationships::{RelationshipMatrix, RelationshipVector};
 use otherlife_rng::WorldRng;
 use otherlife_world::{
     AcademicDegree, AcademicProgram, ActivityType, AgeGate, BeliefComponent, BusinessEntity, CanonicalEntity,
-    CovertOperation, CosmicLegacy, CosmicMegastructure, CreativeRelease, CriminalRecord, CyberneticImplant,
-    DigitalPost, EducationComponent, EmploymentComponent, EntityNamespace, EntityType, EnvironmentalRating,
-    EventRecord, FaithMovement, FameComponent, FinancesComponent, FootballContract, FootballMatch,
-    FootballPlayerAttributes, FootballRole, FootballScoutReport, GeopoliticalConflict, HealthComponent,
-    HousingComponent, IdentityComponent, KnowledgeRecord, LegalStatus, LifeSituation, LifeSituationChoice,
-    LifeStage, MacroEconomy, MedicalRecord, MilitaryRecord, MindUpload, NaturalDisaster, NewLifeConfig,
-    NpcSchedule, NpcTier, OrganizationSubunit, Passport, Patent, Person, PersonalityComponent, Place,
-    PolicyProposal, PoliticalCampaign, PostScarcityEconomy, PrisonSentence, ProcessChain, ProcessStep,
-    Qualification, ResearchProject, ResolutionContext, ResolutionResult, RomanceComponent, SecretMembership,
-    SecretSociety, SimTime, SituationCategory, SocialMediaAccount, SpaceAgency, SpaceMission, SurgicalProcedure,
-    TodayChoice, TodayScene, ActiveDeadline, TravelRecord, Visa, WeatherEvent, WillAndTestament,
-    WorldEntityResolver, WorldNewsItem,
+    CareerCrisis, CovertOperation, CosmicLegacy, CosmicMegastructure, CreatorChannel, CreativeRelease,
+    CriminalRecord, CyberneticImplant, DigitalPost, EducationComponent, EmploymentComponent, EntityNamespace,
+    EntityType, EnvironmentalRating, EventRecord, FaithMovement, FameComponent, FinancesComponent, FootballContract,
+    FootballMatch, FootballPlayerAttributes, FootballRole, FootballScoutReport, GeopoliticalConflict,
+    HealthComponent, HousingComponent, IdentityComponent, KnowledgeRecord, LegalStatus, LifePivot, LifeSituation,
+    LifeSituationChoice, LifeStage, MacroEconomy, MedicalRecord, MilitaryRecord, MindUpload, NaturalDisaster,
+    NewLifeConfig, NpcSchedule, NpcTier, OrganizationSubunit, Passport, Patent, Person, PersonalityComponent,
+    Place, PolicyProposal, PoliticalCampaign, PostScarcityEconomy, PrisonSentence, ProcessChain, ProcessStep,
+    Qualification, ReputationRecord, ResearchProject, ResolutionContext, ResolutionResult, ResourceAccess,
+    RomanceComponent, SecretMembership, SecretSociety, SimTime, SituationCategory, SocialMediaAccount, SpaceAgency,
+    SpaceMission, SurgicalProcedure, TodayChoice, TodayScene, ActiveDeadline, TravelRecord, Visa, WeatherEvent,
+    WillAndTestament, WorldEntityResolver, WorldNewsItem,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
@@ -49,6 +49,10 @@ pub struct SidebarStateDTO {
     pub monthly_salary: f64,
     pub fitness: f32,
     pub stress: f32,
+    pub public_reputation: f32,
+    pub channel_subscribers: u64,
+    pub active_crises_count: u32,
+    pub life_pivots_count: u32,
 }
 
 pub struct SimulationInvariantValidator;
@@ -137,6 +141,11 @@ pub struct SimulationEngine {
     pub active_processes: Vec<ProcessChain>,
     pub active_deadlines: Vec<ActiveDeadline>,
     pub academic_program: Option<AcademicProgram>,
+    pub reputation: ReputationRecord,
+    pub resources: ResourceAccess,
+    pub creator_channel: Option<CreatorChannel>,
+    pub active_crises: Vec<CareerCrisis>,
+    pub life_pivots: Vec<LifePivot>,
     pub events: Vec<EventRecord>,
     pub world_news: Vec<WorldNewsItem>,
     pub ai_bridge: AIBridge,
@@ -575,6 +584,11 @@ impl SimulationEngine {
             active_processes: Vec::new(),
             active_deadlines: Vec::new(),
             academic_program: None,
+            reputation: ReputationRecord::default(),
+            resources: ResourceAccess::default(),
+            creator_channel: None,
+            active_crises: Vec::new(),
+            life_pivots: Vec::new(),
             events: Vec::new(),
             world_news: Vec::new(),
             ai_bridge,
@@ -3905,20 +3919,132 @@ impl SimulationEngine {
                     }
                     days_to_advance = 7;
                 }
-                "pass_day" => {
-                    narrative = "A quiet day passed in routine. You reflected on your journey and prepared for the days ahead.".to_string();
-                    causality_note = "1 day passed peacefully.".to_string();
-                    days_to_advance = 1;
+                "launch_creator_channel" => {
+                    let handle = format!("@{}", player.identity.first_name.to_lowercase());
+                    self.creator_channel = Some(CreatorChannel {
+                        platform_name: "VideoNet".to_string(),
+                        channel_handle: handle.clone(),
+                        content_niche: "Tech, Creativity & Life".to_string(),
+                        subscriber_count: 850,
+                        total_views: 12500,
+                        monthly_ad_revenue: 45.0,
+                        brand_deals_count: 0,
+                        burnout_level: 10.0,
+                    });
+                    narrative = format!("You published your first edited video series under '{}'. Early viewers began subscribing and commenting!", handle);
+                    causality_note = "Launched independent digital content channel.".to_string();
+                    if let Some(p) = self.persons.get_mut(&player_id) {
+                        let entry = p.skills.entry("creativity".to_string()).or_insert(30.0);
+                        *entry = (*entry + 5.0).min(100.0);
+                    }
+                    days_to_advance = 14;
                 }
-                "pass_week" => {
-                    narrative = "A steady week passed in routine. Daily responsibilities were handled quietly.".to_string();
-                    causality_note = "7 days elapsed.".to_string();
+                "produce_creator_video" => {
+                    if let Some(ref mut ch) = self.creator_channel {
+                        let new_subs = self.rng.gen_range_u32(1200, 4800) as u64;
+                        let new_views = (new_subs * 12) + 5000;
+                        ch.subscriber_count += new_subs;
+                        ch.total_views += new_views;
+                        ch.monthly_ad_revenue += (new_subs as f64) * 0.08;
+                        ch.burnout_level = (ch.burnout_level + 15.0).min(100.0);
+
+                        if ch.burnout_level >= 75.0 && self.active_crises.is_empty() {
+                            self.active_crises.push(CareerCrisis {
+                                id: "crisis_creator_burnout".to_string(),
+                                crisis_type: "CREATIVE_BURNOUT".to_string(),
+                                description: "The relentless schedule and constant algorithm pressure have caused severe creative exhaustion.".to_string(),
+                                severity: 4,
+                                unresolved: true,
+                            });
+                        }
+
+                        narrative = format!("Your new video performed strongly, gaining +{} subscribers and bringing your total audience to {}!", new_subs.to_string(), ch.subscriber_count.to_string());
+                        causality_note = "Audience growth accompanied by rising workload pressure.".to_string();
+                    } else {
+                        narrative = "You recorded and edited a new video project.".to_string();
+                        causality_note = "Content creation practice.".to_string();
+                    }
                     days_to_advance = 7;
                 }
-                "pass_month" => {
-                    narrative = "A full month passed. Seasons changed as you continued through your life journey.".to_string();
-                    causality_note = "30 days elapsed.".to_string();
+                "handle_burnout_break" => {
+                    if let Some(ref mut ch) = self.creator_channel {
+                        ch.burnout_level = 5.0;
+                    }
+                    self.active_crises.retain(|c| c.crisis_type != "CREATIVE_BURNOUT");
+                    if let Some(p) = self.persons.get_mut(&player_id) {
+                        p.health.stress = (p.health.stress - 30.0).max(0.0);
+                    }
+                    narrative = "You stepped away from the screen for two restorative months. Traveling and resting with family completely renewed your creative energy.".to_string();
+                    causality_note = "Sabbatical resolved burnout and restored health.".to_string();
+                    days_to_advance = 60;
+                }
+                "handle_burnout_pivot_production" => {
+                    if let Some(ref mut ch) = self.creator_channel {
+                        ch.burnout_level = 10.0;
+                    }
+                    self.active_crises.retain(|c| c.crisis_type != "CREATIVE_BURNOUT");
+                    self.life_pivots.push(LifePivot {
+                        former_identity: "Solo Content Creator".to_string(),
+                        new_path: "Digital Media Studio Executive".to_string(),
+                        year_of_pivot: self.time.year,
+                        rationale: "Hired an editing team and transitioned from solo recording into media production.".to_string(),
+                    });
+                    if let Some(p) = self.persons.get_mut(&player_id) {
+                        p.employment.job_title = Some("Managing Director (Media Agency)".to_string());
+                        p.employment.monthly_salary = 4200.0;
+                    }
+                    narrative = "You founded a boutique digital production agency, hiring talented young editors and writers. You now direct projects sustainably!".to_string();
+                    causality_note = "Pivoted from solo burnout into sustainable media enterprise.".to_string();
                     days_to_advance = 30;
+                }
+                "start_saturday_match" => {
+                    let match_rating = self.rng.gen_range_u32(65, 92) as f32 / 10.0;
+                    narrative = format!("You started in the weekend competitive match, earning a match rating of {:.1}/10. Coaches noted your tactical maturity.", match_rating);
+                    causality_note = "Competitive match experience gained.".to_string();
+                    if let Some(p) = self.persons.get_mut(&player_id) {
+                        p.health.fitness = (p.health.fitness + 1.0).min(100.0);
+                    }
+                    days_to_advance = 7;
+                }
+                "football_pivot_coaching" => {
+                    self.life_pivots.push(LifePivot {
+                        former_identity: "Youth Player".to_string(),
+                        new_path: "Academy Coach & Talent Scout".to_string(),
+                        year_of_pivot: self.time.year,
+                        rationale: "Transitioned from on-pitch player to certified academy coaching staff.".to_string(),
+                    });
+                    if let Some(p) = self.persons.get_mut(&player_id) {
+                        p.employment.job_title = Some("Youth Academy Coach".to_string());
+                        p.employment.monthly_salary = 1850.0;
+                        p.football_contract = None;
+                    }
+                    narrative = "You completed your foundational Coaching License. Regional clubs welcomed your sharp tactical mind as a Youth Academy Coach!".to_string();
+                    causality_note = "Successful career pivot into coaching and talent identification.".to_string();
+                    days_to_advance = 30;
+                }
+                "launch_startup_venture" => {
+                    if let Some(p) = self.persons.get_mut(&player_id) {
+                        p.employment.job_title = Some("Founder & Managing Director".to_string());
+                        p.employment.monthly_salary = 1500.0;
+                        p.finances.cash = (p.finances.cash - 800.0).max(0.0);
+                    }
+                    narrative = "You incorporated your independent enterprise, signing initial consulting clients in the city!".to_string();
+                    causality_note = "Founded new commercial business enterprise.".to_string();
+                    days_to_advance = 30;
+                }
+                "handle_controversy_apology" => {
+                    self.reputation.public_standing = (self.reputation.public_standing + 0.35).min(1.0);
+                    self.reputation.active_controversies.clear();
+                    narrative = "You delivered a heartfelt, transparent public address addressing past misunderstandings. Public trust began to heal steadily.".to_string();
+                    causality_note = "Accountability restored public credibility and peer respect.".to_string();
+                    days_to_advance = 14;
+                }
+                "organize_community_townhall" => {
+                    self.reputation.public_standing = (self.reputation.public_standing + 0.20).min(1.0);
+                    self.reputation.peer_respect = (self.reputation.peer_respect + 0.15).min(1.0);
+                    narrative = "You organized a packed town hall debate on youth opportunities and public infrastructure. Community elders commended your leadership!".to_string();
+                    causality_note = "Civic leadership expanded public reputation.".to_string();
+                    days_to_advance = 14;
                 }
                 _ => {
                     narrative = format!("You chose to: {}.", choice_id);
@@ -4129,6 +4255,10 @@ impl SimulationEngine {
                 monthly_salary: 0.0,
                 fitness: 70.0,
                 stress: 20.0,
+                public_reputation: 0.2,
+                channel_subscribers: 0,
+                active_crises_count: 0,
+                life_pivots_count: 0,
             },
         };
 
@@ -4194,6 +4324,8 @@ impl SimulationEngine {
             .map(|(k, v)| (k.clone(), *v))
             .unwrap_or_else(|| ("communication".to_string(), 40.0));
 
+        let subs = self.creator_channel.as_ref().map(|c| c.subscriber_count).unwrap_or(0);
+
         SidebarStateDTO {
             commitments,
             household_trust: parent_trust,
@@ -4207,6 +4339,10 @@ impl SimulationEngine {
             monthly_salary: player.employment.monthly_salary,
             fitness: player.health.fitness,
             stress: player.health.stress,
+            public_reputation: self.reputation.public_standing,
+            channel_subscribers: subs,
+            active_crises_count: self.active_crises.len() as u32,
+            life_pivots_count: self.life_pivots.len() as u32,
         }
     }
 
@@ -4319,6 +4455,30 @@ impl SimulationEngine {
                 narrative_lines.push(format!("You wake up early in {}. Term coursework is underway, and thoughts about your future path are becoming more frequent.", loc_title));
                 circumstances.push(format!("Secondary School Classes (Academic Performance: {:.0}%)", player.education.academic_performance));
 
+                // Active Crisis
+                if let Some(crisis) = self.active_crises.first() {
+                    narrative_lines.push(format!("URGENT CHALLENGE: {}", crisis.description));
+                    if crisis.crisis_type == "CREATIVE_BURNOUT" {
+                        choices.push(TodayChoice { id: "handle_burnout_break".to_string(), label: "Take a 2-month mental health sabbatical".to_string(), consequence_hint: Some("Recovers stress and creative passion".to_string()), category: "IMMEDIATE".to_string(), remaining_days: None });
+                        choices.push(TodayChoice { id: "handle_burnout_pivot_production".to_string(), label: "Hire editors and transition into a production studio".to_string(), consequence_hint: Some("Pivots to managing director role".to_string()), category: "OPPORTUNITY".to_string(), remaining_days: None });
+                    }
+                }
+
+                // Digital Creator Pathway
+                if let Some(ref ch) = self.creator_channel {
+                    circumstances.push(format!("Channel: {} ({} subs · ₦{:.0}/mo)", ch.channel_handle, ch.subscriber_count, ch.monthly_ad_revenue));
+                    choices.push(TodayChoice { id: "produce_creator_video".to_string(), label: "Script, record and edit new video episode".to_string(), consequence_hint: Some("Expands subscriber base & ad revenue (+burnout)".to_string()), category: "IMMEDIATE".to_string(), remaining_days: None });
+                } else if player.skills.get("creativity").copied().unwrap_or(0.0) >= 15.0 || player.identity.first_name.len() > 0 {
+                    choices.push(TodayChoice { id: "launch_creator_channel".to_string(), label: "Launch independent digital video channel".to_string(), consequence_hint: Some("Begins creating digital media for online audience".to_string()), category: "OPPORTUNITY".to_string(), remaining_days: None });
+                }
+
+                // Football Pathway
+                if let Some(ref contract) = player.football_contract {
+                    circumstances.push(format!("Signed: {} (Weekly Wage: £{:.0})", contract.club_name, contract.weekly_wage));
+                    choices.push(TodayChoice { id: "start_saturday_match".to_string(), label: "Start in Saturday's competitive academy fixture".to_string(), consequence_hint: Some("Competitive match sharpness & scout evaluation".to_string()), category: "IMMEDIATE".to_string(), remaining_days: None });
+                    choices.push(TodayChoice { id: "football_pivot_coaching".to_string(), label: "Enroll in Youth Coaching & Talent Scouting License".to_string(), consequence_hint: Some("Transitions towards academy management staff".to_string()), category: "OPPORTUNITY".to_string(), remaining_days: None });
+                }
+
                 for dl in &self.active_deadlines {
                     let rem = (dl.deadline_day_total - current_total_days).max(0);
                     narrative_lines.push(format!("Active Matter: {} has {} days remaining.", dl.title, rem));
@@ -4354,6 +4514,15 @@ impl SimulationEngine {
                 }
             }
             _ => {
+                // Crisis in Adulthood
+                if let Some(crisis) = self.active_crises.first() {
+                    narrative_lines.push(format!("CRITICAL SITUATION: {}", crisis.description));
+                    if crisis.crisis_type == "CREATIVE_BURNOUT" {
+                        choices.push(TodayChoice { id: "handle_burnout_break".to_string(), label: "Take a 2-month mental health sabbatical".to_string(), consequence_hint: Some("Recovers stress and creative passion".to_string()), category: "IMMEDIATE".to_string(), remaining_days: None });
+                        choices.push(TodayChoice { id: "handle_burnout_pivot_production".to_string(), label: "Hire editors and transition into a production studio".to_string(), consequence_hint: Some("Pivots to managing director role".to_string()), category: "OPPORTUNITY".to_string(), remaining_days: None });
+                    }
+                }
+
                 if let Some(ref prog) = self.academic_program {
                     if !prog.is_graduated {
                         headline = format!("University Life · Year {}, Semester {} at {}", prog.current_year, prog.current_semester, prog.university_name);
@@ -4378,7 +4547,19 @@ impl SimulationEngine {
                     narrative_lines.push(format!("You are currently seeking employment or new directions in {}. The city offers varied paths to explore.", loc_title));
                     circumstances.push("Seeking new career direction".to_string());
                     choices.push(TodayChoice { id: "apply_entry_job".to_string(), label: "Apply for junior professional openings in the city".to_string(), consequence_hint: Some("Initiates employment opportunities".to_string()), category: "IMMEDIATE".to_string(), remaining_days: None });
-                    choices.push(TodayChoice { id: "independent_freelance".to_string(), label: "Take on independent consulting and freelance tasks".to_string(), consequence_hint: Some("Earns immediate income without contracts".to_string()), category: "PERSONAL".to_string(), remaining_days: None });
+                    choices.push(TodayChoice { id: "launch_startup_venture".to_string(), label: "Found and incorporate an independent consultancy".to_string(), consequence_hint: Some("Embarks on commercial entrepreneurship".to_string()), category: "OPPORTUNITY".to_string(), remaining_days: None });
+                    choices.push(TodayChoice { id: "organize_community_townhall".to_string(), label: "Organize a public community town hall forum".to_string(), consequence_hint: Some("Establishes civic leadership and public standing".to_string()), category: "PERSONAL".to_string(), remaining_days: None });
+                }
+
+                if let Some(ref ch) = self.creator_channel {
+                    circumstances.push(format!("Channel: {} ({} subs · ₦{:.0}/mo)", ch.channel_handle, ch.subscriber_count, ch.monthly_ad_revenue));
+                    choices.push(TodayChoice { id: "produce_creator_video".to_string(), label: "Script, record and edit new video episode".to_string(), consequence_hint: Some("Expands subscriber base & ad revenue (+burnout)".to_string()), category: "IMMEDIATE".to_string(), remaining_days: None });
+                }
+
+                if let Some(ref contract) = player.football_contract {
+                    circumstances.push(format!("Club: {} (Weekly Wage: £{:.0})", contract.club_name, contract.weekly_wage));
+                    choices.push(TodayChoice { id: "start_saturday_match".to_string(), label: "Start in weekend competitive fixture".to_string(), consequence_hint: Some("Match sharpness & tactical execution".to_string()), category: "IMMEDIATE".to_string(), remaining_days: None });
+                    choices.push(TodayChoice { id: "football_pivot_coaching".to_string(), label: "Enroll in Coaching License & Scouting Staff".to_string(), consequence_hint: Some("Transitions towards coaching & management".to_string()), category: "OPPORTUNITY".to_string(), remaining_days: None });
                 }
 
                 for dl in &self.active_deadlines {

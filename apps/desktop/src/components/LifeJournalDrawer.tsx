@@ -206,15 +206,69 @@ export const LifeJournalDrawer: React.FC<LifeJournalDrawerProps> = ({
                 <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
                   OCCUPATION & LIVELIHOOD
                 </div>
-                <div style={{ fontSize: '15px', fontWeight: 600, color: 'var(--text-primary)' }}>
+                <div style={{ fontSize: '16px', fontWeight: 600, color: 'var(--text-primary)' }}>
                   {gameState.jobTitle}
                 </div>
                 {gameState.monthlySalary > 0 && (
                   <div style={{ fontSize: '13px', color: 'var(--accent-emerald)', fontWeight: 600 }}>
-                    Monthly Salary: {gameState.monthlySalary.toLocaleString()}
+                    Monthly Earnings: {gameState.monthlySalary.toLocaleString()}
                   </div>
                 )}
               </div>
+
+              {typeof sidebarData?.public_reputation === 'number' && (
+                <div style={{
+                  backgroundColor: 'var(--bg-surface-2)',
+                  borderRadius: 'var(--radius-md)',
+                  padding: '18px 20px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '8px',
+                }}>
+                  <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
+                    PUBLIC REPUTATION & STANDING
+                  </div>
+                  <div style={{ fontSize: '14px', fontWeight: 600, color: sidebarData.public_reputation >= 0.5 ? 'var(--accent-emerald)' : 'var(--text-primary)' }}>
+                    {sidebarData.public_reputation >= 0.6 ? 'Highly Respected & Influential' : sidebarData.public_reputation >= 0.3 ? 'Established & Well-Regarded' : 'Emerging & Low Profile'}
+                  </div>
+                </div>
+              )}
+
+              {!!sidebarData?.channel_subscribers && sidebarData.channel_subscribers > 0 && (
+                <div style={{
+                  backgroundColor: 'var(--bg-surface-2)',
+                  borderRadius: 'var(--radius-md)',
+                  padding: '18px 20px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '8px',
+                }}>
+                  <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
+                    DIGITAL AUDIENCE
+                  </div>
+                  <div style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text-primary)' }}>
+                    {sidebarData.channel_subscribers.toLocaleString()} Active Followers
+                  </div>
+                </div>
+              )}
+
+              {!!sidebarData?.life_pivots_count && sidebarData.life_pivots_count > 0 && (
+                <div style={{
+                  backgroundColor: 'var(--bg-surface-2)',
+                  borderRadius: 'var(--radius-md)',
+                  padding: '18px 20px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '8px',
+                }}>
+                  <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
+                    CAREER REINVENTIONS
+                  </div>
+                  <div style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
+                    {sidebarData.life_pivots_count} major career transition(s) successfully navigated.
+                  </div>
+                </div>
+              )}
             </div>
           )}
 

@@ -14,6 +14,10 @@ export interface SidebarStateData {
   monthly_salary?: number;
   fitness?: number;
   stress?: number;
+  public_reputation?: number;
+  channel_subscribers?: number;
+  active_crises_count?: number;
+  life_pivots_count?: number;
 }
 
 interface NowSidebarProps {

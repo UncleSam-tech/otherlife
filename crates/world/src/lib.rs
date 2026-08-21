@@ -1633,5 +1633,77 @@ pub struct AcademicProgram {
     pub is_graduated: bool,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ReputationRecord {
+    pub public_standing: f32, // -1.0 (disgraced) to +1.0 (revered)
+    pub peer_respect: f32,    // 0.0 to 1.0
+    pub audience_loyalty: f32, // 0.0 to 1.0
+    pub active_controversies: Vec<String>,
+    pub past_achievements: Vec<String>,
+}
+
+impl Default for ReputationRecord {
+    fn default() -> Self {
+        Self {
+            public_standing: 0.2,
+            peer_respect: 0.3,
+            audience_loyalty: 0.2,
+            active_controversies: Vec::new(),
+            past_achievements: Vec::new(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ResourceAccess {
+    pub has_smartphone: bool,
+    pub has_computer: bool,
+    pub has_studio_equipment: bool,
+    pub has_vehicle: bool,
+    pub monthly_discretionary_budget: f64,
+}
+
+impl Default for ResourceAccess {
+    fn default() -> Self {
+        Self {
+            has_smartphone: true,
+            has_computer: false,
+            has_studio_equipment: false,
+            has_vehicle: false,
+            monthly_discretionary_budget: 20.0,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CreatorChannel {
+    pub platform_name: String,
+    pub channel_handle: String,
+    pub content_niche: String,
+    pub subscriber_count: u64,
+    pub total_views: u64,
+    pub monthly_ad_revenue: f64,
+    pub brand_deals_count: u32,
+    pub burnout_level: f32, // 0.0 to 100.0
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CareerCrisis {
+    pub id: String,
+    pub crisis_type: String, // "CREATIVE_BURNOUT", "ATHLETIC_INJURY", "PUBLIC_CONTROVERSY", "BUSINESS_INSOLVENCY", "ACADEMIC_PROBATION"
+    pub description: String,
+    pub severity: u32, // 1 to 5
+    pub unresolved: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LifePivot {
+    pub former_identity: String,
+    pub new_path: String,
+    pub year_of_pivot: i32,
+    pub rationale: String,
+}
+
+
 
 
