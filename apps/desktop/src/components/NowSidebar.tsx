@@ -119,20 +119,34 @@ export const NowSidebar: React.FC<NowSidebarProps> = ({ sidebarData, devMode }) 
         </div>
       )}
 
-      {/* Contextual Skill Meter */}
+      {/* Contextual Ability Proficiency */}
       {hasPrimarySkill && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
           <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-muted)' }}>
-            KEY ABILITY
+            CURRENT PURSUIT
           </div>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px' }}>
-              <span style={{ color: 'var(--text-secondary)', textTransform: 'capitalize' }}>{primary_skill_name!.replace('_', ' ')}</span>
-              <span style={{ fontWeight: 600, color: 'var(--accent-emerald)' }}>
-                {primary_skill_value!.toFixed(1)} / 100
+          <div style={{
+            backgroundColor: 'var(--bg-surface-2)',
+            borderRadius: 'var(--radius-md)',
+            padding: '12px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '6px',
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
+              <span style={{ color: 'var(--text-primary)', textTransform: 'capitalize', fontWeight: 600 }}>
+                {primary_skill_name!.replace('_', ' ')}
+              </span>
+              <span className="badge badge-indigo">
+                {primary_skill_value! > 75 ? 'Advanced' : primary_skill_value! > 50 ? 'Proficient' : primary_skill_value! > 25 ? 'Developing' : 'Novice'}
               </span>
             </div>
+            {devMode && (
+              <span style={{ fontSize: '11px', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
+                [DEV STAT]: {primary_skill_value!.toFixed(1)} / 100
+              </span>
+            )}
           </div>
         </div>
       )}

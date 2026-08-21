@@ -1484,3 +1484,89 @@ pub struct NewLifeConfig {
     pub goals: Vec<String>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub enum SituationCategory {
+    Opportunity,
+    Crisis,
+    Routine,
+    Relationship,
+    Decision,
+    Milestone,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LifeSituationChoice {
+    pub id: String,
+    pub label: String,
+    pub consequence_hint: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LifeSituation {
+    pub id: String,
+    pub category: SituationCategory,
+    pub title: String,
+    pub narrative: String,
+    pub choices: Vec<LifeSituationChoice>,
+    pub min_age: u32,
+    pub max_age: Option<u32>,
+    pub location_id: Option<String>,
+    pub expires_in_days: Option<u32>,
+    pub generated_year: i32,
+    pub process_id: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ProcessStep {
+    pub step_index: u32,
+    pub title: String,
+    pub description: String,
+    pub target_date: String,
+    pub is_completed: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ProcessChain {
+    pub id: String,
+    pub process_type: String, // "UNIVERSITY_APPLICATION", "JOB_SEARCH", "RELOCATION", "FOOTBALL_TRIAL"
+    pub title: String,
+    pub current_step: u32,
+    pub total_steps: u32,
+    pub steps: Vec<ProcessStep>,
+    pub outcome_payload: Option<serde_json::Value>,
+    pub is_active: bool,
+}
+
+pub struct AgeGate;
+
+impl AgeGate {
+    pub fn can_work(age: u32) -> bool {
+        age >= 16
+    }
+
+    pub fn can_drive(age: u32) -> bool {
+        age >= 17
+    }
+
+    pub fn can_vote(age: u32) -> bool {
+        age >= 18
+    }
+
+    pub fn can_live_independently(age: u32) -> bool {
+        age >= 18
+    }
+
+    pub fn can_attend_university(age: u32) -> bool {
+        age >= 17
+    }
+
+    pub fn can_marry(age: u32) -> bool {
+        age >= 18
+    }
+
+    pub fn can_attend_pro_trials(age: u32) -> bool {
+        age >= 15
+    }
+}
+
+

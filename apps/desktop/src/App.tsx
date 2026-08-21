@@ -1,21 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { Header } from './components/Header';
-import { LifeNav } from './components/LifeNav';
 import { LifeFeed, FeedEvent } from './components/LifeFeed';
+import { SituationCard, LifeSituationDTO } from './components/SituationCard';
 import { NowSidebar, SidebarStateData } from './components/NowSidebar';
 import { ActionPromptBar } from './components/ActionPromptBar';
 import { CausalityInspector } from './components/CausalityInspector';
 import { MainMenu, SaveMetadata } from './components/MainMenu';
 import { CreationWizard, NewLifeFormState } from './components/creator/CreationWizard';
-
-import { EducationView } from './components/views/EducationView';
-import { CareerView } from './components/views/CareerView';
-import { HealthView } from './components/views/HealthView';
-import { FamilyRomanceView } from './components/views/FamilyRomanceView';
-import { WorldNewsView } from './components/views/WorldNewsView';
-import { BiographyView } from './components/views/BiographyView';
-import { FootballView } from './components/views/FootballView';
-import { PoliticsView } from './components/views/PoliticsView';
 
 import './styles/globals.css';
 
@@ -56,7 +47,6 @@ async function callTauriCommand<T>(cmd: string, args: Record<string, any> = {}):
 
 export const App: React.FC = () => {
   const [appMode, setAppMode] = useState<AppMode>('BOOTING');
-  const [activeTab, setActiveTab] = useState('overview');
   const [devMode, setDevMode] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [inspectingEvent, setInspectingEvent] = useState<FeedEvent | null>(null);
@@ -65,7 +55,7 @@ export const App: React.FC = () => {
   const [savesList, setSavesList] = useState<SaveMetadata[]>([]);
   const [activeGame, setActiveGame] = useState<GameStateDTO | null>(null);
 
-  const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [activeSituations, setActiveSituations] = useState<LifeSituationDTO[]>([]);
   const [sidebarData, setSidebarData] = useState<SidebarStateData | null>(null);
   const [events, setEvents] = useState<FeedEvent[]>([]);
 
@@ -99,6 +89,35 @@ export const App: React.FC = () => {
     initBoot();
   }, []);
 
+  const updateGameStateFromBackend = (dto: any, sits: any[], sbar: any) => {
+    const gameDto: GameStateDTO = {
+      timeFormatted: dto.time_formatted,
+      year: dto.year,
+      month: dto.month,
+      day: dto.day,
+      age: dto.age,
+      isAlive: dto.is_alive,
+      cash: dto.cash,
+      location: dto.location,
+      playerName: dto.player_name,
+      activeInterest: dto.active_interest,
+      eventCount: dto.event_count,
+      interests: dto.interests,
+      goals: dto.goals,
+      lifeStage: dto.life_stage,
+      maritalStatus: dto.marital_status,
+      jobTitle: dto.job_title,
+      monthlySalary: dto.monthly_salary,
+      housingType: dto.housing_type,
+      fitness: dto.fitness,
+      stress: dto.stress,
+    };
+
+    setActiveGame(gameDto);
+    setActiveSituations(sits || []);
+    setSidebarData(sbar);
+  };
+
   const handleStartCustomLife = async (formState: NewLifeFormState) => {
     setIsLoading(true);
 
@@ -118,48 +137,24 @@ export const App: React.FC = () => {
       goals: formState.goals,
     };
 
-    const res = await callTauriCommand<[any, string[], any]>('start_new_life', { config: configPayload, seed: Date.now() % 100000 });
+    const res = await callTauriCommand<[any, any[], any]>('start_new_life', { config: configPayload, seed: Date.now() % 100000 });
 
     if (res && res[0]) {
-      const [dto, suggs, sbar] = res;
-      const gameDto: GameStateDTO = {
-        timeFormatted: dto.time_formatted,
-        year: dto.year,
-        month: dto.month,
-        day: dto.day,
-        age: dto.age,
-        isAlive: dto.is_alive,
-        cash: dto.cash,
-        location: dto.location,
-        playerName: dto.player_name,
-        activeInterest: dto.active_interest,
-        eventCount: dto.event_count,
-        interests: dto.interests,
-        goals: dto.goals,
-        lifeStage: dto.life_stage,
-        maritalStatus: dto.marital_status,
-        jobTitle: dto.job_title,
-        monthlySalary: dto.monthly_salary,
-        housingType: dto.housing_type,
-        fitness: dto.fitness,
-        stress: dto.stress,
-      };
+      const [dto, sits, sbar] = res;
+      updateGameStateFromBackend(dto, sits, sbar);
 
-      setActiveGame(gameDto);
-      setSuggestions(suggs);
-      setSidebarData(sbar);
+      const locName = dto.location.replace('city:real:', '').replace('city:sim:', '').replace('_', ' ');
       setEvents([
         {
           id: String(Date.now()),
           timestamp: dto.time_formatted,
           eventType: 'NEW_LIFE',
-          summary: `You began your life as ${dto.player_name} (Age ${dto.age}) in ${dto.location.replace('city:real:', '').toUpperCase()}.`,
-          causalityNote: 'New Life created with custom parameters.',
+          summary: `You began your life as ${dto.player_name} (Age ${dto.age}) in ${locName.toUpperCase()}.`,
+          causalityNote: 'New life initiated with realistic world conditions.',
         },
       ]);
       setAppMode('PLAYING');
     } else {
-      // Backend error fallback
       alert('Unable to initialize backend life engine. Please verify Tauri backend is running.');
       setAppMode('MAIN_MENU');
     }
@@ -174,36 +169,12 @@ export const App: React.FC = () => {
 
   const handleLoadSave = async (filename: string) => {
     setIsLoading(true);
-    const res = await callTauriCommand<[any, string[], any]>('load_game_state', { filename });
+    const res = await callTauriCommand<[any, any[], any]>('load_game_state', { filename });
 
     if (res && res[0]) {
-      const [dto, suggs, sbar] = res;
-      const gameDto: GameStateDTO = {
-        timeFormatted: dto.time_formatted,
-        year: dto.year,
-        month: dto.month,
-        day: dto.day,
-        age: dto.age,
-        isAlive: dto.is_alive,
-        cash: dto.cash,
-        location: dto.location,
-        playerName: dto.player_name,
-        activeInterest: dto.active_interest,
-        eventCount: dto.event_count,
-        interests: dto.interests,
-        goals: dto.goals,
-        lifeStage: dto.life_stage,
-        maritalStatus: dto.marital_status,
-        jobTitle: dto.job_title,
-        monthlySalary: dto.monthly_salary,
-        housingType: dto.housing_type,
-        fitness: dto.fitness,
-        stress: dto.stress,
-      };
+      const [dto, sits, sbar] = res;
+      updateGameStateFromBackend(dto, sits, sbar);
 
-      setActiveGame(gameDto);
-      setSuggestions(suggs);
-      setSidebarData(sbar);
       setEvents([
         {
           id: String(Date.now()),
@@ -225,39 +196,69 @@ export const App: React.FC = () => {
     await refreshSavesList();
   };
 
+  const handleSelectSituationChoice = async (situationId: string, choiceId: string) => {
+    if (!activeGame) return;
+    setIsLoading(true);
+
+    const res = await callTauriCommand<[any, any, any[], any]>('resolve_situation_choice', { situationId, choiceId });
+
+    if (res && res[0] && res[1]) {
+      const [dto, stepRes, sits, sbar] = res;
+      updateGameStateFromBackend(dto, sits, sbar);
+
+      const newEv: FeedEvent = {
+        id: stepRes.event_record.id,
+        timestamp: stepRes.event_record.timestamp,
+        eventType: stepRes.event_record.event_type,
+        summary: stepRes.narrative,
+        causalityNote: stepRes.causality_note,
+        success: stepRes.success,
+      };
+
+      setEvents((prev) => [newEv, ...prev]);
+    } else {
+      alert('Unable to process situation choice.');
+    }
+
+    setIsLoading(false);
+  };
+
+  const handleAdvanceTime = async (days: number) => {
+    if (!activeGame) return;
+    setIsLoading(true);
+
+    const res = await callTauriCommand<[any, any, any[], any]>('advance_time', { days });
+
+    if (res && res[0] && res[1]) {
+      const [dto, stepRes, sits, sbar] = res;
+      updateGameStateFromBackend(dto, sits, sbar);
+
+      const newEv: FeedEvent = {
+        id: stepRes.event_record.id,
+        timestamp: stepRes.event_record.timestamp,
+        eventType: stepRes.event_record.event_type,
+        summary: stepRes.narrative,
+        causalityNote: stepRes.causality_note,
+        success: stepRes.success,
+      };
+
+      setEvents((prev) => [newEv, ...prev]);
+    } else {
+      alert('Unable to advance time.');
+    }
+
+    setIsLoading(false);
+  };
+
   const handleSubmitAction = async (inputText: string) => {
     if (!activeGame) return;
     setIsLoading(true);
 
-    const res = await callTauriCommand<[any, any, string[], any]>('submit_player_action', { inputText });
+    const res = await callTauriCommand<[any, any, any[], any]>('submit_player_action', { inputText });
 
     if (res && res[0] && res[1]) {
-      const [dto, stepRes, suggs, sbar] = res;
-      setActiveGame({
-        timeFormatted: dto.time_formatted,
-        year: dto.year,
-        month: dto.month,
-        day: dto.day,
-        age: dto.age,
-        isAlive: dto.is_alive,
-        cash: dto.cash,
-        location: dto.location,
-        playerName: dto.player_name,
-        activeInterest: dto.active_interest,
-        eventCount: dto.event_count,
-        interests: dto.interests,
-        goals: dto.goals,
-        lifeStage: dto.life_stage,
-        maritalStatus: dto.marital_status,
-        jobTitle: dto.job_title,
-        monthlySalary: dto.monthly_salary,
-        housingType: dto.housing_type,
-        fitness: dto.fitness,
-        stress: dto.stress,
-      });
-
-      setSuggestions(suggs);
-      setSidebarData(sbar);
+      const [dto, stepRes, sits, sbar] = res;
+      updateGameStateFromBackend(dto, sits, sbar);
 
       const newEv: FeedEvent = {
         id: stepRes.event_record.id,
@@ -274,46 +275,6 @@ export const App: React.FC = () => {
     }
 
     setIsLoading(false);
-  };
-
-  const renderMainViewContent = () => {
-    if (!activeGame) return null;
-    const currency = getCurrencySymbol(activeGame.location);
-
-    switch (activeTab) {
-      case 'overview':
-        return (
-          <LifeFeed
-            events={events}
-            onInspectCausality={(ev) => setInspectingEvent(ev)}
-            devMode={devMode}
-          />
-        );
-      case 'education':
-        return <EducationView gradeLevel={9} academicPerformance={65} qualifications={[]} onStudy={() => handleSubmitAction('Study academic concepts')} />;
-      case 'career':
-        return <CareerView jobTitle={activeGame.jobTitle} monthlySalary={activeGame.monthlySalary} onApplyJob={() => handleSubmitAction('Apply for new job')} onWorkShift={() => handleSubmitAction('Work shift')} />;
-      case 'health':
-        return <HealthView fitness={activeGame.fitness} stress={activeGame.stress} onSeekMedicalTreatment={() => handleSubmitAction('Seek medical care')} />;
-      case 'family_romance':
-        return <FamilyRomanceView maritalStatus={activeGame.maritalStatus} onDate={() => handleSubmitAction('Go on a date')} onMarry={() => handleSubmitAction('Marry partner')} onDivorce={() => handleSubmitAction('Divorce')} onHaveChild={() => handleSubmitAction('Have a child')} />;
-      case 'football':
-        return <FootballView weeklyWage={0} currencySymbol={currency} onTrain={() => handleSubmitAction('Attend casual football training')} onPlayMatch={() => handleSubmitAction('Play match')} />;
-      case 'politics':
-        return <PoliticsView partyName="Unaffiliated" officeTitle="No Active Office" isCampaigning={false} pollingPct={0} onLaunchCampaign={() => handleSubmitAction('Launch campaign')} onHoldRally={() => handleSubmitAction('Host campaign rally')} />;
-      case 'world_news':
-        return <WorldNewsView newsItems={[]} />;
-      case 'biography':
-        return <BiographyView biographyText="Life biography recording underway." />;
-      default:
-        return (
-          <LifeFeed
-            events={events}
-            onInspectCausality={(ev) => setInspectingEvent(ev)}
-            devMode={devMode}
-          />
-        );
-    }
   };
 
   // Render App Mode State Machine
@@ -340,13 +301,16 @@ export const App: React.FC = () => {
     );
   }
 
-  // PLAYING MODE
+  // Derived suggested action prompts from active situations
+  const actionSuggestions = activeSituations.flatMap((s) => s.choices.map((c) => c.label)).slice(0, 3);
+
+  // PLAYING MODE — Living an alternate life, not managing a dashboard
   return (
     <div style={{
       width: '100vw',
       height: '100vh',
       display: 'grid',
-      gridTemplateRows: 'auto auto 1fr auto',
+      gridTemplateRows: 'auto 1fr auto auto',
       gridTemplateColumns: '1fr auto',
       backgroundColor: 'var(--bg-app)',
       color: 'var(--text-primary)',
@@ -369,23 +333,32 @@ export const App: React.FC = () => {
         />
       </div>
 
-      <div style={{ gridColumn: '1 / -1' }}>
-        <LifeNav activeTab={activeTab} onSelectTab={setActiveTab} />
-      </div>
-
-      <div style={{ overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-        {renderMainViewContent()}
+      <div style={{ overflow: 'hidden', display: 'flex', flexDirection: 'column', gridRow: '2 / 3', gridColumn: '1 / 2' }}>
+        <LifeFeed
+          events={events}
+          onInspectCausality={(ev) => setInspectingEvent(ev)}
+          devMode={devMode}
+        />
       </div>
 
       {sidebarData && (
-        <div style={{ gridRow: '3 / 4', gridColumn: '2 / 3' }}>
+        <div style={{ gridRow: '2 / 4', gridColumn: '2 / 3' }}>
           <NowSidebar sidebarData={sidebarData} devMode={devMode} />
         </div>
       )}
 
+      <div style={{ gridRow: '3 / 4', gridColumn: '1 / 2' }}>
+        <SituationCard
+          situations={activeSituations}
+          onSelectChoice={handleSelectSituationChoice}
+          onAdvanceTime={handleAdvanceTime}
+          isLoading={isLoading}
+        />
+      </div>
+
       <div style={{ gridColumn: '1 / -1' }}>
         <ActionPromptBar
-          suggestions={suggestions}
+          suggestions={actionSuggestions}
           onSubmitAction={handleSubmitAction}
           isLoading={isLoading}
         />
@@ -400,3 +373,4 @@ export const App: React.FC = () => {
     </div>
   );
 };
+
