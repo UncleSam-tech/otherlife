@@ -3,6 +3,7 @@ import { Header } from './components/Header';
 import { TodayView, TodaySceneDTO } from './components/TodayView';
 import { LifeChronicle } from './components/LifeChronicle';
 import { LifeJournalDrawer } from './components/LifeJournalDrawer';
+import { LifeDomainsDrawer } from './components/LifeDomainsDrawer';
 import { FeedEvent } from './components/LifeFeed';
 import { SidebarStateData } from './components/NowSidebar';
 import { ActionPromptBar } from './components/ActionPromptBar';
@@ -53,6 +54,7 @@ export const App: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [inspectingEvent, setInspectingEvent] = useState<FeedEvent | null>(null);
   const [isJournalOpen, setIsJournalOpen] = useState(false);
+  const [isDomainsOpen, setIsDomainsOpen] = useState(false);
 
   const [registries, setRegistries] = useState<any>(null);
   const [savesList, setSavesList] = useState<SaveMetadata[]>([]);
@@ -214,6 +216,8 @@ export const App: React.FC = () => {
     setIsLoading(true);
 
     const res = await callTauriCommand<[any, any, any, any[], any]>('resolve_situation_choice', {
+      situationId: 'today_scene_situation',
+      choiceId: choiceId,
       situation_id: 'today_scene_situation',
       choice_id: choiceId,
     });
@@ -272,7 +276,10 @@ export const App: React.FC = () => {
     if (!activeGame) return;
     setIsLoading(true);
 
-    const res = await callTauriCommand<[any, any, any, any[], any]>('submit_player_action', { input_text: inputText });
+    const res = await callTauriCommand<[any, any, any, any[], any]>('submit_player_action', {
+      inputText: inputText,
+      input_text: inputText,
+    });
 
     if (res && res[0] && res[1]) {
       const [dto, stepRes, scene, sits, sbar] = res;
@@ -363,6 +370,7 @@ export const App: React.FC = () => {
             onSelectChoice={handleSelectChoice}
             onAdvanceTime={handleAdvanceTime}
             onOpenJournal={() => setIsJournalOpen(true)}
+            onOpenDomains={() => setIsDomainsOpen(true)}
             isLoading={isLoading}
           />
         )}
@@ -387,6 +395,14 @@ export const App: React.FC = () => {
         gameState={activeGame}
         sidebarData={sidebarData}
         biography={biographyText}
+      />
+
+      {/* Slide-out Dimensions of Life Drawer */}
+      <LifeDomainsDrawer
+        isOpen={isDomainsOpen}
+        onClose={() => setIsDomainsOpen(false)}
+        gameState={activeGame}
+        sidebarData={sidebarData}
       />
 
       {/* Causality Inspector (Dev Mode only) */}

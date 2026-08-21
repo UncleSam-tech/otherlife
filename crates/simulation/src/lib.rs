@@ -3861,6 +3861,110 @@ impl SimulationEngine {
                     causality_note = "Enrolled in 5-year undergraduate legal curriculum.".to_string();
                     days_to_advance = 14;
                 }
+                "attend_school" => {
+                    narrative = "You sat attentively in class, taking notes in your workbook and answering questions during morning arithmetic and English lessons.".to_string();
+                    causality_note = "Active participation improved academic understanding (+performance).".to_string();
+                    if let Some(p) = self.persons.get_mut(&player_id) {
+                        p.education.academic_performance = (p.education.academic_performance + 2.5).min(100.0);
+                        let entry = p.skills.entry("cognition".to_string()).or_insert(40.0);
+                        *entry = (*entry + 1.5).min(100.0);
+                    }
+                    days_to_advance = 1;
+                }
+                "play_friends" => {
+                    narrative = "During break, you and your classmates ran across the courtyard for a spirited game of football with improvised goalposts.".to_string();
+                    causality_note = "Playground activity boosted fitness and peer friendship.".to_string();
+                    if let Some(p) = self.persons.get_mut(&player_id) {
+                        p.health.fitness = (p.health.fitness + 1.0).min(100.0);
+                        p.health.stress = (p.health.stress - 8.0).max(0.0);
+                        let entry = p.skills.entry("athleticism".to_string()).or_insert(40.0);
+                        *entry = (*entry + 1.5).min(100.0);
+                    }
+                    days_to_advance = 1;
+                }
+                "study_library" => {
+                    narrative = "You spent the quiet afternoon in the school library reading illustrated encyclopedias and adventure storybooks.".to_string();
+                    causality_note = "Reading expanded vocabulary and curiosity.".to_string();
+                    if let Some(p) = self.persons.get_mut(&player_id) {
+                        let entry = p.skills.entry("creativity".to_string()).or_insert(30.0);
+                        *entry = (*entry + 2.0).min(100.0);
+                    }
+                    days_to_advance = 1;
+                }
+                "family_evening" => {
+                    let parent_name = player.parent_ids.first()
+                        .and_then(|pid| self.persons.get(pid))
+                        .map(|p| p.identity.first_name.clone())
+                        .unwrap_or_else(|| "Family".to_string());
+                    
+                    let curr_sym = if player.location_id.contains("nigeria") { "₦" } else { "£" };
+                    let allowance = if player.location_id.contains("nigeria") { 200.0 } else { 5.0 };
+
+                    narrative = format!("You helped {} sweep the living room and organize dinner. Pleased with your helpfulness, {} handed you a small pocket allowance of {}{:.0}!", parent_name, parent_name, curr_sym, allowance);
+                    causality_note = format!("Family cooperation earned parent trust and {}{:.0} pocket allowance.", curr_sym, allowance);
+                    
+                    if let Some(p) = self.persons.get_mut(&player_id) {
+                        p.finances.cash += allowance;
+                    }
+                    days_to_advance = 1;
+                }
+                "school_revision" => {
+                    narrative = "You worked through past examination questions and revised class notes in your study nook.".to_string();
+                    causality_note = "Exam preparation boosted academic grade standing.".to_string();
+                    if let Some(p) = self.persons.get_mut(&player_id) {
+                        p.education.academic_performance = (p.education.academic_performance + 3.0).min(100.0);
+                    }
+                    days_to_advance = 3;
+                }
+                "train_football" => {
+                    narrative = "You ran speed drills, cone dribbling, and shot accuracy practice on the local pitch until sunset.".to_string();
+                    causality_note = "Intensive training sharpened ball control and athleticism.".to_string();
+                    if let Some(p) = self.persons.get_mut(&player_id) {
+                        let c = p.skills.entry("football_control".to_string()).or_insert(50.0);
+                        *c = (*c + 2.0).min(100.0);
+                        let a = p.skills.entry("athleticism".to_string()).or_insert(50.0);
+                        *a = (*a + 1.5).min(100.0);
+                    }
+                    days_to_advance = 2;
+                }
+                "civic_debate" => {
+                    narrative = "You stood up at the youth assembly to articulate your perspective on community issues, receiving applause from peers.".to_string();
+                    causality_note = "Public debate honed communication and self-confidence.".to_string();
+                    if let Some(p) = self.persons.get_mut(&player_id) {
+                        let c = p.skills.entry("communication".to_string()).or_insert(40.0);
+                        *c = (*c + 2.5).min(100.0);
+                    }
+                    days_to_advance = 2;
+                }
+                "family_future" => {
+                    let parent_name = player.parent_ids.first()
+                        .and_then(|pid| self.persons.get(pid))
+                        .map(|p| p.identity.first_name.clone())
+                        .unwrap_or_else(|| "Family".to_string());
+                    narrative = format!("You sat down with {} to share your personal hopes and goals. {} listened intently and offered warm encouragement.", parent_name, parent_name);
+                    causality_note = "Heartfelt conversation strengthened family bond and mutual understanding.".to_string();
+                    days_to_advance = 1;
+                }
+                "play_building" => {
+                    narrative = "You carefully stacked wooden blocks into a tall tower on the floor, giggling as it toppled over.".to_string();
+                    causality_note = "Play activity fostered early spatial coordination.".to_string();
+                    days_to_advance = 1;
+                }
+                "learn_words" => {
+                    narrative = "You pointed at colourful animal illustrations as your parent read aloud from a storybook.".to_string();
+                    causality_note = "Storytime stimulated early speech and vocabulary.".to_string();
+                    days_to_advance = 1;
+                }
+                "garden_walk" => {
+                    narrative = "You toddled around the sunny courtyard, watching butterflies flutter among the flowers.".to_string();
+                    causality_note = "Outdoor exploration stimulated motor awareness.".to_string();
+                    days_to_advance = 1;
+                }
+                "listen_sounds" => {
+                    narrative = "You lay peacefully, listening to the morning birds and gentle footsteps in the household.".to_string();
+                    causality_note = "Calm sensory observation.".to_string();
+                    days_to_advance = 1;
+                }
                 "attend_lectures" => {
                     narrative = "You attended all scheduled morning and afternoon lectures, participating in tutorial problem sets.".to_string();
                     causality_note = "Steady academic attendance improved course mastery (+cognition).".to_string();

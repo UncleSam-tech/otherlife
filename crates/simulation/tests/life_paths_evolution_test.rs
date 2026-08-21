@@ -125,3 +125,42 @@ fn test_civic_townhall_and_public_reputation_growth() {
     assert!(res.success);
     assert!(engine.reputation.public_standing > initial_rep);
 }
+
+#[test]
+fn test_childhood_primary_school_and_family_allowance() {
+    let config = NewLifeConfig {
+        creation_mode: "CUSTOM".to_string(),
+        starting_year: 2005,
+        country_id: "country:real:nigeria".to_string(),
+        location_id: "city:real:abuja".to_string(),
+        starting_age: 7,
+        first_name: Some("Israel".to_string()),
+        last_name: Some("Oyebamiji".to_string()),
+        sex: Some("Male".to_string()),
+        household_income_tier: Some("MIDDLE".to_string()),
+        traits: HashMap::new(),
+        skills: HashMap::new(),
+        interests: vec!["academics".to_string()],
+        goals: vec!["excel_in_school".to_string()],
+    };
+
+    let mut engine = SimulationEngine::new_game(config, 99);
+
+    // 1. Attend primary school
+    let res_school = engine.resolve_situation_choice("situation_test", "attend_school");
+    assert!(res_school.success);
+    let perf = engine.persons.get("person:sim:player").unwrap().education.academic_performance;
+    assert!(perf > 0.0);
+
+    // 2. Play with friends at break
+    let res_friends = engine.resolve_situation_choice("situation_test", "play_friends");
+    assert!(res_friends.success);
+
+    // 3. Family evening chores earning pocket allowance
+    let initial_cash = engine.persons.get("person:sim:player").unwrap().finances.cash;
+    let res_family = engine.resolve_situation_choice("situation_test", "family_evening");
+    assert!(res_family.success);
+    let final_cash = engine.persons.get("person:sim:player").unwrap().finances.cash;
+    assert!(final_cash > initial_cash);
+}
+

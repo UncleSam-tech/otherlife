@@ -288,9 +288,11 @@ export const LifeJournalDrawer: React.FC<LifeJournalDrawerProps> = ({
                 <div style={{ fontSize: '14px', color: 'var(--text-secondary)' }}>
                   Family Trust: {sidebarData?.household_trust && sidebarData.household_trust > 0.6 ? 'Supportive & Close' : 'Moderate Tension'}
                 </div>
-                <div style={{ fontSize: '14px', color: 'var(--text-secondary)' }}>
-                  Marital Status: {gameState.maritalStatus}
-                </div>
+                {gameState.age >= 16 && (
+                  <div style={{ fontSize: '14px', color: 'var(--text-secondary)' }}>
+                    Relationship Status: {gameState.maritalStatus}
+                  </div>
+                )}
               </div>
             </div>
           )}

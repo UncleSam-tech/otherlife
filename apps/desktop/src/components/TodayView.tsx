@@ -35,6 +35,7 @@ interface TodayViewProps {
   onSelectChoice: (choiceId: string) => void;
   onAdvanceTime: (days: number) => void;
   onOpenJournal: () => void;
+  onOpenDomains: () => void;
   isLoading?: boolean;
 }
 
@@ -43,6 +44,7 @@ export const TodayView: React.FC<TodayViewProps> = ({
   onSelectChoice,
   onAdvanceTime,
   onOpenJournal,
+  onOpenDomains,
   isLoading = false,
 }) => {
   return (
@@ -86,7 +88,14 @@ export const TodayView: React.FC<TodayViewProps> = ({
           </div>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <button
+            onClick={onOpenDomains}
+            className="btn btn-secondary"
+            style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', padding: '8px 14px' }}
+          >
+            <span>Dimensions of Life</span>
+          </button>
           <button
             onClick={onOpenJournal}
             className="btn btn-secondary"
