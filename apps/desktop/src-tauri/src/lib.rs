@@ -1,6 +1,8 @@
-use otherlife_persistence::Database;
-use otherlife_simulation::{SidebarStateDTO, SimulationEngine, StepResult};
-use otherlife_world::NewLifeConfig;
+use otherlife_simulation::SimulationEngine;
+use otherlife_world::{
+    ContextNpcDTO, ContextProcessDTO, LivingStateDTO, LivingStepResultDTO, NewLifeConfig,
+    TodaySceneDTO,
+};
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -9,61 +11,6 @@ use tauri::{AppHandle, Manager, State};
 
 pub struct AppState {
     pub engine: Mutex<SimulationEngine>,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct GameStateDTO {
-    pub time_formatted: String,
-    pub year: i32,
-    pub month: u32,
-    pub day: u32,
-    pub age: u32,
-    pub is_alive: bool,
-    pub cash: f64,
-    pub location: String,
-    pub player_name: String,
-    pub active_interest: String,
-    pub event_count: usize,
-    pub interests: Vec<String>,
-    pub goals: Vec<String>,
-    pub life_stage: String,
-    pub marital_status: String,
-    pub job_title: String,
-    pub monthly_salary: f64,
-    pub housing_type: String,
-    pub fitness: f32,
-    pub stress: f32,
-}
-
-impl GameStateDTO {
-    pub fn from_engine(engine: &SimulationEngine) -> Self {
-        let player = engine.persons.get("person:sim:player").unwrap();
-        let age = (engine.time.year - player.identity.birth_year) as u32;
-        let stage = otherlife_world::LifeStage::from_age(age, player.is_alive);
-
-        Self {
-            time_formatted: engine.time.formatted(),
-            year: engine.time.year,
-            month: engine.time.month,
-            day: engine.time.day,
-            age,
-            is_alive: player.is_alive,
-            cash: player.finances.cash,
-            location: player.location_id.clone(),
-            player_name: format!("{} {}", player.identity.first_name, player.identity.last_name),
-            active_interest: player.interests.iter().next().cloned().unwrap_or_else(|| "General Life".to_string()),
-            event_count: engine.events.len(),
-            interests: player.interests.iter().cloned().collect(),
-            goals: player.goals.clone(),
-            life_stage: format!("{:?}", stage),
-            marital_status: player.romance.marital_status.clone(),
-            job_title: player.employment.job_title.clone().unwrap_or_else(|| "Unemployed / Student".to_string()),
-            monthly_salary: player.employment.monthly_salary,
-            housing_type: player.housing.housing_type.clone(),
-            fitness: player.health.fitness,
-            stress: player.health.stress,
-        }
-    }
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -91,7 +38,6 @@ pub struct RegistriesDTO {
 }
 
 fn read_json_data(base: &Path, rel: &str) -> serde_json::Value {
-    // 1. Try from resource dir (packaged .app / .dmg)
     let p1 = base.join(rel);
     if p1.exists() {
         if let Ok(s) = fs::read_to_string(&p1) {
@@ -100,304 +46,171 @@ fn read_json_data(base: &Path, rel: &str) -> serde_json::Value {
             }
         }
     }
-    // 2. Dev fallback: relative from cwd
-    let p2 = PathBuf::from(rel);
-    if p2.exists() {
-        if let Ok(s) = fs::read_to_string(&p2) {
+
+    let dev_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .unwrap()
+        .parent()
+        .unwrap()
+        .join(rel);
+
+    if dev_path.exists() {
+        if let Ok(s) = fs::read_to_string(&dev_path) {
             if let Ok(v) = serde_json::from_str(&s) {
                 return v;
             }
         }
     }
-    // 3. Monorepo root fallback
-    let p3 = PathBuf::from("../../").join(rel);
-    if p3.exists() {
-        if let Ok(s) = fs::read_to_string(&p3) {
-            if let Ok(v) = serde_json::from_str(&s) {
-                return v;
-            }
-        }
-    }
+
     serde_json::json!([])
 }
 
-/// Try multiple candidate paths in order, return first found.
-fn read_json_data_multi(base: &Path, candidates: &[&str]) -> serde_json::Value {
-    for rel in candidates {
-        let v = read_json_data(base, rel);
-        if v != serde_json::json!([]) {
-            return v;
+pub mod commands {
+    use super::*;
+
+    #[tauri::command]
+    pub fn get_registries(app: AppHandle) -> RegistriesDTO {
+        let resource_dir = app.path().resource_dir().unwrap_or_else(|_| PathBuf::from("."));
+
+        RegistriesDTO {
+            countries: read_json_data(&resource_dir, "real_world_data/geography/countries.json"),
+            locations: read_json_data(&resource_dir, "real_world_data/geography/cities.json"),
+            skills: read_json_data(&resource_dir, "real_world_data/human/skills.json"),
+            traits: read_json_data(&resource_dir, "real_world_data/human/traits.json"),
+            interests: read_json_data(&resource_dir, "real_world_data/human/interests.json"),
+            goals: read_json_data(&resource_dir, "real_world_data/human/goals.json"),
+            clubs: read_json_data(&resource_dir, "real_world_data/sports/football_clubs.json"),
+            parties: read_json_data(&resource_dir, "real_world_data/politics/parties.json"),
+            universities: read_json_data(&resource_dir, "real_world_data/education/universities.json"),
+            companies: read_json_data(&resource_dir, "real_world_data/companies/corporations.json"),
         }
     }
-    serde_json::json!([])
-}
 
-#[tauri::command]
-fn get_registries(app: AppHandle) -> Result<RegistriesDTO, String> {
-    // Resolve resource base: works in both dev and packaged builds
-    let resource_base = app
-        .path()
-        .resource_dir()
-        .unwrap_or_else(|_| PathBuf::from("."));
+    #[tauri::command]
+    pub fn start_new_life(
+        state: State<'_, AppState>,
+        config: NewLifeConfig,
+        seed: Option<u64>,
+    ) -> (LivingStateDTO, TodaySceneDTO, Vec<ContextNpcDTO>, Vec<ContextProcessDTO>) {
+        let mut engine = state.engine.lock().unwrap();
+        *engine = SimulationEngine::new_game(config, seed.unwrap_or(42));
 
-    // In the packaged .app, Tauri flattens subdirs into real_world_data/
-    // so paths are e.g. real_world_data/countries.json (not geography/countries.json)
-    Ok(RegistriesDTO {
-        countries:    read_json_data_multi(&resource_base, &[
-            "real_world_data/countries.json",
-            "real_world_data/geography/countries.json",
-        ]),
-        locations:    read_json_data_multi(&resource_base, &[
-            "real_world_data/cities.json",
-            "real_world_data/geography/cities.json",
-        ]),
-        skills:       read_json_data_multi(&resource_base, &[
-            "real_world_data/skills.json",
-            "real_world_data/registries/skills.json",
-        ]),
-        traits:       read_json_data_multi(&resource_base, &[
-            "real_world_data/traits.json",
-            "real_world_data/registries/traits.json",
-        ]),
-        interests:    read_json_data_multi(&resource_base, &[
-            "real_world_data/interests.json",
-            "real_world_data/registries/interests.json",
-        ]),
-        goals:        read_json_data_multi(&resource_base, &[
-            "real_world_data/goals.json",
-            "real_world_data/registries/goals.json",
-        ]),
-        clubs:        read_json_data_multi(&resource_base, &[
-            "real_world_data/clubs.json",
-            "real_world_data/football/clubs.json",
-        ]),
-        parties:      read_json_data_multi(&resource_base, &[
-            "real_world_data/parties.json",
-            "real_world_data/politics/parties.json",
-        ]),
-        universities: read_json_data_multi(&resource_base, &[
-            "real_world_data/universities.json",
-            "real_world_data/education/universities.json",
-        ]),
-        companies:    read_json_data_multi(&resource_base, &[
-            "real_world_data/corporations.json",
-            "real_world_data/companies/corporations.json",
-        ]),
-    })
-}
+        let living_state = engine.get_living_state();
+        let scene = engine.generate_today_scene();
+        let npcs = engine.get_surrounding_npcs();
+        let procs = engine.get_active_processes();
 
-#[tauri::command]
-fn start_new_life(
-    state: State<AppState>,
-    config: Option<NewLifeConfig>,
-    seed: Option<u64>,
-) -> Result<(GameStateDTO, otherlife_world::TodayScene, Vec<otherlife_world::LifeSituation>, SidebarStateDTO), String> {
-    let mut engine = state.engine.lock().map_err(|e| e.to_string())?;
-
-    if let Some(cfg) = config {
-        *engine = SimulationEngine::new_game(cfg, seed.unwrap_or(42));
-    } else {
-        *engine = SimulationEngine::new_vertical_slice_fixture(seed.unwrap_or(42));
+        (living_state, scene, npcs, procs)
     }
 
-    let dto = GameStateDTO::from_engine(&engine);
-    let today_scene = engine.generate_today_scene();
-    let situations = engine.active_situations.clone();
-    let sidebar = engine.get_sidebar_state();
+    #[tauri::command]
+    pub fn submit_living_intent(
+        state: State<'_, AppState>,
+        intent_text: String,
+    ) -> (LivingStateDTO, LivingStepResultDTO, TodaySceneDTO, Vec<ContextNpcDTO>, Vec<ContextProcessDTO>) {
+        let mut engine = state.engine.lock().unwrap();
+        let step_res = engine.submit_living_intent(&intent_text);
+        let living_state = engine.get_living_state();
+        let scene = engine.generate_today_scene();
+        let npcs = engine.get_surrounding_npcs();
+        let procs = engine.get_active_processes();
 
-    Ok((dto, today_scene, situations, sidebar))
-}
-
-#[tauri::command]
-fn get_today_scene(state: State<AppState>) -> Result<otherlife_world::TodayScene, String> {
-    let mut engine = state.engine.lock().map_err(|e| e.to_string())?;
-    Ok(engine.generate_today_scene())
-}
-
-#[tauri::command]
-fn get_active_situations(state: State<AppState>) -> Result<Vec<otherlife_world::LifeSituation>, String> {
-    let engine = state.engine.lock().map_err(|e| e.to_string())?;
-    Ok(engine.active_situations.clone())
-}
-
-#[tauri::command]
-fn resolve_situation_choice(
-    state: State<AppState>,
-    situation_id: String,
-    choice_id: String,
-) -> Result<(GameStateDTO, StepResult, otherlife_world::TodayScene, Vec<otherlife_world::LifeSituation>, SidebarStateDTO), String> {
-    let mut engine = state.engine.lock().map_err(|e| e.to_string())?;
-
-    let result = engine.resolve_situation_choice(&situation_id, &choice_id);
-    let dto = GameStateDTO::from_engine(&engine);
-    let today_scene = engine.generate_today_scene();
-    let situations = engine.active_situations.clone();
-    let sidebar = engine.get_sidebar_state();
-
-    Ok((dto, result, today_scene, situations, sidebar))
-}
-
-#[tauri::command]
-fn advance_time(
-    state: State<AppState>,
-    days: u32,
-) -> Result<(GameStateDTO, StepResult, otherlife_world::TodayScene, Vec<otherlife_world::LifeSituation>, SidebarStateDTO), String> {
-    let mut engine = state.engine.lock().map_err(|e| e.to_string())?;
-
-    let result = engine.advance_time_with_events(days);
-    let dto = GameStateDTO::from_engine(&engine);
-    let today_scene = engine.generate_today_scene();
-    let situations = engine.active_situations.clone();
-    let sidebar = engine.get_sidebar_state();
-
-    Ok((dto, result, today_scene, situations, sidebar))
-}
-
-#[tauri::command]
-fn submit_player_action(
-    state: State<AppState>,
-    input_text: String,
-) -> Result<(GameStateDTO, StepResult, otherlife_world::TodayScene, Vec<otherlife_world::LifeSituation>, SidebarStateDTO), String> {
-    let mut engine = state.engine.lock().map_err(|e| e.to_string())?;
-
-    let payload = engine.ai_bridge.parse_intent(
-        &input_text,
-        "person:sim:player",
-        Some("person:sim:mum"),
-    );
-
-    let result = engine.execute_player_action(payload);
-    engine.generate_active_situations();
-    let dto = GameStateDTO::from_engine(&engine);
-    let today_scene = engine.generate_today_scene();
-    let situations = engine.active_situations.clone();
-    let sidebar = engine.get_sidebar_state();
-
-    Ok((dto, result, today_scene, situations, sidebar))
-}
-
-#[tauri::command]
-fn save_game_state(state: State<AppState>, filename: String) -> Result<String, String> {
-    let engine = state.engine.lock().map_err(|e| e.to_string())?;
-    fs::create_dir_all("saves").ok();
-    let save_path = if filename.ends_with(".db") || filename.ends_with(".sqlite") {
-        format!("saves/{}", filename)
-    } else {
-        format!("saves/{}.db", filename)
-    };
-
-    let db = Database::open_file(&save_path).map_err(|e| e.to_string())?;
-
-    let persons_vec: Vec<_> = engine.persons.values().cloned().collect();
-    db.save_world_state(&engine.time, &engine.rng, &persons_vec, &engine.relationships, &engine.events)
-        .map_err(|e| e.to_string())?;
-
-    Ok("Game state successfully saved to SQLite.".to_string())
-}
-
-#[tauri::command]
-fn list_saves() -> Result<Vec<SaveMetadataDTO>, String> {
-    let dir = Path::new("saves");
-    if !dir.exists() {
-        return Ok(Vec::new());
+        (living_state, step_res, scene, npcs, procs)
     }
-    let mut results = Vec::new();
-    if let Ok(entries) = fs::read_dir(dir) {
-        for entry in entries.flatten() {
-            let path = entry.path();
-            if path.extension().and_then(|s| s.to_str()) == Some("db") || path.extension().and_then(|s| s.to_str()) == Some("sqlite") {
-                if let Ok(db) = Database::open_file(path.to_str().unwrap()) {
-                    if let Ok((time, _rng, persons, _rel, _evs)) = db.load_world_state() {
-                        if let Some(player) = persons.iter().find(|p| p.id == "person:sim:player") {
-                            let age = (time.year - player.identity.birth_year) as u32;
-                            results.push(SaveMetadataDTO {
-                                id: path.file_stem().unwrap().to_string_lossy().to_string(),
-                                filename: path.file_name().unwrap().to_string_lossy().to_string(),
-                                player_name: format!("{} {}", player.identity.first_name, player.identity.last_name),
-                                age,
-                                location: player.location_id.clone(),
-                                timestamp: time.formatted(),
-                            });
+
+    #[tauri::command]
+    pub fn get_living_state(state: State<'_, AppState>) -> LivingStateDTO {
+        let engine = state.engine.lock().unwrap();
+        engine.get_living_state()
+    }
+
+    #[tauri::command]
+    pub fn get_today_scene(state: State<'_, AppState>) -> TodaySceneDTO {
+        let engine = state.engine.lock().unwrap();
+        engine.generate_today_scene()
+    }
+
+    #[tauri::command]
+    pub fn get_biography(state: State<'_, AppState>) -> String {
+        let engine = state.engine.lock().unwrap();
+        engine.get_biography()
+    }
+
+    #[tauri::command]
+    pub fn get_letters_inbox(state: State<'_, AppState>) -> Vec<otherlife_world::LetterNotification> {
+        let engine = state.engine.lock().unwrap();
+        engine.letters_inbox.clone()
+    }
+
+    fn get_saves_dir(app: &AppHandle) -> PathBuf {
+        let base = app.path().app_data_dir().unwrap_or_else(|_| PathBuf::from("."));
+        let saves_dir = base.join("saves");
+        fs::create_dir_all(&saves_dir).ok();
+        saves_dir
+    }
+
+    #[tauri::command]
+    pub fn list_saves(app: AppHandle) -> Vec<SaveMetadataDTO> {
+        let saves_dir = get_saves_dir(&app);
+        let mut saves = Vec::new();
+
+        if let Ok(entries) = fs::read_dir(saves_dir) {
+            for entry in entries.flatten() {
+                let path = entry.path();
+                if path.extension().and_then(|s| s.to_str()) == Some("json") {
+                    if let Ok(content) = fs::read_to_string(&path) {
+                        if let Ok(dto) = serde_json::from_str::<SaveMetadataDTO>(&content) {
+                            saves.push(dto);
                         }
                     }
                 }
             }
         }
+
+        saves
     }
-    Ok(results)
-}
 
-#[tauri::command]
-fn load_game_state(
-    state: State<AppState>,
-    filename: String,
-) -> Result<(GameStateDTO, otherlife_world::TodayScene, Vec<otherlife_world::LifeSituation>, SidebarStateDTO), String> {
-    let path = if filename.starts_with("saves/") {
-        filename
-    } else {
-        format!("saves/{}", filename)
-    };
-    let db = Database::open_file(&path).map_err(|e| e.to_string())?;
-    let (time, rng, persons, relationships, events) = db
-        .load_world_state()
-        .map_err(|e| e.to_string())?;
-
-    let mut engine = state.engine.lock().map_err(|e| e.to_string())?;
-    engine.time = time;
-    engine.rng = rng;
-    engine.persons = persons.into_iter().map(|p| (p.id.clone(), p)).collect();
-    engine.relationships = relationships;
-    engine.events = events;
-    engine.generate_active_situations();
-
-    let dto = GameStateDTO::from_engine(&engine);
-    let today_scene = engine.generate_today_scene();
-    let situations = engine.active_situations.clone();
-    let sidebar = engine.get_sidebar_state();
-
-    Ok((dto, today_scene, situations, sidebar))
-}
-
-#[tauri::command]
-fn delete_save(filename: String) -> Result<bool, String> {
-    let path = format!("saves/{}", filename);
-    if Path::new(&path).exists() {
-        fs::remove_file(&path).map_err(|e| e.to_string())?;
-        Ok(true)
-    } else {
-        Ok(false)
+    #[tauri::command]
+    pub fn delete_save(app: AppHandle, filename: String) -> bool {
+        let saves_dir = get_saves_dir(&app);
+        let json_path = saves_dir.join(&filename);
+        fs::remove_file(json_path).is_ok()
     }
 }
 
-#[tauri::command]
-fn get_biography(state: State<AppState>) -> Result<String, String> {
-    let engine = state.engine.lock().map_err(|e| e.to_string())?;
-    Ok(engine.get_biography())
-}
-
-#[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    let engine = SimulationEngine::new_vertical_slice_fixture(42);
-    let app_state = AppState {
-        engine: Mutex::new(engine),
+    let default_config = NewLifeConfig {
+        creation_mode: "CUSTOM".to_string(),
+        starting_year: 2005,
+        country_id: "country:real:nigeria".to_string(),
+        location_id: "city:real:abuja".to_string(),
+        starting_age: 0,
+        first_name: Some("Israel".to_string()),
+        last_name: Some("Oyebamiji".to_string()),
+        sex: Some("Male".to_string()),
+        household_income_tier: Some("MIDDLE".to_string()),
+        traits: std::collections::HashMap::new(),
+        skills: std::collections::HashMap::new(),
+        interests: vec!["academics".to_string()],
+        goals: vec!["excellence".to_string()],
     };
+
+    let initial_engine = SimulationEngine::new_game(default_config, 100);
 
     tauri::Builder::default()
-        .manage(app_state)
+        .manage(AppState {
+            engine: Mutex::new(initial_engine),
+        })
         .invoke_handler(tauri::generate_handler![
-            get_registries,
-            start_new_life,
-            get_today_scene,
-            get_active_situations,
-            resolve_situation_choice,
-            advance_time,
-            submit_player_action,
-            save_game_state,
-            list_saves,
-            load_game_state,
-            delete_save,
-            get_biography,
+            commands::get_registries,
+            commands::start_new_life,
+            commands::submit_living_intent,
+            commands::get_living_state,
+            commands::get_today_scene,
+            commands::get_biography,
+            commands::list_saves,
+            commands::delete_save,
         ])
         .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .expect("error while running OTHERLIFE desktop application");
 }

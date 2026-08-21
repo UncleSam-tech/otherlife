@@ -1,121 +1,66 @@
 import React from 'react';
-import { X, GitBranch, ArrowUpRight, ArrowDownRight } from 'lucide-react';
-import { FeedEvent } from './LifeFeed';
+import { X, GitBranch, ArrowUpRight } from 'lucide-react';
+
+export interface CausalEventInfo {
+  id: string;
+  headline: string;
+  summary: string;
+  causalityNote?: string;
+  effectsSummary?: string;
+}
 
 interface CausalityInspectorProps {
-  event: FeedEvent | null;
+  event: CausalEventInfo | null;
   onClose: () => void;
 }
 
 export const CausalityInspector: React.FC<CausalityInspectorProps> = ({ event, onClose }) => {
-  if (!event) return null;
-
   return (
-    <div style={{
-      position: 'fixed',
-      top: 0,
-      left: 0,
-      width: '100vw',
-      height: '100vh',
-      backgroundColor: 'rgba(0, 0, 0, 0.65)',
-      backdropFilter: 'blur(4px)',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      zIndex: 100,
-    }}>
-      <div style={{
-        backgroundColor: 'var(--bg-surface-1)',
-        border: '1px solid var(--border-strong)',
-        borderRadius: 'var(--radius-lg)',
-        width: '560px',
-        maxWidth: '90vw',
-        padding: '24px',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: '16px',
-        boxShadow: 'var(--shadow-lg)',
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <GitBranch size={18} color="var(--accent-indigo)" />
-            <h3 style={{ fontSize: '16px', fontWeight: 700, fontFamily: 'var(--font-serif)' }}>
-              Causality Trace ("Why Did This Happen?")
-            </h3>
+    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4 select-none">
+      <div className="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-lg p-6 space-y-5 shadow-2xl animate-fadeIn">
+        <div className="flex items-center justify-between border-b border-slate-800 pb-4">
+          <div className="flex items-center gap-2 text-emerald-400">
+            <GitBranch className="w-5 h-5" />
+            <h3 className="font-semibold text-slate-100 text-base">Causality & Simulation Trace</h3>
           </div>
           <button
             onClick={onClose}
-            style={{
-              backgroundColor: 'transparent',
-              border: 'none',
-              color: 'var(--text-muted)',
-              cursor: 'pointer',
-            }}
+            className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition-colors"
           >
-            <X size={18} />
+            <X className="w-5 h-5" />
           </button>
         </div>
 
-        <div style={{
-          backgroundColor: 'var(--bg-surface-2)',
-          padding: '12px 16px',
-          borderRadius: 'var(--radius-md)',
-          fontSize: '14px',
-          color: 'var(--text-primary)',
-          fontFamily: 'var(--font-serif)'
-        }}>
-          "{event.summary}"
-        </div>
-
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-          <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-muted)' }}>
-            CONTRIBUTING SIMULATION FACTORS
+        <div className="space-y-4">
+          <div className="bg-slate-950/80 border border-slate-800 rounded-xl p-4 space-y-2">
+            <span className="text-xs font-mono text-emerald-400 uppercase tracking-wider">Causal Engine</span>
+            <p className="text-sm text-slate-200 leading-relaxed">
+              Every outcome in OTHERLIFE is computed deterministically from character traits, skill practice consistency, family trust, and institutional prerequisites.
+            </p>
           </div>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '10px',
-              padding: '10px 12px',
-              backgroundColor: 'var(--bg-app)',
-              borderRadius: 'var(--radius-md)',
-              fontSize: '13px'
-            }}>
-              <ArrowUpRight size={16} color="var(--accent-emerald)" />
-              <span>{event.causalityNote || 'Simulated trust and skill thresholds evaluated.'}</span>
+          {event && (
+            <div className="bg-slate-950/60 border border-slate-800 rounded-xl p-4 space-y-2">
+              <h4 className="text-xs font-mono text-slate-400 uppercase">Inspected Event: {event.headline}</h4>
+              <p className="text-sm text-slate-300">{event.summary}</p>
+              {event.causalityNote && (
+                <div className="pt-2 border-t border-slate-800 text-xs text-emerald-400 font-mono flex items-center gap-1.5">
+                  <ArrowUpRight className="w-3.5 h-3.5" />
+                  <span>{event.causalityNote}</span>
+                </div>
+              )}
             </div>
-
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '10px',
-              padding: '10px 12px',
-              backgroundColor: 'var(--bg-app)',
-              borderRadius: 'var(--radius-md)',
-              fontSize: '13px'
-            }}>
-              <ArrowDownRight size={16} color="var(--accent-amber)" />
-              <span>Prior event: Academic performance failure (Math exam score 42%)</span>
-            </div>
-          </div>
+          )}
         </div>
 
-        <button
-          onClick={onClose}
-          style={{
-            alignSelf: 'flex-end',
-            backgroundColor: 'var(--bg-surface-2)',
-            border: '1px solid var(--border-subtle)',
-            borderRadius: 'var(--radius-md)',
-            padding: '8px 16px',
-            color: 'var(--text-primary)',
-            fontSize: '13px',
-            cursor: 'pointer',
-          }}
-        >
-          Close Inspector
-        </button>
+        <div className="flex justify-end pt-2">
+          <button
+            onClick={onClose}
+            className="bg-slate-800 hover:bg-slate-700 text-slate-200 px-4 py-2 rounded-xl text-xs font-medium transition-colors"
+          >
+            Close Inspector
+          </button>
+        </div>
       </div>
     </div>
   );

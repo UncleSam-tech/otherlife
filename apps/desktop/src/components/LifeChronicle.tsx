@@ -1,81 +1,38 @@
 import React from 'react';
 import { Bookmark } from 'lucide-react';
-import { FeedEvent } from './LifeFeed';
+
+export interface ChronicleEntry {
+  id: string;
+  timestamp: string;
+  headline: string;
+  narrative: string;
+}
 
 interface LifeChronicleProps {
-  events: FeedEvent[];
+  entries: ChronicleEntry[];
   playerName: string;
 }
 
-export const LifeChronicle: React.FC<LifeChronicleProps> = ({ events, playerName }) => {
-  if (events.length === 0) {
+export const LifeChronicle: React.FC<LifeChronicleProps> = ({ entries, playerName }) => {
+  if (entries.length === 0) {
     return null;
   }
 
   return (
-    <section style={{
-      maxWidth: '860px',
-      margin: '0 auto',
-      width: '100%',
-      padding: '0 24px 40px',
-      display: 'flex',
-      flexDirection: 'column',
-      gap: '16px',
-    }}>
-      <div style={{
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        borderTop: '1px solid var(--border-subtle)',
-        paddingTop: '24px',
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <Bookmark size={16} style={{ color: 'var(--accent-indigo)' }} />
-          <h3 style={{
-            fontSize: '14px',
-            fontWeight: 700,
-            letterSpacing: '0.08em',
-            textTransform: 'uppercase',
-            color: 'var(--text-muted)',
-            margin: 0,
-          }}>
-            MEMORIES & MILESTONES OF {playerName.toUpperCase()}
-          </h3>
-        </div>
-        <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-          {events.length} Entries Recorded
-        </span>
+    <section className="max-w-3xl mx-auto w-full py-6 space-y-4">
+      <div className="flex items-center gap-2 border-b border-slate-800 pb-3">
+        <Bookmark className="w-4 h-4 text-emerald-400" />
+        <h3 className="text-xs font-mono uppercase tracking-wider text-slate-400">
+          Chronicle of {playerName}
+        </h3>
       </div>
 
-      <div style={{
-        display: 'flex',
-        flexDirection: 'column',
-        gap: '12px',
-      }}>
-        {events.slice(0, 15).map((ev) => (
-          <div
-            key={ev.id}
-            style={{
-              backgroundColor: 'var(--bg-surface-1)',
-              border: '1px solid var(--border-subtle)',
-              borderRadius: 'var(--radius-md)',
-              padding: '16px 20px',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '6px',
-            }}
-          >
-            <div style={{ fontSize: '11px', color: 'var(--text-muted)', letterSpacing: '0.05em' }}>
-              {ev.timestamp}
-            </div>
-            <div style={{
-              fontSize: '15px',
-              lineHeight: '1.6',
-              color: 'var(--text-primary)',
-              fontFamily: 'var(--font-serif)',
-            }}>
-              {ev.summary}
-            </div>
+      <div className="space-y-3">
+        {entries.map((entry) => (
+          <div key={entry.id} className="border-l-2 border-slate-700 hover:border-emerald-500 pl-4 py-1.5 transition-colors">
+            <span className="text-xs font-mono text-emerald-400">{entry.timestamp}</span>
+            <h4 className="font-semibold text-slate-200 text-sm">{entry.headline}</h4>
+            <p className="text-xs text-slate-400 mt-1 leading-relaxed">{entry.narrative}</p>
           </div>
         ))}
       </div>

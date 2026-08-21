@@ -1,5 +1,5 @@
 import React from 'react';
-import { Calendar, User, Wallet, MapPin, Code2, Home } from 'lucide-react';
+import { Home, Calendar, Wallet, MapPin, Code2 } from 'lucide-react';
 
 interface HeaderProps {
   timeFormatted: string;
@@ -19,91 +19,60 @@ export const Header: React.FC<HeaderProps> = ({
   cash,
   location,
   playerName,
-  currencySymbol = '£',
+  currencySymbol = '₦',
   devMode,
   onToggleDevMode,
   onReturnToMainMenu,
 }) => {
   return (
-    <header style={{
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      padding: '0 20px',
-      height: '52px',
-      backgroundColor: 'var(--bg-surface-1)',
-      borderBottom: '1px solid var(--border-subtle)',
-    }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+    <header className="h-14 bg-slate-900 border-b border-slate-800 px-6 flex items-center justify-between select-none">
+      <div className="flex items-center gap-4">
         <button
           onClick={onReturnToMainMenu}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px',
-            backgroundColor: 'transparent',
-            border: 'none',
-            color: 'var(--text-primary)',
-            fontSize: '15px',
-            fontWeight: 800,
-            letterSpacing: '0.12em',
-            fontFamily: 'var(--font-mono)',
-            cursor: 'pointer',
-          }}
+          className="flex items-center gap-2 text-slate-300 hover:text-white text-xs font-mono font-bold tracking-wider transition-colors"
           title="Return to Main Menu"
         >
-          <Home size={16} color="var(--accent-indigo)" />
-          <span>OTHERLIFE</span>
+          <Home className="w-4 h-4 text-emerald-400" />
+          <span>MENU</span>
         </button>
 
-        <span style={{ color: 'var(--border-strong)' }}>|</span>
+        <span className="text-slate-700">|</span>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', color: 'var(--text-secondary)' }}>
-          <User size={14} />
-          <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{playerName}</span>
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-semibold text-slate-100">{playerName}</span>
+          <span className="text-xs bg-slate-800 text-slate-400 px-2 py-0.5 rounded font-mono">
+            AGE {age}
+          </span>
         </div>
       </div>
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: '20px', fontSize: '13px', fontFamily: 'var(--font-mono)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--text-secondary)' }}>
-          <Calendar size={14} color="var(--accent-indigo)" />
+      <div className="flex items-center gap-6 text-xs font-mono">
+        <div className="flex items-center gap-1.5 text-slate-400">
+          <Calendar className="w-3.5 h-3.5 text-emerald-400" />
           <span>{timeFormatted}</span>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--text-secondary)' }}>
-          <span>AGE</span>
-          <span style={{ fontWeight: 700, color: 'var(--text-primary)' }}>{age}</span>
+        <div className="flex items-center gap-1.5 text-emerald-400 font-semibold">
+          <Wallet className="w-3.5 h-3.5" />
+          <span>{currencySymbol}{cash.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</span>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--text-secondary)' }}>
-          <Wallet size={14} color="var(--accent-emerald)" />
-          <span style={{ fontWeight: 700, color: 'var(--accent-emerald)' }}>{currencySymbol}{cash.toFixed(0)}</span>
-        </div>
-
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--text-secondary)' }}>
-          <MapPin size={14} color="var(--accent-amber)" />
+        <div className="flex items-center gap-1.5 text-slate-400">
+          <MapPin className="w-3.5 h-3.5 text-amber-400" />
           <span>{location.replace('city:real:', '').toUpperCase()}</span>
         </div>
 
         <button
           onClick={onToggleDevMode}
-          title="Toggle Developer Inspection Mode"
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '4px',
-            padding: '4px 8px',
-            backgroundColor: devMode ? 'var(--accent-indigo-subtle)' : 'transparent',
-            border: `1px solid ${devMode ? 'var(--accent-indigo)' : 'var(--border-subtle)'}`,
-            borderRadius: 'var(--radius-sm)',
-            color: devMode ? 'var(--accent-indigo)' : 'var(--text-muted)',
-            cursor: 'pointer',
-            fontSize: '11px',
-            fontFamily: 'var(--font-mono)'
-          }}
+          title="Toggle Causal Inspector"
+          className={`flex items-center gap-1 px-2.5 py-1 rounded border text-xs transition-colors ${
+            devMode
+              ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
+              : 'text-slate-500 border-slate-800 hover:text-slate-300 hover:border-slate-700'
+          }`}
         >
-          <Code2 size={12} />
-          <span>DEV</span>
+          <Code2 className="w-3.5 h-3.5" />
+          <span>INSPECT</span>
         </button>
       </div>
     </header>

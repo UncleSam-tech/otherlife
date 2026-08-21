@@ -1,6 +1,5 @@
-use otherlife_relationships::{RelationshipMatrix, RelationshipVector};
 use otherlife_rng::WorldRng;
-use otherlife_world::{EventRecord, Person, SimTime};
+use otherlife_world::{EventRecord, HumanEntity, SimTime};
 use rusqlite::{params, Connection, Result};
 use std::path::Path;
 
@@ -35,19 +34,13 @@ impl Database {
         self.conn.execute(
             "CREATE TABLE IF NOT EXISTS persons (
                 id TEXT PRIMARY KEY,
+                first_name TEXT NOT NULL,
+                last_name TEXT NOT NULL,
+                birth_year INTEGER NOT NULL,
+                sex TEXT NOT NULL,
                 is_player INTEGER NOT NULL,
                 is_alive INTEGER NOT NULL,
                 data TEXT NOT NULL
-            );",
-            [],
-        )?;
-
-        self.conn.execute(
-            "CREATE TABLE IF NOT EXISTS relationships (
-                source_id TEXT NOT NULL,
-                target_id TEXT NOT NULL,
-                data TEXT NOT NULL,
-                PRIMARY KEY (source_id, target_id)
             );",
             [],
         )?;
@@ -58,10 +51,11 @@ impl Database {
                 timestamp TEXT NOT NULL,
                 event_type TEXT NOT NULL,
                 actor_id TEXT NOT NULL,
-                target_id TEXT,
-                summary TEXT NOT NULL,
-                data TEXT NOT NULL,
-                causality_parent_id TEXT
+                location_id TEXT NOT NULL,
+                headline TEXT NOT NULL,
+                narrative TEXT NOT NULL,
+                causality_note TEXT NOT NULL,
+                success INTEGER NOT NULL
             );",
             [],
         )?;
@@ -73,8 +67,7 @@ impl Database {
         &self,
         time: &SimTime,
         rng: &WorldRng,
-        persons: &[Person],
-        relationships: &RelationshipMatrix,
+        persons: &[HumanEntity],
         events: &[EventRecord],
     ) -> Result<()> {
         let time_json = serde_json::to_string(time).unwrap();
@@ -92,32 +85,43 @@ impl Database {
         for person in persons {
             let data = serde_json::to_string(person).unwrap();
             self.conn.execute(
-                "INSERT OR REPLACE INTO persons (id, is_player, is_alive, data) VALUES (?1, ?2, ?3, ?4)",
-                params![person.id, person.is_player as i32, person.is_alive as i32, data],
-            )?;
-        }
-
-        for ((src, tgt), rel) in &relationships.links {
-            let data = serde_json::to_string(rel).unwrap();
-            self.conn.execute(
-                "INSERT OR REPLACE INTO relationships (source_id, target_id, data) VALUES (?1, ?2, ?3)",
-                params![src, tgt, data],
+                "INSERT OR REPLACE INTO persons (id, first_name, last_name, birth_year, sex, is_player, is_alive, data) 
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+                params![
+                    person.id,
+                    person.identity.first_name,
+                    person.identity.last_name,
+                    person.identity.birth_year,
+                    person.identity.sex,
+                    person.is_player as i32,
+                    person.biology.is_alive as i32,
+                    data
+                ],
             )?;
         }
 
         for ev in events {
-            let data = serde_json::to_string(&ev.metadata).unwrap();
             self.conn.execute(
-                "INSERT OR REPLACE INTO events (id, timestamp, event_type, actor_id, target_id, summary, data, causality_parent_id) 
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
-                params![ev.id, ev.timestamp, ev.event_type, ev.actor_id, ev.target_id, ev.summary, data, ev.causality_parent_id],
+                "INSERT OR REPLACE INTO events (id, timestamp, event_type, actor_id, location_id, headline, narrative, causality_note, success) 
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+                params![
+                    ev.id,
+                    ev.timestamp,
+                    ev.event_type,
+                    ev.actor_id,
+                    ev.location_id,
+                    ev.headline,
+                    ev.narrative,
+                    ev.causality_note,
+                    ev.success as i32
+                ],
             )?;
         }
 
         Ok(())
     }
 
-    pub fn load_world_state(&self) -> Result<(SimTime, WorldRng, Vec<Person>, RelationshipMatrix, Vec<EventRecord>)> {
+    pub fn load_world_state(&self) -> Result<(SimTime, WorldRng, Vec<HumanEntity>, Vec<EventRecord>)> {
         let time_str: String = self.conn.query_row(
             "SELECT value FROM meta WHERE key = 'time'",
             [],
@@ -140,44 +144,31 @@ impl Database {
         let mut persons = Vec::new();
         for p_res in person_rows {
             let p_str = p_res?;
-            let p: Person = serde_json::from_str(&p_str).unwrap();
+            let p: HumanEntity = serde_json::from_str(&p_str).unwrap();
             persons.push(p);
         }
 
-        let mut rel_stmt = self.conn.prepare("SELECT source_id, target_id, data FROM relationships")?;
-        let rel_rows = rel_stmt.query_map([], |row| {
-            let src: String = row.get(0)?;
-            let tgt: String = row.get(1)?;
-            let d: String = row.get(2)?;
-            Ok((src, tgt, d))
-        })?;
-        let mut matrix = RelationshipMatrix::new();
-        for r_res in rel_rows {
-            let (src, tgt, d_str) = r_res?;
-            let rel: RelationshipVector = serde_json::from_str(&d_str).unwrap();
-            matrix.set_link(src, tgt, rel);
-        }
-
-        let mut ev_stmt = self.conn.prepare("SELECT id, timestamp, event_type, actor_id, target_id, summary, data, causality_parent_id FROM events")?;
+        let mut ev_stmt = self.conn.prepare("SELECT id, timestamp, event_type, actor_id, location_id, headline, narrative, causality_note, success FROM events")?;
         let ev_rows = ev_stmt.query_map([], |row| {
             let id: String = row.get(0)?;
             let timestamp: String = row.get(1)?;
             let event_type: String = row.get(2)?;
             let actor_id: String = row.get(3)?;
-            let target_id: Option<String> = row.get(4)?;
-            let summary: String = row.get(5)?;
-            let data_str: String = row.get(6)?;
-            let causality_parent_id: Option<String> = row.get(7)?;
-            let metadata: serde_json::Value = serde_json::from_str(&data_str).unwrap();
+            let location_id: String = row.get(4)?;
+            let headline: String = row.get(5)?;
+            let narrative: String = row.get(6)?;
+            let causality_note: String = row.get(7)?;
+            let success_int: i32 = row.get(8)?;
             Ok(EventRecord {
                 id,
                 timestamp,
                 event_type,
                 actor_id,
-                target_id,
-                summary,
-                metadata,
-                causality_parent_id,
+                location_id,
+                headline,
+                narrative,
+                causality_note,
+                success: success_int != 0,
             })
         })?;
         let mut events = Vec::new();
@@ -185,125 +176,88 @@ impl Database {
             events.push(e_res?);
         }
 
-        Ok((time, rng, persons, matrix, events))
+        Ok((time, rng, persons, events))
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use otherlife_world::{EducationComponent, FinancesComponent, IdentityComponent, PersonalityComponent};
-    use std::collections::{HashMap, HashSet};
+    use otherlife_world::{BiologicalProfile, HumanResources, IdentityProfile, PsychologicalProfile, WealthTier};
+    use std::collections::HashMap;
 
     #[test]
-    fn test_sqlite_roundtrip_fidelity() {
+    fn test_sqlite_persistence_roundtrip() {
         let db = Database::open_in_memory().unwrap();
-        let time = SimTime::new(2029, 10, 12, 16, 30);
-        let rng = WorldRng::new(42);
+        let time = SimTime::new(2025, 4, 12);
+        let rng = WorldRng::new(99);
 
-        let p = Person {
+        let p = HumanEntity {
             id: "person:sim:player".to_string(),
-            is_player: true,
-            is_alive: true,
-            tier: otherlife_world::NpcTier::TierA,
-            schedule: otherlife_world::NpcSchedule::default(),
-            identity: IdentityComponent {
-                first_name: "James".to_string(),
-                last_name: "Morrison".to_string(),
-                birth_year: 2015,
-                birth_month: 4,
-                birth_day: 12,
+            identity: IdentityProfile {
+                first_name: "Israel".to_string(),
+                last_name: "Oyebamiji".to_string(),
+                birth_year: 2005,
+                birth_month: 1,
+                birth_day: 15,
                 sex: "Male".to_string(),
-                birth_location_id: "city:real:glasgow".to_string(),
-                current_location_id: "city:real:glasgow".to_string(),
-                nationalities: vec!["country:real:united_kingdom".to_string()],
-                citizenships: vec!["country:real:united_kingdom".to_string()],
+                birthplace_id: "city:real:abuja".to_string(),
+                nationality: "country:real:nigeria".to_string(),
+                culture: "Nigerian".to_string(),
+                primary_language: "English".to_string(),
             },
-            personality: PersonalityComponent::default(),
+            biology: BiologicalProfile {
+                is_alive: true,
+                death_year: None,
+                death_reason: None,
+                health_overall: 95.0,
+                fitness: 70.0,
+                energy_level: 85.0,
+                chronic_conditions: Vec::new(),
+            },
+            psychology: PsychologicalProfile {
+                discipline: 0.65,
+                curiosity: 0.80,
+                creativity: 0.70,
+                confidence: 0.60,
+                risk_tolerance: 0.50,
+                stress_level: 15.0,
+                resilience: 0.60,
+            },
+            reputation: otherlife_world::ReputationProfile::default(),
             skills: HashMap::new(),
-            interests: HashSet::new(),
-            goals: Vec::new(),
-            education: EducationComponent {
-                school_id: Some("school:real:glasgow_high".to_string()),
-                grade_level: 3,
-                academic_performance: 42.0,
-                attendance_rate: 88.0,
-                qualifications: Vec::new(),
-                degree_program: None,
+            resources: HumanResources {
+                cash: 50000.0,
+                household_wealth_tier: WealthTier::MiddleClass,
+                living_arrangement: "FAMILY_HOME".to_string(),
+                tools_available: vec!["BOOKS".to_string()],
             },
-            employment: otherlife_world::EmploymentComponent::default(),
-            housing: otherlife_world::HousingComponent::default(),
-            health: otherlife_world::HealthComponent::default(),
-            romance: otherlife_world::RomanceComponent::default(),
-            finances: FinancesComponent {
-                cash: 24.0,
-                monthly_allowance: 20.0,
-                household_income_tier: "MIDDLE".to_string(),
-                monthly_expenses: 0.0,
-            },
-            football_role: otherlife_world::FootballRole::None,
-            football_attributes: otherlife_world::FootballPlayerAttributes::default(),
-            football_contract: None,
-            owned_business_ids: Vec::new(),
-            political_party_id: None,
-            political_office_title: None,
-            active_campaign: None,
-            fame: otherlife_world::FameComponent::default(),
-            creative_releases: Vec::new(),
-            legal_status: otherlife_world::LegalStatus::Clean,
-            criminal_records: Vec::new(),
-            prison_sentence: None,
-            academic_degrees: Vec::new(),
-            research_projects: Vec::new(),
-            patents: Vec::new(),
-            belief: otherlife_world::BeliefComponent::default(),
-            founded_movements: Vec::new(),
-            passports: Vec::new(),
-            visas: Vec::new(),
-            travel_history: Vec::new(),
-            military_record: None,
-            medical_history: Vec::new(),
-            surgical_history: Vec::new(),
-            will_and_testament: None,
-            social_media_accounts: Vec::new(),
-            digital_posts: Vec::new(),
-            secret_memberships: Vec::new(),
-            space_missions: Vec::new(),
-            cybernetic_implants: Vec::new(),
-            mind_uploads: Vec::new(),
-            cosmic_megastructures: Vec::new(),
-            location_id: "city:real:glasgow".to_string(),
-            parent_ids: Vec::new(),
-            child_ids: Vec::new(),
-            active_roles: Vec::new(),
-            knowledge: HashSet::new(),
-            secrets: Vec::new(),
-            memories: Vec::new(),
+            relationships: HashMap::new(),
+            occupation: None,
+            is_player: true,
         };
 
-        let mut matrix = RelationshipMatrix::new();
-        matrix.set_link("person:sim:player".to_string(), "person:sim:mum".to_string(), RelationshipVector::default());
-
-        let events = vec![EventRecord {
+        let ev = EventRecord {
             id: "ev:1".to_string(),
-            timestamp: time.formatted(),
-            event_type: "DECEIVE".to_string(),
-            actor_id: "person:sim:player".to_string(),
-            target_id: Some("person:sim:mum".to_string()),
-            summary: "Lied about math study to attend football training.".to_string(),
-            metadata: serde_json::json!({}),
-            causality_parent_id: None,
-        }];
+            timestamp: time.literary_date(),
+            event_type: "EDUCATION_PRACTICE".to_string(),
+            actor_id: p.id.clone(),
+            location_id: "city:real:abuja".to_string(),
+            headline: "Study Session".to_string(),
+            narrative: "Completed mathematics coursework.".to_string(),
+            causality_note: "Consistent effort.".to_string(),
+            success: true,
+        };
 
-        db.save_world_state(&time, &rng, &[p.clone()], &matrix, &events).unwrap();
+        db.save_world_state(&time, &rng, &[p.clone()], &[ev.clone()]).unwrap();
+        let (loaded_time, loaded_rng, loaded_persons, loaded_events) = db.load_world_state().unwrap();
 
-        let (loaded_time, loaded_rng, loaded_persons, loaded_matrix, loaded_events) = db.load_world_state().unwrap();
-
-        assert_eq!(loaded_time.year, 2029);
-        assert_eq!(loaded_rng.seed, 42);
+        assert_eq!(loaded_time.year, 2025);
+        assert_eq!(loaded_rng.seed, 99);
         assert_eq!(loaded_persons.len(), 1);
-        assert_eq!(loaded_persons[0].identity.first_name, "James");
+        assert_eq!(loaded_persons[0].identity.first_name, "Israel");
         assert_eq!(loaded_events.len(), 1);
         assert_eq!(loaded_events[0].id, "ev:1");
     }
 }
+

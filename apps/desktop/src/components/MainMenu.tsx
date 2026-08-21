@@ -114,7 +114,7 @@ export const MainMenu: React.FC<MainMenuProps> = ({
               alignItems: 'center',
               justifyContent: 'center',
               gap: '10px',
-              backgroundColor: '#4F46E5',
+              backgroundColor: '#059669',
               color: '#FFFFFF',
               border: 'none',
               borderRadius: '8px',
@@ -122,7 +122,7 @@ export const MainMenu: React.FC<MainMenuProps> = ({
               fontSize: '15px',
               fontWeight: 700,
               cursor: 'pointer',
-              boxShadow: '0 4px 14px rgba(79, 70, 229, 0.4)',
+              boxShadow: '0 4px 14px rgba(5, 150, 105, 0.4)',
               transition: 'all 0.15s ease',
             }}
           >
