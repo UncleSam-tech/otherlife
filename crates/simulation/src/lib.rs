@@ -4150,6 +4150,49 @@ impl SimulationEngine {
                     causality_note = "Civic leadership expanded public reputation.".to_string();
                     days_to_advance = 14;
                 }
+                "apply_entry_job" => {
+                    let job = if player.location_id.contains("nigeria") {
+                        "Junior Operations Officer"
+                    } else if player.location_id.contains("glasgow") || player.location_id.contains("united_kingdom") {
+                        "Assistant Project Administrator"
+                    } else {
+                        "Associate Specialist"
+                    };
+                    let salary = if player.location_id.contains("nigeria") { 180000.0 } else { 2100.0 };
+                    let curr_sym = if player.location_id.contains("nigeria") { "₦" } else { "£" };
+
+                    if let Some(p) = self.persons.get_mut(&player_id) {
+                        p.employment.job_title = Some(job.to_string());
+                        p.employment.monthly_salary = salary;
+                    }
+                    narrative = format!("Your interview was successful! You were appointed as {} with a starting compensation of {}{:.0}/mo.", job, curr_sym, salary);
+                    causality_note = format!("Secured employment as {}.", job);
+                    days_to_advance = 14;
+                }
+                "work_shift" => {
+                    let job_name = player.employment.job_title.as_deref().unwrap_or("Employee");
+                    narrative = format!("You completed your professional shifts as {}, meeting deadlines and receiving praise from department managers.", job_name);
+                    causality_note = "Productive work performance bolstered professional reputation.".to_string();
+                    if let Some(p) = self.persons.get_mut(&player_id) {
+                        p.finances.cash += p.employment.monthly_salary / 4.0;
+                    }
+                    days_to_advance = 7;
+                }
+                "career_network" => {
+                    narrative = "You attended an industry mixer and exchanged ideas with senior practitioners, gaining valuable market insights.".to_string();
+                    causality_note = "Professional networking expanded peer respect.".to_string();
+                    self.reputation.peer_respect = (self.reputation.peer_respect + 0.08).min(1.0);
+                    days_to_advance = 7;
+                }
+                "vocational_apprenticeship" => {
+                    if let Some(p) = self.persons.get_mut(&player_id) {
+                        p.employment.job_title = Some("Certified Technical Apprentice".to_string());
+                        p.employment.monthly_salary = if player.location_id.contains("nigeria") { 95000.0 } else { 1400.0 };
+                    }
+                    narrative = "You enrolled in a recognized technical apprenticeship, training under master craftsmen.".to_string();
+                    causality_note = "Begun hands-on vocational trade qualification.".to_string();
+                    days_to_advance = 14;
+                }
                 _ => {
                     narrative = format!("You chose to: {}.", choice_id);
                     causality_note = "Situational choice executed.".to_string();
