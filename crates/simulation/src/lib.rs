@@ -961,35 +961,115 @@ impl SimulationEngine {
                 if input_lower.contains("study") || input_lower.contains("math") || input_lower.contains("exam") || input_lower.contains("waec") || input_lower.contains("jamb") || input_lower.contains("science") || input_lower.contains("higher") {
                     event_type = "SECONDARY_EXAM_PREPARATION".to_string();
                     let is_multi_week = input_lower.contains("four weeks") || input_lower.contains("4 weeks") || input_lower.contains("month") || input_lower.contains("every evening");
-                    days_to_advance = if is_multi_week { 28 } else { 7 };
+                    days_to_advance = if is_multi_week { 28 } else { 14 };
 
-                    let skill_gain = if is_multi_week { 8.0 } else { 3.0 };
+                    let skill_gain = if is_multi_week { 8.0 } else { 4.0 };
                     if let Some(p) = self.persons.get_mut(&player_id) {
                         let entry = p.skills.entry("arithmetic".to_string()).or_insert(SkillMastery { level: 30.0, experience: 0.0, natural_affinity: 1.1, last_practiced_day: self.time.total_days });
                         entry.level = (entry.level + skill_gain).min(100.0);
                         p.psychology.discipline = (p.psychology.discipline + 0.04).min(1.0);
                         p.biology.energy_level = (p.biology.energy_level - 10.0).max(30.0);
-                        p.reputation.academic_reputation = (p.reputation.academic_reputation + 5.0).min(100.0);
+                        p.reputation.academic_reputation = (p.reputation.academic_reputation + 6.0).min(100.0);
                     }
 
-                    if self.active_processes.iter().all(|p| p.process_type != ProcessType::SecondaryExamPreparation) {
-                        self.active_processes.push(LifeProcess {
-                            id: "proc:secondary_exam_prep".to_string(),
-                            person_id: player_id.clone(),
-                            process_type: ProcessType::SecondaryExamPreparation,
-                            title: "Final Secondary School Certificate Examination Preparation".to_string(),
-                            institution_id: Some("org:real:university".to_string()),
-                            current_step: 3,
-                            total_steps: 6,
-                            target_completion_day: self.time.total_days + 180,
-                            requirements_met: true,
-                            status: ProcessStatus::Active,
-                            payload: HashMap::new(),
-                        });
+                    // Check if ready for final examination sitting (Age >= 15 or repeated revision)
+                    if age >= 15 {
+                        // Conclude examination sitting and release official certificate grades
+                        if self.active_processes.iter().all(|p| p.process_type != ProcessType::SecondaryExamPreparation) {
+                            self.active_processes.push(LifeProcess {
+                                id: "proc:secondary_exam_prep".to_string(),
+                                person_id: player_id.clone(),
+                                process_type: ProcessType::SecondaryExamPreparation,
+                                title: "Final Senior Secondary Certificate Examinations (WAEC & JAMB)".to_string(),
+                                institution_id: Some("org:real:university".to_string()),
+                                current_step: 6,
+                                total_steps: 6,
+                                target_completion_day: self.time.total_days + 180,
+                                requirements_met: true,
+                                status: ProcessStatus::Succeeded,
+                                payload: HashMap::new(),
+                            });
+                        } else {
+                            for proc in self.active_processes.iter_mut() {
+                                if proc.process_type == ProcessType::SecondaryExamPreparation {
+                                    proc.status = ProcessStatus::Succeeded;
+                                    proc.current_step = proc.total_steps;
+                                }
+                            }
+                        }
+
+                        if self.active_opportunities.iter().all(|o| o.id != "opp:uni_admission_offer") {
+                            self.active_opportunities.push(OpportunityRecord {
+                                id: "opp:uni_admission_offer".to_string(),
+                                title: "Higher Education Undergraduate Admissions".to_string(),
+                                description: "Your outstanding WAEC / JAMB examination scores have unlocked university admissions.".to_string(),
+                                institution_id: Some("org:real:university".to_string()),
+                                discovered_day: self.time.total_days + days_to_advance as i64,
+                                expiry_day: self.time.total_days + 180,
+                                requirements_summary: "Official WAEC Certificate (7 Distinctions) & JAMB Score: 288".to_string(),
+                                is_claimed: false,
+                            });
+                        }
+
+                        if self.letters_inbox.iter().all(|l| l.id != "letter:exam_results") {
+                            self.letters_inbox.push(LetterNotification {
+                                id: "letter:exam_results".to_string(),
+                                sender_name: "National Examination Board & Admissions Registry".to_string(),
+                                date_received: self.time.literary_date(),
+                                subject: "Official Notification of Senior Secondary Certificate & University Eligibility".to_string(),
+                                body_text: "Congratulations. Your official examination results have been ratified with 7 Distinctions (A1 in Mathematics, English, Physics, Chemistry, Economics) and a JAMB UTME score of 288. You are eligible for early university matriculation.".to_string(),
+                                is_read: false,
+                            });
+                        }
+
+                        narrative = format!("You committed {} to intensive secondary examination revision, working through past chemistry and advanced mathematics question papers under the desk lamp. Your official WAEC results arrived with 7 Distinctions and an outstanding JAMB score of 288, opening university admissions.", if is_multi_week { "four rigorous weeks" } else { "the week" });
+                        causality_note = "Completed final secondary examinations with top honors, unlocking higher education matriculation.".to_string();
+                    } else {
+                        if self.active_processes.iter().all(|p| p.process_type != ProcessType::SecondaryExamPreparation) {
+                            self.active_processes.push(LifeProcess {
+                                id: "proc:secondary_exam_prep".to_string(),
+                                person_id: player_id.clone(),
+                                process_type: ProcessType::SecondaryExamPreparation,
+                                title: "Junior & Senior Secondary Examination Preparation".to_string(),
+                                institution_id: Some("org:real:university".to_string()),
+                                current_step: 3,
+                                total_steps: 6,
+                                target_completion_day: self.time.total_days + 180,
+                                requirements_met: true,
+                                status: ProcessStatus::Active,
+                                payload: HashMap::new(),
+                            });
+                        }
+
+                        narrative = format!("You committed {} to intensive secondary examination revision, working through past chemistry and advanced mathematics question papers under the desk lamp.", if is_multi_week { "four rigorous weeks" } else { "the week" });
+                        causality_note = "Deliberate secondary exam revision deepened academic mastery towards university admission requirements.".to_string();
+                    }
+                } else if input_lower.contains("pocket money") || input_lower.contains("allowance") {
+                    event_type = "ALLOWANCE_REQUEST".to_string();
+                    days_to_advance = 7;
+                    let allowance = 5000.0;
+
+                    if let Some(p) = self.persons.get_mut(&player_id) {
+                        p.resources.cash += allowance;
+                        p.psychology.stress_level = (p.psychology.stress_level - 10.0).max(0.0);
+                        if let Some(rel) = p.relationships.get_mut("person:sim:mother") {
+                            rel.affection = (rel.affection + 0.04).min(1.0);
+                        }
                     }
 
-                    narrative = format!("You committed {} to intensive secondary examination revision, working through past chemistry and advanced mathematics question papers under the desk lamp.", if is_multi_week { "four rigorous weeks" } else { "the week" });
-                    causality_note = "Deliberate secondary exam revision deepened academic mastery towards university admission requirements.".to_string();
+                    narrative = "You asked your parents for a pocket money allowance for school and personal expenses. They smiled warmly, handed you your allowance, and reminded you to save and budget diligently.".to_string();
+                    causality_note = "Received pocket money allowance to fund personal needs and savings.".to_string();
+                } else if input_lower.contains("romantic") || input_lower.contains("crush") || input_lower.contains("date") || input_lower.contains("partner") {
+                    event_type = "ADOLESCENT_ROMANCE".to_string();
+                    days_to_advance = 7;
+
+                    if let Some(p) = self.persons.get_mut(&player_id) {
+                        p.psychology.confidence = (p.psychology.confidence + 0.05).min(1.0);
+                        p.psychology.stress_level = (p.psychology.stress_level - 15.0).max(0.0);
+                    }
+
+                    narrative = "You spent a memorable afternoon together, sharing your favorite songs, laughing over street snacks, and talking about future dreams. A sweet and meaningful bond blossomed between you.".to_string();
+                    causality_note = "Cultivated a close romantic connection during formative youth.".to_string();
                 } else if input_lower.contains("football") || input_lower.contains("sports") || input_lower.contains("train") || input_lower.contains("coach") {
                     event_type = "ATHLETIC_DEVELOPMENT".to_string();
                     let is_regular = input_lower.contains("three times") || input_lower.contains("regularly") || input_lower.contains("week");

@@ -24,12 +24,14 @@ interface ContextPanelProps {
   state: LivingStateDTO | null;
   npcs: ContextNpcDTO[];
   processes: ContextProcessDTO[];
+  onSelectNpc?: (npc: ContextNpcDTO) => void;
 }
 
 export const ContextPanel: React.FC<ContextPanelProps> = ({
   state,
   npcs,
   processes,
+  onSelectNpc,
 }) => {
   if (!state) return null;
 
@@ -99,7 +101,7 @@ export const ContextPanel: React.FC<ContextPanelProps> = ({
 
         <div className="space-y-2.5">
           {npcs.map((npc) => (
-            <NPCDisplay key={npc.id} npc={npc} />
+            <NPCDisplay key={npc.id} npc={npc} onSelectNpc={onSelectNpc} />
           ))}
         </div>
       </div>

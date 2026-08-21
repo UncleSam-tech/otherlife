@@ -1,4 +1,5 @@
 import React from 'react';
+import { MessageCircle } from 'lucide-react';
 
 export interface ContextNpcDTO {
   id: string;
@@ -10,46 +11,39 @@ export interface ContextNpcDTO {
 
 interface NPCDisplayProps {
   npc: ContextNpcDTO;
+  onSelectNpc?: (npc: ContextNpcDTO) => void;
 }
 
-export const NPCDisplay: React.FC<NPCDisplayProps> = ({ npc }) => {
-  const formatHumanBond = (role: string, name: string) => {
+export const NPCDisplay: React.FC<NPCDisplayProps> = ({ npc, onSelectNpc }) => {
+  const formatHumanBond = (role: string, id: string) => {
     const roleLower = role.toLowerCase();
-    if (roleLower.includes('parent') || roleLower.includes('mother')) {
-      const n = name.toLowerCase();
-      return n.includes('sarah') || n.includes('fiona') || n.includes('elena') || n.includes('funke') || n.includes('amina') || n.includes('isobel')
-        ? 'Your Mother'
-        : 'Your Father';
+    const idLower = id.toLowerCase();
+    
+    if (idLower.includes('mother') || roleLower.includes('mother')) {
+      return 'Your Mother';
     }
-    if (roleLower.includes('teacher')) return 'Teacher & Mentor';
-    if (roleLower.includes('coach')) return 'Sports Coach & Scout';
+    if (idLower.includes('father') || roleLower.includes('father')) {
+      return 'Your Father';
+    }
+    if (roleLower.includes('teacher') || idLower.includes('teacher')) return 'Teacher & Mentor';
+    if (roleLower.includes('coach') || idLower.includes('coach')) return 'Sports Coach & Scout';
     if (roleLower.includes('friend') || roleLower.includes('classmate')) return 'Friend & Peer';
+    if (roleLower.includes('partner')) return 'Romantic Partner';
     return role;
   };
 
-  const getNpcPersonalityExcerpt = (name: string) => {
-    const n = name.toLowerCase();
-    if (n.includes('sarah') || n.includes('fiona') || n.includes('elena') || n.includes('funke') || n.includes('amina')) {
-      return 'Patient, nurturing, and attentive to family wellbeing.';
-    }
-    if (n.includes('david') || n.includes('callum') || n.includes('marcus') || n.includes('babajide') || n.includes('ibrahim')) {
-      return 'Disciplined, principled, and holds high standards.';
-    }
-    if (n.includes('adewale') || n.includes('macleod') || n.includes('hayes') || n.includes('bello')) {
-      return 'Inspirational mentor who encourages intellectual rigor.';
-    }
-    if (n.includes('ibrahim') || n.includes('gordon') || n.includes('miller') || n.includes('odegbami')) {
-      return 'Insists on physical stamina, tactical positioning, and discipline.';
-    }
-    return 'Lively companion sharing daily adventures.';
-  };
-
   return (
-    <div className="bg-[#121622] hover:bg-[#161c2b] border border-[#20273a] hover:border-[#2d3752] rounded-2xl p-4 space-y-2.5 transition-all duration-200 shadow-sm">
+    <div
+      onClick={() => onSelectNpc?.(npc)}
+      className="bg-[#121622] hover:bg-[#161c2b] border border-[#20273a] hover:border-amber-500/50 rounded-2xl p-4 space-y-2.5 transition-all duration-200 shadow-sm cursor-pointer group"
+    >
       <div className="flex justify-between items-baseline">
-        <h4 className="font-serif font-bold text-slate-100 text-sm tracking-tight">{npc.name}</h4>
+        <h4 className="font-serif font-bold text-slate-100 text-sm tracking-tight group-hover:text-amber-200 flex items-center gap-1.5">
+          <span>{npc.name}</span>
+          <MessageCircle className="w-3 h-3 text-slate-500 group-hover:text-amber-400 opacity-0 group-hover:opacity-100 transition-opacity" />
+        </h4>
         <span className="text-xs font-serif italic text-amber-300/90">
-          {formatHumanBond(npc.relationship_type, npc.name)}
+          {formatHumanBond(npc.relationship_type, npc.id)}
         </span>
       </div>
 
@@ -58,8 +52,9 @@ export const NPCDisplay: React.FC<NPCDisplayProps> = ({ npc }) => {
         {npc.current_activity}
       </p>
 
-      <div className="pt-2 border-t border-[#1c2234] text-xs text-slate-400 font-serif italic">
-        {getNpcPersonalityExcerpt(npc.name)}
+      <div className="pt-2 border-t border-[#1c2234] text-[11px] text-amber-400/80 font-serif italic flex justify-between items-center">
+        <span>Click to interact</span>
+        <span className="text-slate-500">{npc.trust_description}</span>
       </div>
     </div>
   );
