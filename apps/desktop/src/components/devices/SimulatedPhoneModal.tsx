@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { MessageSquare, PhoneCall, CreditCard, Send, ArrowLeft, ArrowRight, PhoneOff } from 'lucide-react';
 import { ContextNpcDTO } from '../characters/NPCDisplay';
+import { PhoneMessageDTO, StructuredGameplayAction } from '../../types/gameplay';
 
 interface SimulatedPhoneModalProps {
   onClose: () => void;
@@ -8,7 +9,9 @@ interface SimulatedPhoneModalProps {
   cash: number;
   currencySymbol: string;
   npcs: ContextNpcDTO[];
+  messages: PhoneMessageDTO[];
   onExecuteAction: (intent: string) => void;
+  onStructuredAction: (action: StructuredGameplayAction) => Promise<boolean>;
   isLoading: boolean;
 }
 
@@ -17,20 +20,14 @@ export const SimulatedPhoneModal: React.FC<SimulatedPhoneModalProps> = ({
   cash,
   currencySymbol,
   npcs,
+  messages,
   onExecuteAction,
+  onStructuredAction,
   isLoading,
 }) => {
   const [activeApp, setActiveApp] = useState<'home' | 'messages' | 'banking' | 'calls'>('home');
   const [selectedContact, setSelectedContact] = useState<ContextNpcDTO | null>(null);
   const [chatInput, setChatInput] = useState('');
-  const [threads, setThreads] = useState<Record<string, Array<{ sender: 'player' | 'npc'; text: string; time: string }>>>({
-    'person:sim:mother': [
-      { sender: 'npc', text: 'Please remember to take care of yourself today. Proud of your focus!', time: '8:30 AM' },
-    ],
-    'person:sim:father': [
-      { sender: 'npc', text: 'Let me know if you need any guidance with your plans.', time: 'Yesterday' },
-    ],
-  });
 
   // Call State
   const [callingContact, setCallingContact] = useState<ContextNpcDTO | null>(null);
@@ -70,22 +67,11 @@ export const SimulatedPhoneModal: React.FC<SimulatedPhoneModalProps> = ({
     setCallLog([]);
   };
 
-  const handleSendMessage = () => {
+  const handleSendMessage = async () => {
     if (!chatInput.trim() || !selectedContact || isLoading) return;
     const msg = chatInput.trim();
-    const contactId = selectedContact.id;
-
-    setThreads((prev) => ({
-      ...prev,
-      [contactId]: [
-        ...(prev[contactId] || []),
-        { sender: 'player', text: msg, time: 'Just now' },
-        { sender: 'npc', text: `Got your message. Always here if you need anything!`, time: 'Just now' },
-      ],
-    }));
-
-    onExecuteAction(`I send a mobile text message to ${selectedContact.name}: "${msg}"`);
-    setChatInput('');
+    const success = await onStructuredAction({ type: 'SEND_MESSAGE', recipientId: selectedContact.id, text: msg });
+    if (success) setChatInput('');
   };
 
   return (
@@ -164,6 +150,7 @@ export const SimulatedPhoneModal: React.FC<SimulatedPhoneModalProps> = ({
                 <div className="grid grid-cols-3 gap-3 text-center">
                   <button
                     type="button"
+                    aria-label={selectedContact ? 'Back to message threads' : 'Back to phone home'}
                     onClick={() => setActiveApp('messages')}
                     className="flex flex-col items-center gap-1.5 p-3 rounded-2xl bg-[#141926] hover:bg-[#1d2438] border border-[#222c42] transition-colors cursor-pointer"
                   >
@@ -222,23 +209,25 @@ export const SimulatedPhoneModal: React.FC<SimulatedPhoneModalProps> = ({
                 {selectedContact ? (
                   <div className="space-y-3 pt-1">
                     <div className="space-y-2 max-h-[300px] overflow-y-auto pr-1">
-                      {(threads[selectedContact.id] || []).map((msg, idx) => (
+                      {messages
+                        .filter((msg) => msg.sender_id === selectedContact.id || msg.recipient_id === selectedContact.id)
+                        .map((msg) => (
                         <div
-                          key={idx}
+                          key={msg.id}
                           className={`flex flex-col ${
-                            msg.sender === 'player' ? 'items-end' : 'items-start'
+                            msg.sender_id === 'person:sim:player' ? 'items-end' : 'items-start'
                           }`}
                         >
                           <div
                             className={`p-2.5 rounded-2xl text-xs font-serif leading-relaxed max-w-[85%] ${
-                              msg.sender === 'player'
+                              msg.sender_id === 'person:sim:player'
                                 ? 'bg-amber-600/30 text-amber-100 border border-amber-500/40'
                                 : 'bg-[#141926] text-slate-200 border border-[#222c42]'
                             }`}
                           >
                             {msg.text}
                           </div>
-                          <span className="text-[9px] text-slate-500 font-mono mt-0.5 px-1">{msg.time}</span>
+                          <span className="text-[9px] text-slate-500 font-mono mt-0.5 px-1">{msg.timestamp}</span>
                         </div>
                       ))}
                     </div>
@@ -253,6 +242,7 @@ export const SimulatedPhoneModal: React.FC<SimulatedPhoneModalProps> = ({
                       />
                       <button
                         type="button"
+                        aria-label={`Send message to ${selectedContact.name}`}
                         onClick={handleSendMessage}
                         disabled={!chatInput.trim() || isLoading}
                         className="p-2 bg-amber-500 text-slate-950 rounded-xl font-bold"
@@ -264,17 +254,18 @@ export const SimulatedPhoneModal: React.FC<SimulatedPhoneModalProps> = ({
                 ) : (
                   <div className="space-y-2">
                     {npcs.map((npc) => (
-                      <div
+                      <button
+                        type="button"
                         key={npc.id}
                         onClick={() => setSelectedContact(npc)}
-                        className="p-2.5 rounded-xl bg-[#141926] hover:bg-[#1d2438] border border-[#222c42] cursor-pointer flex justify-between items-center text-xs"
+                        className="w-full p-2.5 rounded-xl bg-[#141926] hover:bg-[#1d2438] border border-[#222c42] cursor-pointer flex justify-between items-center text-left text-xs"
                       >
                         <div>
                           <p className="font-serif font-bold text-slate-200">{npc.name}</p>
                           <p className="text-[10px] text-amber-400/80 font-serif">{npc.relationship_type}</p>
                         </div>
                         <ArrowRight className="w-3.5 h-3.5 text-slate-500" />
-                      </div>
+                      </button>
                     ))}
                   </div>
                 )}
@@ -317,17 +308,18 @@ export const SimulatedPhoneModal: React.FC<SimulatedPhoneModalProps> = ({
                 </div>
                 <div className="space-y-2">
                   {npcs.map((npc) => (
-                    <div
+                    <button
+                      type="button"
                       key={npc.id}
                       onClick={() => handleStartCall(npc)}
-                      className="p-2.5 rounded-xl bg-[#141926] hover:bg-[#1d2438] border border-[#222c42] cursor-pointer flex justify-between items-center text-xs group"
+                      className="w-full p-2.5 rounded-xl bg-[#141926] hover:bg-[#1d2438] border border-[#222c42] cursor-pointer flex justify-between items-center text-left text-xs group"
                     >
                       <div>
                         <p className="font-serif font-bold text-slate-200 group-hover:text-amber-200">{npc.name}</p>
                         <p className="text-[10px] text-amber-400/80 font-serif">{npc.relationship_type}</p>
                       </div>
                       <PhoneCall className="w-3.5 h-3.5 text-emerald-400 group-hover:scale-110 transition-transform" />
-                    </div>
+                    </button>
                   ))}
                 </div>
               </div>

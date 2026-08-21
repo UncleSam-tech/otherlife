@@ -216,3 +216,92 @@ fn test_playtest_defect_8_save_and_load_persistence_roundtrip() {
     let docs = restored_engine.get_documents();
     assert!(docs.iter().any(|d| d.title.contains("Kelechi Ventures Ltd")));
 }
+
+#[test]
+fn test_structured_phone_message_persists_without_skipping_a_day() {
+    let mut engine = SimulationEngine::new_game(NewLifeConfig {
+        starting_year: 2025,
+        starting_age: 20,
+        ..Default::default()
+    }, 109);
+    let initial_days = engine.time.total_days;
+    let initial_count = engine.get_phone_messages().len();
+
+    let result = engine.send_phone_message("person:sim:mother", "I will be home this evening.");
+    assert!(result.success);
+    assert_eq!(result.days_advanced, 0);
+    assert_eq!(engine.time.total_days, initial_days);
+    assert_eq!(engine.get_phone_messages().len(), initial_count + 1);
+
+    let restored = SimulationEngine::load_from_string(&engine.save_to_string().unwrap()).unwrap();
+    assert!(restored.get_phone_messages().iter().any(|message| message.text == "I will be home this evening."));
+}
+
+#[test]
+fn test_structured_job_application_creates_a_tracked_process_and_notice() {
+    let mut engine = SimulationEngine::new_game(NewLifeConfig {
+        starting_year: 2025,
+        starting_age: 22,
+        ..Default::default()
+    }, 110);
+
+    let result = engine.apply_for_job(
+        "job_dev",
+        "company:apex",
+        "Junior Software Engineer",
+        "Apex Digital Systems",
+    );
+    assert!(result.success);
+    assert_eq!(result.days_advanced, 0);
+    assert_eq!(result.hours_advanced, 1);
+    assert!(engine.active_processes.iter().any(|process| {
+        process.id == "proc:job:job_dev" && process.status == "APPLICATION_SUBMITTED"
+    }));
+    assert!(engine.letters_inbox.iter().any(|letter| letter.subject.contains("Application received")));
+
+    let duplicate = engine.apply_for_job(
+        "job_dev",
+        "company:apex",
+        "Junior Software Engineer",
+        "Apex Digital Systems",
+    );
+    assert!(!duplicate.success);
+}
+
+#[test]
+fn test_structured_travel_moves_the_player_and_creates_an_itinerary() {
+    let mut engine = SimulationEngine::new_game(NewLifeConfig {
+        starting_year: 2025,
+        starting_age: 25,
+        location_id: "city:real:lagos".to_string(),
+        ..Default::default()
+    }, 111);
+    let initial_cash = engine.get_player().resources.cash;
+
+    let result = engine.travel_to_location("city:real:abuja", "Intercity Bus", 7);
+    assert!(result.success);
+    assert_eq!(result.days_advanced, 0);
+    assert_eq!(result.hours_advanced, 10);
+    assert_eq!(engine.rule_pack.city_name, "Abuja");
+    assert!(engine.get_player().resources.cash < initial_cash);
+    assert!(engine.get_documents().iter().any(|document| {
+        document.document_type == "TRAVEL_TICKET"
+            && document.fields.get("Accommodation").map(String::as_str) == Some("7 night(s) reserved")
+    }));
+}
+
+#[test]
+fn test_birth_certificate_issue_date_is_not_before_birth() {
+    let engine = SimulationEngine::new_game(NewLifeConfig {
+        starting_year: 2025,
+        starting_age: 25,
+        birth_year: Some(2000),
+        birth_month: Some(9),
+        birth_day: Some(30),
+        ..Default::default()
+    }, 112);
+    let certificate = engine.get_documents().into_iter()
+        .find(|document| document.document_type == "BIRTH_CERTIFICATE")
+        .unwrap();
+    assert_eq!(certificate.issue_date, "2000-10-30");
+}

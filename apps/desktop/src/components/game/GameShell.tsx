@@ -10,12 +10,14 @@ import { SimulatedPhoneModal } from '../devices/SimulatedPhoneModal';
 import { SimulatedComputerModal } from '../devices/SimulatedComputerModal';
 import { DocumentViewerModal, DocumentDTO } from '../documents/DocumentViewerModal';
 import { DiegeticDeviceModal } from '../devices/DiegeticDeviceModal';
+import { TravelPlannerModal } from '../travel/TravelPlannerModal';
 import { MemoryTimeline } from '../context/MemoryTimeline';
 import { TodaySceneDTO, LastStepResultDTO } from '../world/SceneRenderer';
 import { ContextNpcDTO } from '../characters/NPCDisplay';
 import { ContextProcessDTO } from '../context/ProcessTracker';
 import { PlaceLocationDTO } from '../world/PlaceInteractionModal';
 import { LivingStateDTO } from '../context/ContextPanel';
+import { LetterNotificationDTO, PhoneMessageDTO, StructuredGameplayAction } from '../../types/gameplay';
 import { Feather, Mail, Globe, Send, FileText } from 'lucide-react';
 
 interface GameShellProps {
@@ -24,11 +26,14 @@ interface GameShellProps {
   lastStepResult: LastStepResultDTO | null;
   npcs: ContextNpcDTO[];
   documents: DocumentDTO[];
+  phoneMessages: PhoneMessageDTO[];
+  letters: LetterNotificationDTO[];
   processes?: ContextProcessDTO[];
   biographyText: string;
   activeLens: NavLens;
   onSelectLens: (lens: NavLens) => void;
   onSubmitIntent: (intentText: string) => void;
+  onStructuredAction: (action: StructuredGameplayAction) => Promise<boolean>;
   onAdvanceExplicit?: (actionType: 'HOURS' | 'DAYS' | 'SLEEP' | 'ROUTINE', amount?: number) => void;
   isLoading: boolean;
   onReturnToMainMenu: () => void;
@@ -42,11 +47,14 @@ export const GameShell: React.FC<GameShellProps> = ({
   lastStepResult,
   npcs,
   documents,
-  processes: _processes,
+  phoneMessages,
+  letters,
+  processes = [],
   biographyText,
   activeLens,
   onSelectLens,
   onSubmitIntent,
+  onStructuredAction,
   onAdvanceExplicit,
   isLoading,
   onReturnToMainMenu,
@@ -62,6 +70,7 @@ export const GameShell: React.FC<GameShellProps> = ({
   const [isPhoneOpen, setIsPhoneOpen] = useState(false);
   const [isComputerOpen, setIsComputerOpen] = useState(false);
   const [isDocumentsOpen, setIsDocumentsOpen] = useState(false);
+  const [isTravelOpen, setIsTravelOpen] = useState(false);
   const [activeDeviceType, setActiveDeviceType] = useState<'phone' | 'computer' | 'wallet' | 'documents' | 'mail' | null>(null);
 
   const getPlacesForAge = (): PlaceLocationDTO[] => {
@@ -152,6 +161,15 @@ export const GameShell: React.FC<GameShellProps> = ({
             { id: 'apply_jobs', title: 'Apply for Professional Career Listings', desc: 'Submit CV for corporate and engineering roles.', intent: 'I submit formal applications for open professional positions aligned with my qualifications.' },
           ],
         },
+        {
+          id: 'place_travel',
+          name: 'Transport Terminal & Travel Desk',
+          category: 'Travel & Accommodation',
+          desc: 'Compare transport, pay a fare, reserve a stay, receive an itinerary, and move to another city.',
+          actions: [
+            { id: 'book_travel', title: 'Plan a Journey', desc: 'Choose a city, transport, and length of stay.', intent: 'Open the structured travel planner.' },
+          ],
+        },
       ];
     }
   };
@@ -239,10 +257,11 @@ export const GameShell: React.FC<GameShellProps> = ({
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {npcs.map((npc) => (
-                <div
+                <button
+                  type="button"
                   key={npc.id}
                   onClick={() => setDrawerItem({ type: 'npc', data: npc })}
-                  className="bg-[#0d1017] hover:bg-[#131722] border border-[#1b2234] hover:border-amber-500/50 p-5 rounded-2xl cursor-pointer space-y-2.5 transition-all shadow-sm group"
+                  className="w-full bg-[#0d1017] hover:bg-[#131722] border border-[#1b2234] hover:border-amber-500/50 p-5 rounded-2xl cursor-pointer space-y-2.5 text-left transition-all shadow-sm group"
                 >
                   <div className="flex justify-between items-baseline">
                     <h4 className="font-serif font-bold text-slate-100 text-base group-hover:text-amber-200">{npc.name}</h4>
@@ -256,7 +275,7 @@ export const GameShell: React.FC<GameShellProps> = ({
                     <span>Click to inspect & converse</span>
                     <span className="text-slate-500">{npc.trust_description}</span>
                   </div>
-                </div>
+                </button>
               ))}
             </div>
           </main>
@@ -273,10 +292,14 @@ export const GameShell: React.FC<GameShellProps> = ({
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {currentPlaces.map((pl) => (
-                <div
+                <button
+                  type="button"
                   key={pl.id}
-                  onClick={() => setDrawerItem({ type: 'place', data: pl })}
-                  className="bg-[#0d1017] hover:bg-[#131722] border border-[#1b2234] hover:border-amber-500/50 p-5 rounded-2xl cursor-pointer space-y-2.5 transition-all shadow-sm group"
+                  onClick={() => {
+                    if (pl.id === 'place_travel') setIsTravelOpen(true);
+                    else setDrawerItem({ type: 'place', data: pl });
+                  }}
+                  className="w-full bg-[#0d1017] hover:bg-[#131722] border border-[#1b2234] hover:border-amber-500/50 p-5 rounded-2xl cursor-pointer space-y-2.5 text-left transition-all shadow-sm group"
                 >
                   <div className="flex items-center justify-between">
                     <h3 className="font-serif font-bold text-slate-100 text-base group-hover:text-amber-200">{pl.name}</h3>
@@ -287,7 +310,7 @@ export const GameShell: React.FC<GameShellProps> = ({
                   <div className="pt-2 border-t border-[#1c2234] text-[11px] text-amber-400/80 font-serif italic">
                     Click to visit ({pl.actions.length} actions available)
                   </div>
-                </div>
+                </button>
               ))}
             </div>
           </main>
@@ -338,11 +361,24 @@ export const GameShell: React.FC<GameShellProps> = ({
               </button>
             </div>
             <div className="space-y-4">
+              {letters.map((letter) => (
+                <article key={letter.id} className="rounded-2xl border border-blue-500/25 bg-blue-500/5 p-6 space-y-3">
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <p className="text-[10px] font-mono uppercase text-blue-300">Official notice from {letter.sender}</p>
+                      <h3 className="mt-1 font-serif font-bold text-slate-100">{letter.subject}</h3>
+                    </div>
+                    <span className="text-[10px] font-mono text-slate-500">{letter.date_received}</span>
+                  </div>
+                  <p className="text-xs font-serif leading-relaxed text-slate-300">{letter.body}</p>
+                </article>
+              ))}
               {documents.map((doc) => (
-                <div
+                <button
+                  type="button"
                   key={doc.id}
                   onClick={() => setIsDocumentsOpen(true)}
-                  className="bg-[#0d1017] hover:bg-[#131722] border border-[#1b2234] hover:border-amber-500/40 rounded-2xl p-6 space-y-3 shadow-sm cursor-pointer transition-colors"
+                  className="w-full bg-[#0d1017] hover:bg-[#131722] border border-[#1b2234] hover:border-amber-500/40 rounded-2xl p-6 space-y-3 text-left shadow-sm cursor-pointer transition-colors"
                 >
                   <div className="flex justify-between items-start">
                     <div>
@@ -356,7 +392,7 @@ export const GameShell: React.FC<GameShellProps> = ({
                   <p className="text-xs text-slate-300 font-serif leading-relaxed italic">
                     Click to view full verified registry record issued on {doc.issue_date}.
                   </p>
-                </div>
+                </button>
               ))}
             </div>
           </main>
@@ -385,6 +421,32 @@ export const GameShell: React.FC<GameShellProps> = ({
                 </p>
               </div>
             </div>
+            <section className="rounded-2xl border border-[#1b2234] bg-[#0d1017] p-5 space-y-4">
+              <div>
+                <p className="text-xs font-mono uppercase tracking-wider text-slate-500">Active Processes</p>
+                <p className="mt-1 text-xs font-serif text-slate-300">Applications, registrations, journeys, and other multi-step commitments persist here.</p>
+              </div>
+              {processes.length === 0 ? (
+                <p className="rounded-xl border border-dashed border-[#27304a] p-4 text-xs text-slate-500">No tracked process has started yet.</p>
+              ) : (
+                <div className="space-y-3">
+                  {processes.map((process) => (
+                    <div key={process.id} className="rounded-xl border border-[#27304a] bg-[#121622] p-4 space-y-2">
+                      <div className="flex items-start justify-between gap-4">
+                        <div>
+                          <p className="font-serif text-sm font-bold text-slate-100">{process.title}</p>
+                          <p className="mt-1 text-[10px] font-mono text-amber-300">{process.status.replace(/_/g, ' ')}</p>
+                        </div>
+                        <span className="text-xs text-slate-400">{process.current_step}/{process.total_steps}</span>
+                      </div>
+                      <div className="h-1.5 overflow-hidden rounded-full bg-[#07090e]">
+                        <div className="h-full rounded-full bg-amber-400" style={{ width: `${process.progress_percent}%` }} />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </section>
           </main>
         )}
       </div>
@@ -428,7 +490,9 @@ export const GameShell: React.FC<GameShellProps> = ({
           cash={livingState?.cash || 0}
           currencySymbol={livingState?.currency_symbol || '₦'}
           npcs={npcs}
+          messages={phoneMessages}
           onExecuteAction={onSubmitIntent}
+          onStructuredAction={onStructuredAction}
           isLoading={isLoading}
         />
       )}
@@ -440,6 +504,7 @@ export const GameShell: React.FC<GameShellProps> = ({
           playerAge={playerAge}
           currencySymbol={livingState?.currency_symbol || '₦'}
           onExecuteAction={onSubmitIntent}
+          onStructuredAction={onStructuredAction}
           isLoading={isLoading}
         />
       )}
@@ -449,6 +514,16 @@ export const GameShell: React.FC<GameShellProps> = ({
         <DocumentViewerModal
           documents={documents}
           onClose={() => setIsDocumentsOpen(false)}
+        />
+      )}
+
+      {isTravelOpen && (
+        <TravelPlannerModal
+          currentLocation={livingState?.location_formatted || 'Current location'}
+          currencySymbol={livingState?.currency_symbol || '₦'}
+          isLoading={isLoading}
+          onClose={() => setIsTravelOpen(false)}
+          onStructuredAction={onStructuredAction}
         />
       )}
 

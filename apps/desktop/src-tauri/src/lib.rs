@@ -52,6 +52,8 @@ fn read_json_data(base: &Path, rel: &str) -> serde_json::Value {
         .unwrap()
         .parent()
         .unwrap()
+        .parent()
+        .unwrap()
         .join(rel);
 
     if dev_path.exists() {
@@ -72,6 +74,24 @@ fn get_saves_dir(app: &AppHandle) -> PathBuf {
     saves_dir
 }
 
+fn autosave_engine(app: &AppHandle, engine: &SimulationEngine) {
+    let saves_dir = get_saves_dir(app);
+    if let Ok(json_str) = engine.save_to_string() {
+        fs::write(saves_dir.join("autosave.json"), json_str).ok();
+        let meta = SaveMetadataDTO {
+            id: "autosave".to_string(),
+            filename: "autosave.json".to_string(),
+            player_name: engine.get_player().identity.full_name(),
+            age: engine.get_player_age(),
+            location: engine.rule_pack.city_name.clone(),
+            timestamp: engine.time.literary_date(),
+        };
+        if let Ok(meta_json) = serde_json::to_string(&meta) {
+            fs::write(saves_dir.join("autosave_meta.json"), meta_json).ok();
+        }
+    }
+}
+
 pub mod commands {
     use super::*;
 
@@ -82,11 +102,11 @@ pub mod commands {
         RegistriesDTO {
             countries: read_json_data(&resource_dir, "real_world_data/geography/countries.json"),
             locations: read_json_data(&resource_dir, "real_world_data/geography/cities.json"),
-            skills: read_json_data(&resource_dir, "real_world_data/human/skills.json"),
-            traits: read_json_data(&resource_dir, "real_world_data/human/traits.json"),
-            interests: read_json_data(&resource_dir, "real_world_data/human/interests.json"),
-            goals: read_json_data(&resource_dir, "real_world_data/human/goals.json"),
-            clubs: read_json_data(&resource_dir, "real_world_data/sports/football_clubs.json"),
+            skills: read_json_data(&resource_dir, "real_world_data/registries/skills.json"),
+            traits: read_json_data(&resource_dir, "real_world_data/registries/traits.json"),
+            interests: read_json_data(&resource_dir, "real_world_data/registries/interests.json"),
+            goals: read_json_data(&resource_dir, "real_world_data/registries/goals.json"),
+            clubs: read_json_data(&resource_dir, "real_world_data/football/clubs.json"),
             parties: read_json_data(&resource_dir, "real_world_data/politics/parties.json"),
             universities: read_json_data(&resource_dir, "real_world_data/education/universities.json"),
             companies: read_json_data(&resource_dir, "real_world_data/companies/corporations.json"),
@@ -234,6 +254,69 @@ pub mod commands {
     }
 
     #[tauri::command]
+    pub fn get_phone_messages(state: State<'_, AppState>) -> Vec<otherlife_world::PhoneMessage> {
+        let engine = state.engine.lock().unwrap();
+        engine.get_phone_messages()
+    }
+
+    #[tauri::command]
+    pub fn send_phone_message(
+        app: AppHandle,
+        state: State<'_, AppState>,
+        recipient_id: String,
+        text: String,
+    ) -> (LivingStateDTO, LivingStepResultDTO, TodaySceneDTO, Vec<ContextNpcDTO>, Vec<ContextProcessDTO>) {
+        let mut engine = state.engine.lock().unwrap();
+        let step_res = engine.send_phone_message(&recipient_id, &text);
+        autosave_engine(&app, &engine);
+        (engine.get_living_state(), step_res, engine.generate_today_scene(), engine.get_surrounding_npcs(), engine.get_active_processes())
+    }
+
+    #[tauri::command]
+    pub fn apply_for_job(
+        app: AppHandle,
+        state: State<'_, AppState>,
+        job_id: String,
+        company_id: String,
+        title: String,
+        company_name: String,
+    ) -> (LivingStateDTO, LivingStepResultDTO, TodaySceneDTO, Vec<ContextNpcDTO>, Vec<ContextProcessDTO>) {
+        let mut engine = state.engine.lock().unwrap();
+        let step_res = engine.apply_for_job(&job_id, &company_id, &title, &company_name);
+        autosave_engine(&app, &engine);
+        (engine.get_living_state(), step_res, engine.generate_today_scene(), engine.get_surrounding_npcs(), engine.get_active_processes())
+    }
+
+    #[tauri::command]
+    pub fn register_company(
+        app: AppHandle,
+        state: State<'_, AppState>,
+        name: String,
+        structure: String,
+        partners: Vec<String>,
+        authorized_capital: f64,
+    ) -> (LivingStateDTO, LivingStepResultDTO, TodaySceneDTO, Vec<ContextNpcDTO>, Vec<ContextProcessDTO>) {
+        let mut engine = state.engine.lock().unwrap();
+        let step_res = engine.register_company(&name, &structure, &partners, authorized_capital);
+        autosave_engine(&app, &engine);
+        (engine.get_living_state(), step_res, engine.generate_today_scene(), engine.get_surrounding_npcs(), engine.get_active_processes())
+    }
+
+    #[tauri::command]
+    pub fn travel_to_location(
+        app: AppHandle,
+        state: State<'_, AppState>,
+        destination_city_id: String,
+        transport_mode: String,
+        stay_days: u32,
+    ) -> (LivingStateDTO, LivingStepResultDTO, TodaySceneDTO, Vec<ContextNpcDTO>, Vec<ContextProcessDTO>) {
+        let mut engine = state.engine.lock().unwrap();
+        let step_res = engine.travel_to_location(&destination_city_id, &transport_mode, stay_days);
+        autosave_engine(&app, &engine);
+        (engine.get_living_state(), step_res, engine.generate_today_scene(), engine.get_surrounding_npcs(), engine.get_active_processes())
+    }
+
+    #[tauri::command]
     pub fn save_game(app: AppHandle, state: State<'_, AppState>, slot_name: Option<String>) -> bool {
         let engine = state.engine.lock().unwrap();
         let saves_dir = get_saves_dir(&app);
@@ -364,6 +447,11 @@ pub fn run() {
             commands::get_biography,
             commands::get_documents,
             commands::get_letters_inbox,
+            commands::get_phone_messages,
+            commands::send_phone_message,
+            commands::apply_for_job,
+            commands::register_company,
+            commands::travel_to_location,
             commands::save_game,
             commands::load_game,
             commands::continue_recent_save,

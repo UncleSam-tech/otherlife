@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
 import { Laptop, Globe, Terminal, Briefcase, Building2, X, ArrowLeft, CheckCircle } from 'lucide-react';
+import { StructuredGameplayAction } from '../../types/gameplay';
 
 interface SimulatedComputerModalProps {
   onClose: () => void;
   playerAge?: number;
   currencySymbol: string;
   onExecuteAction: (intent: string) => void;
+  onStructuredAction: (action: StructuredGameplayAction) => Promise<boolean>;
   isLoading: boolean;
 }
 
@@ -13,6 +15,7 @@ export const SimulatedComputerModal: React.FC<SimulatedComputerModalProps> = ({
   onClose,
   currencySymbol,
   onExecuteAction,
+  onStructuredAction,
   isLoading,
 }) => {
   const [activeWindow, setActiveWindow] = useState<'desktop' | 'jobs' | 'incorporation' | 'code' | 'research'>('desktop');
@@ -21,14 +24,20 @@ export const SimulatedComputerModal: React.FC<SimulatedComputerModalProps> = ({
   const [companyName, setCompanyName] = useState('');
   const [structure, setStructure] = useState('Limited Liability Company (LLC)');
   const [capital, setCapital] = useState('1,000,000');
+  const [partners, setPartners] = useState('');
 
-  const handleRegisterCompany = (e: React.FormEvent) => {
+  const handleRegisterCompany = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!companyName.trim() || isLoading) return;
-    onExecuteAction(
-      `I formally incorporate a new company named "${companyName.trim()}" as a ${structure} with authorized capital of ${currencySymbol}${capital}.`
-    );
-    onClose();
+    const numericCapital = Number(capital.replace(/,/g, ''));
+    const success = await onStructuredAction({
+      type: 'REGISTER_COMPANY',
+      name: companyName.trim(),
+      structure,
+      partners: partners.split(',').map((name) => name.trim()).filter(Boolean),
+      authorizedCapital: Number.isFinite(numericCapital) ? numericCapital : 0,
+    });
+    if (success) onClose();
   };
 
   const jobListings = [
@@ -158,9 +167,15 @@ export const SimulatedComputerModal: React.FC<SimulatedComputerModalProps> = ({
                     </div>
                     <button
                       type="button"
-                      onClick={() => {
-                        onExecuteAction(`I submit a formal job application for the ${job.title} position at ${job.company}.`);
-                        onClose();
+                      onClick={async () => {
+                        const success = await onStructuredAction({
+                          type: 'APPLY_FOR_JOB',
+                          jobId: job.id,
+                          companyId: `company:${job.id}`,
+                          title: job.title,
+                          companyName: job.company,
+                        });
+                        if (success) onClose();
                       }}
                       disabled={isLoading}
                       className="bg-emerald-600 hover:bg-emerald-500 text-slate-950 px-3 py-1.5 rounded-xl font-serif font-bold text-xs transition-colors cursor-pointer"
@@ -196,6 +211,17 @@ export const SimulatedComputerModal: React.FC<SimulatedComputerModalProps> = ({
                     onChange={(e) => setCompanyName(e.target.value)}
                     placeholder="e.g. Apex Frontier Technologies Ltd"
                     required
+                    className="w-full bg-[#121622] border border-[#20273a] rounded-xl px-3 py-2 text-slate-100 focus:outline-none focus:border-amber-500/60"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-slate-400 font-serif mb-1">Partners / Co-founders (optional)</label>
+                  <input
+                    type="text"
+                    value={partners}
+                    onChange={(e) => setPartners(e.target.value)}
+                    placeholder="Comma-separated full names"
                     className="w-full bg-[#121622] border border-[#20273a] rounded-xl px-3 py-2 text-slate-100 focus:outline-none focus:border-amber-500/60"
                   />
                 </div>

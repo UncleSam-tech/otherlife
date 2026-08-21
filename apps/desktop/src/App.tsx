@@ -9,6 +9,7 @@ import { ContextProcessDTO } from './components/context/ProcessTracker';
 import { DocumentDTO } from './components/documents/DocumentViewerModal';
 import { NavLens } from './components/navigation/LifeNavigation';
 import { NewLifeCreatorConfig } from './components/creation/LifeCreator';
+import { LetterNotificationDTO, PhoneMessageDTO, StructuredGameplayAction } from './types/gameplay';
 import './styles/globals.css';
 
 export type AppMode = 'BOOTING' | 'MAIN_MENU' | 'PLAYING';
@@ -35,6 +36,8 @@ export const App: React.FC = () => {
   const [npcs, setNpcs] = useState<ContextNpcDTO[]>([]);
   const [processes, setProcesses] = useState<ContextProcessDTO[]>([]);
   const [documents, setDocuments] = useState<DocumentDTO[]>([]);
+  const [phoneMessages, setPhoneMessages] = useState<PhoneMessageDTO[]>([]);
+  const [letters, setLetters] = useState<LetterNotificationDTO[]>([]);
   const [lastStepResult, setLastStepResult] = useState<LastStepResultDTO | null>(null);
   const [biographyText, setBiographyText] = useState<string>('');
 
@@ -51,6 +54,29 @@ export const App: React.FC = () => {
   const refreshDocuments = async () => {
     const docs = await callTauriCommand<DocumentDTO[]>('get_documents');
     if (docs) setDocuments(docs);
+  };
+
+  const refreshPhoneMessages = async () => {
+    const messages = await callTauriCommand<PhoneMessageDTO[]>('get_phone_messages');
+    if (messages) setPhoneMessages(messages);
+  };
+
+  const refreshLetters = async () => {
+    const inbox = await callTauriCommand<LetterNotificationDTO[]>('get_letters_inbox');
+    if (inbox) setLetters(inbox);
+  };
+
+  const applyTurnResult = async (
+    res: [LivingStateDTO, LastStepResultDTO, TodaySceneDTO, ContextNpcDTO[], ContextProcessDTO[]] | null
+  ) => {
+    if (!res) return false;
+    setLivingState(res[0]);
+    setLastStepResult(res[1]);
+    setTodayScene(res[2]);
+    setNpcs(res[3]);
+    setProcesses(res[4]);
+    await Promise.all([refreshBiography(), refreshDocuments(), refreshPhoneMessages(), refreshLetters(), refreshSavesList()]);
+    return res[1].success;
   };
 
   useEffect(() => {
@@ -92,6 +118,8 @@ export const App: React.FC = () => {
       setLastStepResult(null);
       await refreshBiography();
       await refreshDocuments();
+      await refreshPhoneMessages();
+      await refreshLetters();
       await refreshSavesList();
       setAppMode('PLAYING');
       setActiveLens('life');
@@ -113,6 +141,8 @@ export const App: React.FC = () => {
       setLastStepResult(null);
       await refreshBiography();
       await refreshDocuments();
+      await refreshPhoneMessages();
+      await refreshLetters();
       setAppMode('PLAYING');
       setActiveLens('life');
     } else {
@@ -137,6 +167,8 @@ export const App: React.FC = () => {
       setLastStepResult(null);
       await refreshBiography();
       await refreshDocuments();
+      await refreshPhoneMessages();
+      await refreshLetters();
       setAppMode('PLAYING');
       setActiveLens('life');
     }
@@ -187,6 +219,57 @@ export const App: React.FC = () => {
     setIsLoading(false);
   };
 
+  const handleStructuredAction = async (action: StructuredGameplayAction): Promise<boolean> => {
+    if (isLoading) return false;
+    setIsLoading(true);
+
+    let command = '';
+    let args: Record<string, unknown> = {};
+    switch (action.type) {
+      case 'SEND_MESSAGE':
+        command = 'send_phone_message';
+        args = { recipientId: action.recipientId, text: action.text };
+        break;
+      case 'APPLY_FOR_JOB':
+        command = 'apply_for_job';
+        args = {
+          jobId: action.jobId,
+          companyId: action.companyId,
+          title: action.title,
+          companyName: action.companyName,
+        };
+        break;
+      case 'REGISTER_COMPANY':
+        command = 'register_company';
+        args = {
+          name: action.name,
+          structure: action.structure,
+          partners: action.partners,
+          authorizedCapital: action.authorizedCapital,
+        };
+        break;
+      case 'TRAVEL':
+        command = 'travel_to_location';
+        args = {
+          destinationCityId: action.destinationCityId,
+          transportMode: action.transportMode,
+          stayDays: action.stayDays,
+        };
+        break;
+    }
+
+    const res = await callTauriCommand<[
+      LivingStateDTO,
+      LastStepResultDTO,
+      TodaySceneDTO,
+      ContextNpcDTO[],
+      ContextProcessDTO[],
+    ]>(command, args);
+    const success = await applyTurnResult(res);
+    setIsLoading(false);
+    return success;
+  };
+
   if (appMode === 'BOOTING') {
     return (
       <div className="flex items-center justify-center h-screen bg-[#07090e] text-amber-200 font-serif select-none">
@@ -219,11 +302,14 @@ export const App: React.FC = () => {
         lastStepResult={lastStepResult}
         npcs={npcs}
         documents={documents}
+        phoneMessages={phoneMessages}
+        letters={letters}
         processes={processes}
         biographyText={biographyText}
         activeLens={activeLens}
         onSelectLens={setActiveLens}
         onSubmitIntent={handleSubmitIntent}
+        onStructuredAction={handleStructuredAction}
         onAdvanceExplicit={handleAdvanceExplicit}
         isLoading={isLoading}
         onReturnToMainMenu={async () => {

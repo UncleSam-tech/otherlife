@@ -436,11 +436,12 @@ impl SimulationEngine {
         birth_fields.insert("Status".to_string(), "OFFICIALLY_REGISTERED".to_string());
         birth_fields.insert("Registration Status".to_string(), "OFFICIALLY_REGISTERED".to_string());
 
+        let registration_month = if birth_month == 12 { 12 } else { birth_month + 1 };
         documents.insert(birth_cert_id.clone(), DocumentRecord {
             id: birth_cert_id,
             title: "Official Certificate of Birth".to_string(),
             document_type: "BIRTH_CERTIFICATE".to_string(),
-            issue_date: format!("{}-06-15", birth_year),
+            issue_date: format!("{}-{:02}-{:02}", birth_year, registration_month, birth_day),
             issuing_authority,
             registration_number: reg_number,
             fields: birth_fields,
@@ -462,6 +463,8 @@ impl SimulationEngine {
             success: true,
         });
 
+        let initial_message_timestamp = time.literary_date();
+
         Self {
             time,
             rng,
@@ -473,7 +476,28 @@ impl SimulationEngine {
             active_processes: Vec::new(),
             letters_inbox: Vec::new(),
             documents,
-            phone_messages: Vec::new(),
+            phone_messages: vec![
+                PhoneMessage {
+                    id: "message:mother:welcome".to_string(),
+                    sender_id: "person:sim:mother".to_string(),
+                    sender_name: format!("{} {}", mother_first, last_name),
+                    recipient_id: player_id.clone(),
+                    text: "Please remember to take care of yourself today. I am proud of you.".to_string(),
+                    timestamp: initial_message_timestamp.clone(),
+                    is_read: false,
+                    is_delivered: true,
+                },
+                PhoneMessage {
+                    id: "message:father:welcome".to_string(),
+                    sender_id: "person:sim:father".to_string(),
+                    sender_name: format!("{} {}", father_first, last_name),
+                    recipient_id: player_id.clone(),
+                    text: "Let me know if you need any guidance with your plans.".to_string(),
+                    timestamp: initial_message_timestamp,
+                    is_read: false,
+                    is_delivered: true,
+                },
+            ],
             active_call: None,
             events_ledger,
             rule_pack,
@@ -1170,11 +1194,155 @@ impl SimulationEngine {
         }
     }
 
+    pub fn send_phone_message(&mut self, recipient_id: &str, text: &str) -> StepResolutionDTO {
+        let trimmed = text.trim();
+        if trimmed.is_empty() {
+            return StepResolutionDTO {
+                success: false,
+                days_advanced: 0,
+                hours_advanced: 0,
+                headline: "Message Not Sent".to_string(),
+                narrative: "Write a message before pressing send.".to_string(),
+                causality_note: "Empty messages are not stored.".to_string(),
+                milestone_achieved: None,
+                world_consequences: vec![],
+                financial_delta: 0.0,
+            };
+        }
+
+        let recipient_name = self.npcs.get(recipient_id)
+            .map(|npc| npc.base.identity.full_name())
+            .unwrap_or_else(|| "Unknown contact".to_string());
+        if recipient_name == "Unknown contact" {
+            return StepResolutionDTO {
+                success: false,
+                days_advanced: 0,
+                hours_advanced: 0,
+                headline: "Contact Unavailable".to_string(),
+                narrative: "That person is not in your saved contacts.".to_string(),
+                causality_note: "Recipient ID did not resolve to a known person.".to_string(),
+                milestone_achieved: None,
+                world_consequences: vec![],
+                financial_delta: 0.0,
+            };
+        }
+
+        let message = PhoneMessage {
+            id: format!("message:{}", self.phone_messages.len() + 1),
+            sender_id: "person:sim:player".to_string(),
+            sender_name: self.get_player().identity.full_name(),
+            recipient_id: recipient_id.to_string(),
+            text: trimmed.to_string(),
+            timestamp: self.time.literary_date(),
+            is_read: true,
+            is_delivered: true,
+        };
+        self.phone_messages.push(message);
+
+        let headline = format!("Message Sent to {}", recipient_name);
+        let narrative = format!("Your message to {} was delivered and saved in the conversation history.", recipient_name);
+        self.record_event("PHONE_MESSAGE", &headline, &narrative, "Stored a delivered phone message without advancing a full day.", true);
+
+        StepResolutionDTO {
+            success: true,
+            days_advanced: 0,
+            hours_advanced: 0,
+            headline,
+            narrative,
+            causality_note: "Message persisted in the local simulation save.".to_string(),
+            milestone_achieved: None,
+            world_consequences: vec!["Conversation history updated".to_string()],
+            financial_delta: 0.0,
+        }
+    }
+
+    pub fn apply_for_job(&mut self, job_id: &str, company_id: &str, title: &str, company_name: &str) -> StepResolutionDTO {
+        let process_id = format!("proc:job:{}", job_id);
+        if self.active_processes.iter().any(|process| process.id == process_id) {
+            return StepResolutionDTO {
+                success: false,
+                days_advanced: 0,
+                hours_advanced: 0,
+                headline: "Application Already Submitted".to_string(),
+                narrative: format!("Your application for {} at {} is already being tracked.", title, company_name),
+                causality_note: "Duplicate job applications are prevented.".to_string(),
+                milestone_achieved: None,
+                world_consequences: vec![],
+                financial_delta: 0.0,
+            };
+        }
+
+        self.time.advance_hours(1);
+        self.active_processes.push(LifeProcess {
+            id: process_id,
+            process_type: ProcessType::JobApplication,
+            title: format!("{} — {}", title, company_name),
+            target_institution_id: Some(company_id.to_string()),
+            current_step: 1,
+            total_steps: 4,
+            progress_percent: 25,
+            status: "APPLICATION_SUBMITTED".to_string(),
+            missing_requirements: vec!["Await employer screening".to_string()],
+            next_appointment_day: Some(self.time.total_days + 3),
+        });
+        self.letters_inbox.push(LetterNotification {
+            id: format!("letter:job:{}", job_id),
+            sender: company_name.to_string(),
+            subject: format!("Application received — {}", title),
+            body: format!("We received your application for {}. The next stage is employer screening; expect an update within three days.", title),
+            is_read: false,
+            date_received: self.time.literary_date(),
+        });
+
+        let headline = format!("Application Submitted: {}", title);
+        let narrative = format!("You completed and submitted a formal application to {}. A tracked four-stage hiring process now appears in your active processes.", company_name);
+        self.record_event("JOB_APPLICATION", &headline, &narrative, "Created a durable hiring process and confirmation notice.", true);
+
+        StepResolutionDTO {
+            success: true,
+            days_advanced: 0,
+            hours_advanced: 1,
+            headline,
+            narrative,
+            causality_note: "Application, screening status, and employer acknowledgement persisted.".to_string(),
+            milestone_achieved: Some("Entered a hiring process".to_string()),
+            world_consequences: vec!["Employer screening scheduled".to_string()],
+            financial_delta: 0.0,
+        }
+    }
+
     pub fn register_company(&mut self, name: &str, structure: &str, partners: &[String], authorized_capital: f64) -> StepResolutionDTO {
         let fee = 250.0;
+        if self.get_player_age() < 18 {
+            return StepResolutionDTO {
+                success: false,
+                days_advanced: 0,
+                hours_advanced: 0,
+                headline: "Company Registration Unavailable".to_string(),
+                narrative: "You must be at least 18 to complete this incorporation filing yourself.".to_string(),
+                causality_note: "Legal-age rule enforced by the simulation engine.".to_string(),
+                milestone_achieved: None,
+                world_consequences: vec![],
+                financial_delta: 0.0,
+            };
+        }
+        if self.get_player().resources.cash < fee {
+            return StepResolutionDTO {
+                success: false,
+                days_advanced: 0,
+                hours_advanced: 0,
+                headline: "Insufficient Filing Funds".to_string(),
+                narrative: format!("The incorporation filing costs {}{:.2}; your current balance is too low.", self.rule_pack.currency_symbol, fee),
+                causality_note: "Registration cannot silently overdraw the player account.".to_string(),
+                milestone_achieved: None,
+                world_consequences: vec![],
+                financial_delta: 0.0,
+            };
+        }
         let founder_name = self.get_player().identity.full_name();
         let current_cash = self.get_player().resources.cash;
-        self.get_player_mut().resources.cash = (current_cash - fee).max(0.0);
+        self.get_player_mut().resources.cash = current_cash - fee;
+        self.time.advance_days(3);
 
         let doc_id = format!("doc:company_{}", self.documents.len() + 1);
         let reg_number = format!("RC-{:06}", self.rng.gen_range_u32(100000, 999999));
@@ -1200,6 +1368,19 @@ impl SimulationEngine {
             is_verified: true,
         });
 
+        self.active_processes.push(LifeProcess {
+            id: format!("proc:company:{}", reg_number),
+            process_type: ProcessType::CompanyRegistration,
+            title: format!("Company registration — {}", name),
+            target_institution_id: None,
+            current_step: 4,
+            total_steps: 4,
+            progress_percent: 100,
+            status: "INCORPORATED_ACTIVE".to_string(),
+            missing_requirements: vec![],
+            next_appointment_day: None,
+        });
+
         let headline = format!("Company Successfully Incorporated: {}", name);
         let narrative = format!("You officially registered {} as a {} under commercial authorities in {}. Registration number {} was issued.", name, structure, self.rule_pack.city_name, reg_number);
 
@@ -1218,10 +1399,85 @@ impl SimulationEngine {
         }
     }
 
-    pub fn travel_to_location(&mut self, destination_city_id: &str, transport_mode: &str) -> StepResolutionDTO {
+    pub fn travel_to_location(&mut self, destination_city_id: &str, transport_mode: &str, stay_days: u32) -> StepResolutionDTO {
         let new_rule_pack = Self::resolve_rule_pack(destination_city_id, &self.rule_pack.country_id);
         let old_city = self.rule_pack.city_name.clone();
+        if new_rule_pack.city_id == self.rule_pack.city_id {
+            return StepResolutionDTO {
+                success: false,
+                days_advanced: 0,
+                hours_advanced: 0,
+                headline: "Choose Another Destination".to_string(),
+                narrative: format!("You are already in {}.", old_city),
+                causality_note: "No journey was booked because origin and destination match.".to_string(),
+                milestone_achieved: None,
+                world_consequences: vec![],
+                financial_delta: 0.0,
+            };
+        }
+
+        let journey_hours: u8 = match transport_mode.to_lowercase().as_str() {
+            "flight" => 3,
+            "train" => 6,
+            "private car" => 8,
+            _ => 10,
+        };
+        let fare = match transport_mode.to_lowercase().as_str() {
+            "flight" => 180.0,
+            "train" => 90.0,
+            "private car" => 120.0,
+            _ => 80.0,
+        };
+        if self.get_player().resources.cash < fare {
+            return StepResolutionDTO {
+                success: false,
+                days_advanced: 0,
+                hours_advanced: 0,
+                headline: "Fare Payment Declined".to_string(),
+                narrative: format!("The {} fare is {}{:.2}, which exceeds your current balance.", transport_mode, self.rule_pack.currency_symbol, fare),
+                causality_note: "Travel requires a successful fare payment.".to_string(),
+                milestone_achieved: None,
+                world_consequences: vec![],
+                financial_delta: 0.0,
+            };
+        }
+
+        self.get_player_mut().resources.cash -= fare;
+        self.time.advance_hours(journey_hours);
         self.rule_pack = new_rule_pack;
+
+        let ticket_id = format!("doc:travel_ticket_{}", self.documents.len() + 1);
+        let booking_reference = format!("OL-{:06}", self.rng.gen_range_u32(100000, 999999));
+        let mut fields = HashMap::new();
+        fields.insert("Passenger".to_string(), self.get_player().identity.full_name());
+        fields.insert("Origin".to_string(), old_city.clone());
+        fields.insert("Destination".to_string(), self.rule_pack.city_name.clone());
+        fields.insert("Transport".to_string(), transport_mode.to_string());
+        fields.insert("Accommodation".to_string(), format!("{} night(s) reserved", stay_days));
+        fields.insert("Booking Reference".to_string(), booking_reference.clone());
+        fields.insert("Status".to_string(), "ARRIVED".to_string());
+        self.documents.insert(ticket_id.clone(), DocumentRecord {
+            id: ticket_id,
+            title: format!("Travel Itinerary — {} to {}", old_city, self.rule_pack.city_name),
+            document_type: "TRAVEL_TICKET".to_string(),
+            issue_date: self.time.literary_date(),
+            issuing_authority: "OTHERLIFE Travel Desk".to_string(),
+            registration_number: booking_reference,
+            fields,
+            is_verified: true,
+        });
+        self.active_processes.push(LifeProcess {
+            id: format!("proc:travel:{}", self.active_processes.len() + 1),
+            process_type: ProcessType::TravelJourney,
+            title: format!("Journey to {}", self.rule_pack.city_name),
+            target_institution_id: None,
+            current_step: 4,
+            total_steps: 4,
+            progress_percent: 100,
+            status: "ARRIVED_ACCOMMODATION_RESERVED".to_string(),
+            missing_requirements: vec![],
+            next_appointment_day: if stay_days > 0 { Some(self.time.total_days + stay_days as i64) } else { None },
+        });
 
         let headline = format!("Arrived in {}", self.rule_pack.city_name);
         let narrative = format!("You completed your journey from {} to {} via {}. The local environment and opportunities have updated.", old_city, self.rule_pack.city_name, transport_mode);
@@ -1230,15 +1486,19 @@ impl SimulationEngine {
 
         StepResolutionDTO {
             success: true,
-            days_advanced: 1,
-            hours_advanced: 4,
+            days_advanced: 0,
+            hours_advanced: journey_hours,
             headline,
             narrative,
             causality_note: format!("Traveled to {}.", self.rule_pack.city_name),
             milestone_achieved: None,
             world_consequences: vec![format!("Location updated to {}", self.rule_pack.city_name)],
-            financial_delta: -80.0,
+            financial_delta: -fare,
         }
+    }
+
+    pub fn get_phone_messages(&self) -> Vec<PhoneMessage> {
+        self.phone_messages.clone()
     }
 
     // =========================================================================
