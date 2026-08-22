@@ -6,6 +6,12 @@ Use Three.js as an optional, progressively enhanced scene renderer. Do not make 
 
 The Rust simulation remains authoritative for people, places, time, money, processes, documents, travel, messages, and causality. React remains authoritative for readable and accessible interface elements. A Three.js canvas may render the current physical setting from a small immutable scene snapshot supplied by the simulation.
 
+## Implemented first slice
+
+The desktop life scene now dynamically loads a real Three.js `WebGLRenderer` and constructs a playable low-poly home interior. The phone, computer, document folder, exit door, and visible NPCs are raycast targets. Each target opens the same React workflow as its labelled keyboard-accessible control beneath the canvas.
+
+The scene also maps the current location and weather into its presentation, including a rain particle layer where appropriate. Rendering pauses while the document is hidden, resizes with its container, honors reduced motion, and disposes scene resources on unmount. A readable DOM fallback remains available if WebGL cannot start.
+
 ## Why it fits
 
 Three.js provides a mature scene graph, cameras, lighting, animation, asset loaders, picking, WebGL rendering, and an emerging WebGPU path. Those capabilities can make rooms, streets, campuses, offices, terminals, weather, and time-of-day transitions feel inhabited without rebuilding the game architecture around a 3D engine.
@@ -39,9 +45,9 @@ A click such as `interactable:personal_computer` opens the existing React comput
 
 ## Delivery sequence
 
-1. Create a dynamically imported `SceneCanvas` behind the existing `SceneWorkspace` contract.
-2. Start with one home scene and primitive geometry; establish camera, lighting, resize, disposal, and interaction tests.
-3. Add a reusable environment kit and map simulation weather/time to lighting and particles.
+1. **Complete:** create a dynamically imported scene canvas behind the existing `SceneWorkspace` contract.
+2. **Complete:** ship one home scene with primitive geometry, camera, lighting, resize, disposal, raycasting, and accessible interaction parity.
+3. **In progress:** expand the environment kit and deepen simulation weather/time mapping beyond the initial rain and ambient-state treatment.
 4. Add glTF assets only after memory, bundle-size, and loading budgets are measured in the Tauri WebView.
 5. Expand one location family at a time while preserving the DOM version as a fallback.
 

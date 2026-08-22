@@ -20,6 +20,33 @@ export interface LetterNotificationDTO {
 
 export type StructuredGameplayAction =
   | { type: 'SEND_MESSAGE'; recipientId: string; text: string }
-  | { type: 'APPLY_FOR_JOB'; jobId: string; companyId: string; title: string; companyName: string }
-  | { type: 'REGISTER_COMPANY'; name: string; structure: string; partners: string[]; authorizedCapital: number }
-  | { type: 'TRAVEL'; destinationCityId: string; transportMode: string; stayDays: number };
+  | {
+      type: 'APPLY_FOR_JOB';
+      jobId: string;
+      companyId: string;
+      title: string;
+      companyName: string;
+      resumeSummary: string;
+      coverLetter: string;
+      availability: string;
+    }
+  | {
+      type: 'REGISTER_COMPANY';
+      name: string;
+      structure: string;
+      partners: string[];
+      authorizedCapital: number;
+      businessActivity: string;
+      registeredAddress: string;
+    }
+  | {
+      type: 'TRAVEL';
+      destinationCityId: string;
+      transportMode: string;
+      stayDays: number;
+      operatorName: string;
+      serviceClass: string;
+      fare: number;
+      accommodation: string;
+      departureTiming: string;
+    };

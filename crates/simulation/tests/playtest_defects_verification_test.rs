@@ -269,6 +269,32 @@ fn test_structured_job_application_creates_a_tracked_process_and_notice() {
 }
 
 #[test]
+fn test_detailed_job_application_persists_the_submitted_materials() {
+    let mut engine = SimulationEngine::new_game(NewLifeConfig {
+        starting_year: 2025,
+        starting_age: 22,
+        ..Default::default()
+    }, 113);
+
+    let result = engine.apply_for_job_detailed(
+        "job_analyst",
+        "company:meridian",
+        "Research Analyst",
+        "Meridian Advisory",
+        "Economics graduate with field research experience.",
+        "I can turn complex evidence into clear decisions.",
+        "Two weeks' notice",
+    );
+    assert!(result.success);
+    let application = engine.get_documents().into_iter()
+        .find(|document| document.document_type == "JOB_APPLICATION_RECORD")
+        .unwrap();
+    assert_eq!(application.fields.get("Resume Profile").map(String::as_str), Some("Economics graduate with field research experience."));
+    assert_eq!(application.fields.get("Cover Letter").map(String::as_str), Some("I can turn complex evidence into clear decisions."));
+    assert_eq!(application.fields.get("Availability").map(String::as_str), Some("Two weeks' notice"));
+}
+
+#[test]
 fn test_structured_travel_moves_the_player_and_creates_an_itinerary() {
     let mut engine = SimulationEngine::new_game(NewLifeConfig {
         starting_year: 2025,
@@ -288,6 +314,61 @@ fn test_structured_travel_moves_the_player_and_creates_an_itinerary() {
         document.document_type == "TRAVEL_TICKET"
             && document.fields.get("Accommodation").map(String::as_str) == Some("7 night(s) reserved")
     }));
+}
+
+#[test]
+fn test_detailed_booking_charges_selected_fare_and_persists_the_itinerary() {
+    let mut engine = SimulationEngine::new_game(NewLifeConfig {
+        starting_year: 2025,
+        starting_age: 25,
+        location_id: "city:real:lagos".to_string(),
+        ..Default::default()
+    }, 114);
+    let initial_cash = engine.get_player().resources.cash;
+
+    let result = engine.travel_to_location_detailed(
+        "city:real:abuja",
+        "Intercity Bus",
+        7,
+        "ABC Intercity",
+        "Comfort priority",
+        96.0,
+        "Business District Suites",
+        "Tomorrow morning at 12:15",
+    );
+    assert!(result.success);
+    assert_eq!(engine.get_player().resources.cash, initial_cash - 96.0);
+    let itinerary = engine.get_documents().into_iter()
+        .find(|document| document.document_type == "TRAVEL_TICKET")
+        .unwrap();
+    assert_eq!(itinerary.fields.get("Operator").map(String::as_str), Some("ABC Intercity"));
+    assert_eq!(itinerary.fields.get("Service").map(String::as_str), Some("Comfort priority"));
+    assert_eq!(itinerary.fields.get("Departure").map(String::as_str), Some("Tomorrow morning at 12:15"));
+    assert_eq!(itinerary.fields.get("Accommodation").map(String::as_str), Some("Business District Suites · 7 night(s)"));
+}
+
+#[test]
+fn test_detailed_company_registration_persists_operating_details() {
+    let mut engine = SimulationEngine::new_game(NewLifeConfig {
+        starting_year: 2025,
+        starting_age: 25,
+        ..Default::default()
+    }, 115);
+
+    let result = engine.register_company_detailed(
+        "Northstar Studios Ltd",
+        "Private company limited by shares",
+        &["Amara Okafor".to_string()],
+        100_000.0,
+        "Interactive media production",
+        "14 Unity Crescent, Lagos",
+    );
+    assert!(result.success);
+    let certificate = engine.get_documents().into_iter()
+        .find(|document| document.document_type == "COMPANY_INCORPORATION")
+        .unwrap();
+    assert_eq!(certificate.fields.get("Business Activity").map(String::as_str), Some("Interactive media production"));
+    assert_eq!(certificate.fields.get("Registered Office").map(String::as_str), Some("14 Unity Crescent, Lagos"));
 }
 
 #[test]

@@ -242,6 +242,7 @@ export const GameShell: React.FC<GameShellProps> = ({
               else if (dev === 'documents') setIsDocumentsOpen(true);
               else setActiveDeviceType(dev);
             }}
+            onOpenTravel={() => setIsTravelOpen(true)}
             isLoading={isLoading}
           />
         )}
@@ -520,6 +521,7 @@ export const GameShell: React.FC<GameShellProps> = ({
       {isTravelOpen && (
         <TravelPlannerModal
           currentLocation={livingState?.location_formatted || 'Current location'}
+          playerName={livingState?.player_name || 'Living Person'}
           currencySymbol={livingState?.currency_symbol || '₦'}
           isLoading={isLoading}
           onClose={() => setIsTravelOpen(false)}

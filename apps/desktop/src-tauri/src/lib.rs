@@ -280,9 +280,20 @@ pub mod commands {
         company_id: String,
         title: String,
         company_name: String,
+        resume_summary: String,
+        cover_letter: String,
+        availability: String,
     ) -> (LivingStateDTO, LivingStepResultDTO, TodaySceneDTO, Vec<ContextNpcDTO>, Vec<ContextProcessDTO>) {
         let mut engine = state.engine.lock().unwrap();
-        let step_res = engine.apply_for_job(&job_id, &company_id, &title, &company_name);
+        let step_res = engine.apply_for_job_detailed(
+            &job_id,
+            &company_id,
+            &title,
+            &company_name,
+            &resume_summary,
+            &cover_letter,
+            &availability,
+        );
         autosave_engine(&app, &engine);
         (engine.get_living_state(), step_res, engine.generate_today_scene(), engine.get_surrounding_npcs(), engine.get_active_processes())
     }
@@ -295,9 +306,18 @@ pub mod commands {
         structure: String,
         partners: Vec<String>,
         authorized_capital: f64,
+        business_activity: String,
+        registered_address: String,
     ) -> (LivingStateDTO, LivingStepResultDTO, TodaySceneDTO, Vec<ContextNpcDTO>, Vec<ContextProcessDTO>) {
         let mut engine = state.engine.lock().unwrap();
-        let step_res = engine.register_company(&name, &structure, &partners, authorized_capital);
+        let step_res = engine.register_company_detailed(
+            &name,
+            &structure,
+            &partners,
+            authorized_capital,
+            &business_activity,
+            &registered_address,
+        );
         autosave_engine(&app, &engine);
         (engine.get_living_state(), step_res, engine.generate_today_scene(), engine.get_surrounding_npcs(), engine.get_active_processes())
     }
@@ -309,9 +329,23 @@ pub mod commands {
         destination_city_id: String,
         transport_mode: String,
         stay_days: u32,
+        operator_name: String,
+        service_class: String,
+        fare: f64,
+        accommodation: String,
+        departure_timing: String,
     ) -> (LivingStateDTO, LivingStepResultDTO, TodaySceneDTO, Vec<ContextNpcDTO>, Vec<ContextProcessDTO>) {
         let mut engine = state.engine.lock().unwrap();
-        let step_res = engine.travel_to_location(&destination_city_id, &transport_mode, stay_days);
+        let step_res = engine.travel_to_location_detailed(
+            &destination_city_id,
+            &transport_mode,
+            stay_days,
+            &operator_name,
+            &service_class,
+            fare,
+            &accommodation,
+            &departure_timing,
+        );
         autosave_engine(&app, &engine);
         (engine.get_living_state(), step_res, engine.generate_today_scene(), engine.get_surrounding_npcs(), engine.get_active_processes())
     }

@@ -1257,6 +1257,27 @@ impl SimulationEngine {
     }
 
     pub fn apply_for_job(&mut self, job_id: &str, company_id: &str, title: &str, company_name: &str) -> StepResolutionDTO {
+        self.apply_for_job_detailed(
+            job_id,
+            company_id,
+            title,
+            company_name,
+            "General résumé on file",
+            "I would like to be considered for this role.",
+            "Available by arrangement",
+        )
+    }
+
+    pub fn apply_for_job_detailed(
+        &mut self,
+        job_id: &str,
+        company_id: &str,
+        title: &str,
+        company_name: &str,
+        resume_summary: &str,
+        cover_letter: &str,
+        availability: &str,
+    ) -> StepResolutionDTO {
         let process_id = format!("proc:job:{}", job_id);
         if self.active_processes.iter().any(|process| process.id == process_id) {
             return StepResolutionDTO {
@@ -1285,6 +1306,24 @@ impl SimulationEngine {
             missing_requirements: vec!["Await employer screening".to_string()],
             next_appointment_day: Some(self.time.total_days + 3),
         });
+        let application_reference = format!("APP-{:06}", self.rng.gen_range_u32(100000, 999999));
+        let mut application_fields = HashMap::new();
+        application_fields.insert("Role".to_string(), title.to_string());
+        application_fields.insert("Employer".to_string(), company_name.to_string());
+        application_fields.insert("Resume Profile".to_string(), resume_summary.to_string());
+        application_fields.insert("Cover Letter".to_string(), cover_letter.to_string());
+        application_fields.insert("Availability".to_string(), availability.to_string());
+        application_fields.insert("Status".to_string(), "APPLICATION_SUBMITTED".to_string());
+        self.documents.insert(format!("doc:job_application:{}", job_id), DocumentRecord {
+            id: format!("doc:job_application:{}", job_id),
+            title: format!("Job Application — {}", title),
+            document_type: "JOB_APPLICATION_RECORD".to_string(),
+            issue_date: self.time.literary_date(),
+            issuing_authority: company_name.to_string(),
+            registration_number: application_reference,
+            fields: application_fields,
+            is_verified: true,
+        });
         self.letters_inbox.push(LetterNotification {
             id: format!("letter:job:{}", job_id),
             sender: company_name.to_string(),
@@ -1312,6 +1351,26 @@ impl SimulationEngine {
     }
 
     pub fn register_company(&mut self, name: &str, structure: &str, partners: &[String], authorized_capital: f64) -> StepResolutionDTO {
+        let current_city = format!("{}, {}", self.rule_pack.city_name, self.rule_pack.country_name);
+        self.register_company_detailed(
+            name,
+            structure,
+            partners,
+            authorized_capital,
+            "General commercial services",
+            &current_city,
+        )
+    }
+
+    pub fn register_company_detailed(
+        &mut self,
+        name: &str,
+        structure: &str,
+        partners: &[String],
+        authorized_capital: f64,
+        business_activity: &str,
+        registered_address: &str,
+    ) -> StepResolutionDTO {
         let fee = 250.0;
         if self.get_player_age() < 18 {
             return StepResolutionDTO {
@@ -1355,6 +1414,8 @@ impl SimulationEngine {
         fields.insert("Authorized Capital".to_string(), format!("{}{:.2}", self.rule_pack.currency_symbol, authorized_capital));
         fields.insert("Principal Founder".to_string(), founder_name);
         fields.insert("Co-Founders".to_string(), if partners.is_empty() { "None (100% Equity)".to_string() } else { partners.join(", ") });
+        fields.insert("Business Activity".to_string(), business_activity.to_string());
+        fields.insert("Registered Office".to_string(), registered_address.to_string());
         fields.insert("Status".to_string(), "ACTIVE_INCORPORATED".to_string());
 
         self.documents.insert(doc_id.clone(), DocumentRecord {
@@ -1400,6 +1461,39 @@ impl SimulationEngine {
     }
 
     pub fn travel_to_location(&mut self, destination_city_id: &str, transport_mode: &str, stay_days: u32) -> StepResolutionDTO {
+        let base_fare = Self::base_travel_fare(transport_mode);
+        self.travel_to_location_detailed(
+            destination_city_id,
+            transport_mode,
+            stay_days,
+            "OTHERLIFE Travel Desk",
+            "Standard flexible",
+            base_fare,
+            if stay_days > 0 { "Accommodation reserved" } else { "No accommodation reservation" },
+            "Next available departure",
+        )
+    }
+
+    fn base_travel_fare(transport_mode: &str) -> f64 {
+        match transport_mode.to_lowercase().as_str() {
+            "flight" => 180.0,
+            "train" => 90.0,
+            "private car" => 120.0,
+            _ => 80.0,
+        }
+    }
+
+    pub fn travel_to_location_detailed(
+        &mut self,
+        destination_city_id: &str,
+        transport_mode: &str,
+        stay_days: u32,
+        operator_name: &str,
+        service_class: &str,
+        quoted_fare: f64,
+        accommodation: &str,
+        departure_timing: &str,
+    ) -> StepResolutionDTO {
         let new_rule_pack = Self::resolve_rule_pack(destination_city_id, &self.rule_pack.country_id);
         let old_city = self.rule_pack.city_name.clone();
         if new_rule_pack.city_id == self.rule_pack.city_id {
@@ -1422,11 +1516,11 @@ impl SimulationEngine {
             "private car" => 8,
             _ => 10,
         };
-        let fare = match transport_mode.to_lowercase().as_str() {
-            "flight" => 180.0,
-            "train" => 90.0,
-            "private car" => 120.0,
-            _ => 80.0,
+        let base_fare = Self::base_travel_fare(transport_mode);
+        let fare = if quoted_fare.is_finite() && quoted_fare >= base_fare && quoted_fare <= base_fare * 2.0 {
+            quoted_fare
+        } else {
+            base_fare
         };
         if self.get_player().resources.cash < fare {
             return StepResolutionDTO {
@@ -1453,7 +1547,19 @@ impl SimulationEngine {
         fields.insert("Origin".to_string(), old_city.clone());
         fields.insert("Destination".to_string(), self.rule_pack.city_name.clone());
         fields.insert("Transport".to_string(), transport_mode.to_string());
-        fields.insert("Accommodation".to_string(), format!("{} night(s) reserved", stay_days));
+        fields.insert("Operator".to_string(), operator_name.to_string());
+        fields.insert("Service".to_string(), service_class.to_string());
+        fields.insert("Departure".to_string(), departure_timing.to_string());
+        fields.insert("Fare Paid".to_string(), format!("{}{:.2}", self.rule_pack.currency_symbol, fare));
+        fields.insert("Accommodation".to_string(), if stay_days > 0 {
+            if accommodation == "Accommodation reserved" {
+                format!("{} night(s) reserved", stay_days)
+            } else {
+                format!("{} · {} night(s)", accommodation, stay_days)
+            }
+        } else {
+            "No accommodation reservation".to_string()
+        });
         fields.insert("Booking Reference".to_string(), booking_reference.clone());
         fields.insert("Status".to_string(), "ARRIVED".to_string());
         self.documents.insert(ticket_id.clone(), DocumentRecord {

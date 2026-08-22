@@ -237,6 +237,9 @@ export const App: React.FC = () => {
           companyId: action.companyId,
           title: action.title,
           companyName: action.companyName,
+          resumeSummary: action.resumeSummary,
+          coverLetter: action.coverLetter,
+          availability: action.availability,
         };
         break;
       case 'REGISTER_COMPANY':
@@ -246,6 +249,8 @@ export const App: React.FC = () => {
           structure: action.structure,
           partners: action.partners,
           authorizedCapital: action.authorizedCapital,
+          businessActivity: action.businessActivity,
+          registeredAddress: action.registeredAddress,
         };
         break;
       case 'TRAVEL':
@@ -254,6 +259,11 @@ export const App: React.FC = () => {
           destinationCityId: action.destinationCityId,
           transportMode: action.transportMode,
           stayDays: action.stayDays,
+          operatorName: action.operatorName,
+          serviceClass: action.serviceClass,
+          fare: action.fare,
+          accommodation: action.accommodation,
+          departureTiming: action.departureTiming,
         };
         break;
     }
