@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import type { Material, Mesh, Scene, WebGLRenderer } from 'three';
-import { Bike, BusFront, Clock3, MapPin, Navigation, Users, X } from 'lucide-react';
+import { Bike, BusFront, Clock3, LoaderCircle, MapPin, Navigation, Users, X } from 'lucide-react';
 import { WorldMapPlaceDTO } from '../../types/gameplay';
 
 interface CityMapProps {
@@ -34,6 +34,8 @@ export const CityMap: React.FC<CityMapProps> = ({
   const mountRef = useRef<HTMLDivElement>(null);
   const selectPlaceRef = useRef<(placeId: string) => void>(() => undefined);
   const [selectedId, setSelectedId] = useState(() => places.find((place) => place.is_current)?.id ?? places[0]?.id ?? '');
+  const [isSceneReady, setIsSceneReady] = useState(false);
+  const [renderError, setRenderError] = useState(false);
   const selected = places.find((place) => place.id === selectedId) ?? places[0];
 
   selectPlaceRef.current = setSelectedId;
@@ -47,6 +49,8 @@ export const CityMap: React.FC<CityMapProps> = ({
     let scene: Scene | undefined;
     let resizeObserver: ResizeObserver | undefined;
     let removeListeners: (() => void) | undefined;
+    setIsSceneReady(false);
+    setRenderError(false);
 
     const initialize = async () => {
       const THREE = await import('three');
@@ -246,6 +250,7 @@ export const CityMap: React.FC<CityMapProps> = ({
       resizeObserver.observe(mount);
       resize();
       const clock = new THREE.Clock();
+      let hasRendered = false;
       const render = () => {
         frameId = window.requestAnimationFrame(render);
         if (!renderer || !scene || document.hidden) return;
@@ -256,11 +261,18 @@ export const CityMap: React.FC<CityMapProps> = ({
           }
         });
         renderer.render(scene, camera);
+        if (!hasRendered) {
+          hasRendered = true;
+          setIsSceneReady(true);
+        }
       };
       render();
     };
 
-    void initialize();
+    void initialize().catch((error) => {
+      console.warn('[CityMap] WebGL map unavailable:', error);
+      if (!cancelled) setRenderError(true);
+    });
     return () => {
       cancelled = true;
       window.cancelAnimationFrame(frameId);
@@ -294,6 +306,14 @@ export const CityMap: React.FC<CityMapProps> = ({
           </header>
           <div className="relative min-h-[620px] overflow-hidden rounded-3xl border border-[#26344a] bg-[#07101a] shadow-2xl">
             <div ref={mountRef} className="absolute inset-0" />
+            {!isSceneReady && !renderError ? (
+              <div className="absolute inset-0 z-20 flex items-center justify-center bg-[#07101a] text-center">
+                <div><LoaderCircle className="mx-auto h-7 w-7 animate-spin text-cyan-300" /><p className="mt-3 font-serif text-sm text-slate-200">Building the living city…</p><p className="mt-1 text-[10px] text-slate-500">Loading roads, places, people, and your current position</p></div>
+              </div>
+            ) : null}
+            {renderError ? (
+              <div className="absolute inset-0 z-20 overflow-y-auto bg-[#07101a] p-8 text-center"><MapPin className="mx-auto h-7 w-7 text-amber-300" /><p className="mt-3 font-serif text-sm text-slate-200">The 3D district view is unavailable on this device.</p><p className="mt-1 text-xs text-slate-500">Choose any destination below; movement and simulation remain fully available.</p><div className="mx-auto mt-5 grid max-w-xl gap-2 sm:grid-cols-2">{places.map((place) => <button key={place.id} type="button" onClick={() => setSelectedId(place.id)} className="rounded-xl border border-[#2b3850] bg-[#111827] p-3 text-left text-xs text-slate-200 hover:border-cyan-400"><span className="font-serif font-bold">{place.name}</span><span className="mt-1 block text-[10px] text-slate-500">{place.district_name}{place.is_current ? ' · You are here' : ''}</span></button>)}</div></div>
+            ) : null}
             <div className="pointer-events-none absolute inset-x-0 top-0 flex justify-between bg-gradient-to-b from-black/75 to-transparent p-4 text-[10px] font-mono uppercase text-slate-300"><span>3D district view</span><span className="text-amber-300">Gold beacon: your location</span></div>
             {places.map((place) => (
               <button
