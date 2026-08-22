@@ -6,6 +6,7 @@ import { WorldMapPlaceDTO } from '../../types/gameplay';
 interface CityMapProps {
   cityName: string;
   currencySymbol: string;
+  currencyCode: string;
   places: WorldMapPlaceDTO[];
   isLoading: boolean;
   onCommute: (placeId: string, transportMode: string) => Promise<boolean>;
@@ -26,6 +27,7 @@ const placeColors: Record<string, number> = {
 export const CityMap: React.FC<CityMapProps> = ({
   cityName,
   currencySymbol,
+  currencyCode,
   places,
   isLoading,
   onCommute,
@@ -37,6 +39,17 @@ export const CityMap: React.FC<CityMapProps> = ({
   const [isSceneReady, setIsSceneReady] = useState(false);
   const [renderError, setRenderError] = useState(false);
   const selected = places.find((place) => place.id === selectedId) ?? places[0];
+  const formatMoney = (amount: number) => {
+    try {
+      return new Intl.NumberFormat(undefined, {
+        style: 'currency',
+        currency: currencyCode,
+        maximumFractionDigits: currencyCode === 'NGN' ? 0 : 2,
+      }).format(amount);
+    } catch {
+      return `${currencySymbol}${amount.toLocaleString()}`;
+    }
+  };
 
   selectPlaceRef.current = setSelectedId;
 
@@ -64,7 +77,10 @@ export const CityMap: React.FC<CityMapProps> = ({
       renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
       renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
       renderer.shadowMap.enabled = true;
+      renderer.shadowMap.type = THREE.PCFSoftShadowMap;
       renderer.outputColorSpace = THREE.SRGBColorSpace;
+      renderer.toneMapping = THREE.ACESFilmicToneMapping;
+      renderer.toneMappingExposure = 1.08;
       renderer.domElement.style.width = '100%';
       renderer.domElement.style.height = '100%';
       renderer.domElement.style.display = 'block';
@@ -333,8 +349,8 @@ export const CityMap: React.FC<CityMapProps> = ({
           <aside className="self-start rounded-3xl border border-[#26344a] bg-[#0b1019] p-5 shadow-xl xl:sticky xl:top-4">
             <div className="flex items-start justify-between gap-3"><div><p className="text-[10px] font-mono uppercase text-cyan-300">{selected.category} · {selected.district_name}</p><h3 className="mt-2 font-serif text-xl font-bold text-white">{selected.name}</h3></div>{selected.is_current ? <span className="rounded-full bg-amber-300 px-2 py-1 text-[9px] font-bold text-slate-950">YOU ARE HERE</span> : null}</div>
             <p className="mt-4 text-sm leading-relaxed text-slate-300">{selected.description}</p>
-            <div className="mt-4 grid grid-cols-3 gap-2 text-center text-[10px]"><div className="rounded-xl border border-[#26344a] bg-[#111827] p-3"><Clock3 className="mx-auto h-4 w-4 text-cyan-300" /><p className="mt-1">{selected.travel_minutes} min</p></div><div className="rounded-xl border border-[#26344a] bg-[#111827] p-3"><Users className="mx-auto h-4 w-4 text-cyan-300" /><p className="mt-1">{selected.present_people_count} here</p></div><div className="rounded-xl border border-[#26344a] bg-[#111827] p-3"><Navigation className="mx-auto h-4 w-4 text-cyan-300" /><p className={`mt-1 ${selected.is_open ? 'text-emerald-300' : 'text-red-300'}`}>{selected.is_open ? 'Open' : 'Closed'}</p></div></div>
-            {selected.is_current ? <button type="button" onClick={onArrive} className="mt-5 w-full rounded-xl bg-amber-400 py-3 text-xs font-bold text-slate-950">Enter this location</button> : <div className="mt-5 space-y-2"><p className="text-[10px] font-mono uppercase text-slate-500">Choose how to get there</p><button type="button" onClick={() => commute('Walk')} disabled={isLoading} className="flex w-full items-center justify-between rounded-xl border border-[#2b3850] bg-[#111827] px-4 py-3 text-xs hover:border-cyan-400 disabled:opacity-40"><span className="flex items-center gap-2"><Bike className="h-4 w-4 text-emerald-300" />Walk</span><span>free · slower</span></button><button type="button" onClick={() => commute('Public Transit')} disabled={isLoading} className="flex w-full items-center justify-between rounded-xl border border-[#2b3850] bg-[#111827] px-4 py-3 text-xs hover:border-cyan-400 disabled:opacity-40"><span className="flex items-center gap-2"><BusFront className="h-4 w-4 text-cyan-300" />Public transit</span><span>{currencySymbol}{selected.travel_cost.toFixed(2)}</span></button><button type="button" onClick={() => commute('Taxi')} disabled={isLoading} className="flex w-full items-center justify-between rounded-xl border border-[#2b3850] bg-[#111827] px-4 py-3 text-xs hover:border-cyan-400 disabled:opacity-40"><span className="flex items-center gap-2"><Navigation className="h-4 w-4 text-amber-300" />Taxi</span><span>{currencySymbol}{(selected.travel_cost * 3).toFixed(2)}</span></button></div>}
+            <div className="mt-4 grid grid-cols-3 gap-2 text-center text-[10px]"><div className="rounded-xl border border-[#26344a] bg-[#111827] p-3"><Clock3 className="mx-auto h-4 w-4 text-cyan-300" /><p className="mt-1">{selected.distance_km.toFixed(1)} km</p></div><div className="rounded-xl border border-[#26344a] bg-[#111827] p-3"><Users className="mx-auto h-4 w-4 text-cyan-300" /><p className="mt-1">{selected.present_people_count} here</p></div><div className="rounded-xl border border-[#26344a] bg-[#111827] p-3"><Navigation className="mx-auto h-4 w-4 text-cyan-300" /><p className={`mt-1 ${selected.is_open ? 'text-emerald-300' : 'text-red-300'}`}>{selected.is_open ? 'Open' : 'Closed'}</p></div></div>
+            {selected.is_current ? <button type="button" onClick={onArrive} className="mt-5 w-full rounded-xl bg-amber-400 py-3 text-xs font-bold text-slate-950">Enter this location</button> : <div className="mt-5 space-y-2"><p className="text-[10px] font-mono uppercase text-slate-500">Choose how to get there · quoted in {currencyCode}</p><button type="button" onClick={() => commute('Walk')} disabled={isLoading} className="flex w-full items-center justify-between rounded-xl border border-[#2b3850] bg-[#111827] px-4 py-3 text-xs hover:border-cyan-400 disabled:opacity-40"><span className="flex items-center gap-2"><Bike className="h-4 w-4 text-emerald-300" />Walk</span><span>free · {selected.walk_minutes} min</span></button><button type="button" onClick={() => commute('Public Transit')} disabled={isLoading} className="flex w-full items-center justify-between rounded-xl border border-[#2b3850] bg-[#111827] px-4 py-3 text-xs hover:border-cyan-400 disabled:opacity-40"><span className="flex items-center gap-2"><BusFront className="h-4 w-4 text-cyan-300" />Public transit</span><span>{formatMoney(selected.public_transit_cost)} · {selected.public_transit_minutes} min</span></button><button type="button" onClick={() => commute('Taxi')} disabled={isLoading} className="flex w-full items-center justify-between rounded-xl border border-[#2b3850] bg-[#111827] px-4 py-3 text-xs hover:border-cyan-400 disabled:opacity-40"><span className="flex items-center gap-2"><Navigation className="h-4 w-4 text-amber-300" />Taxi</span><span>{formatMoney(selected.taxi_cost)} · {selected.taxi_minutes} min</span></button></div>}
           </aside>
         ) : <div className="flex items-center justify-center text-slate-500"><X className="h-5 w-5" /> No city places available</div>}
       </div>

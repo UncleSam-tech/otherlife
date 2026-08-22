@@ -89,8 +89,9 @@ export const ThreeLifeScene: React.FC<ThreeLifeSceneProps> = ({
           'place:park': 0x071b12,
           'place:transport_terminal': 0x151820,
         };
-        scene.background = new THREE.Color(placePalette[placeId] ?? 0x08111d);
-        scene.fog = new THREE.Fog(0x08111d, 12, 28);
+        const environmentColor = placePalette[placeId] ?? 0x08111d;
+        scene.background = new THREE.Color(environmentColor);
+        scene.fog = new THREE.Fog(environmentColor, 13, 30);
 
         const camera = new THREE.PerspectiveCamera(46, 1, 0.1, 80);
         camera.position.set(8.2, 6.1, 9.6);
@@ -102,6 +103,8 @@ export const ThreeLifeScene: React.FC<ThreeLifeSceneProps> = ({
         renderer.shadowMap.enabled = true;
         renderer.shadowMap.type = THREE.PCFSoftShadowMap;
         renderer.outputColorSpace = THREE.SRGBColorSpace;
+        renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        renderer.toneMappingExposure = 1.12;
         renderer.domElement.setAttribute('aria-label', `Interactive three-dimensional scene at ${location}`);
         renderer.domElement.setAttribute('role', 'application');
         renderer.domElement.setAttribute('tabindex', '0');
@@ -116,6 +119,14 @@ export const ThreeLifeScene: React.FC<ThreeLifeSceneProps> = ({
         const sun = new THREE.DirectionalLight(0xffdfaa, 3.2);
         sun.position.set(-4, 8, 5);
         sun.castShadow = true;
+        sun.shadow.mapSize.set(1024, 1024);
+        sun.shadow.camera.left = -10;
+        sun.shadow.camera.right = 10;
+        sun.shadow.camera.top = 9;
+        sun.shadow.camera.bottom = -7;
+        sun.shadow.camera.near = 1;
+        sun.shadow.camera.far = 28;
+        sun.shadow.bias = -0.0004;
         scene.add(sun);
         const practical = new THREE.PointLight(0xffb65c, 18, 11, 2);
         practical.position.set(2.5, 3.8, -1.5);

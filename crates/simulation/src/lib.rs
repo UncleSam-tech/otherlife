@@ -34,6 +34,15 @@ fn default_current_place_id() -> String {
     "place:home".to_string()
 }
 
+#[derive(Debug, Clone, Copy)]
+struct MobilityProfile {
+    transit_boarding: f64,
+    transit_per_km: f64,
+    taxi_boarding: f64,
+    taxi_per_km: f64,
+    rounding_increment: f64,
+}
+
 impl SimulationEngine {
     pub fn new_game(config: NewLifeConfig, seed: u64) -> Self {
         let rng = WorldRng::new(seed);
@@ -57,24 +66,27 @@ impl SimulationEngine {
         let player_id = "person:sim:player".to_string();
 
         // 3. Player Cash Gated by Age and Wealth
+        let monthly_income = rule_pack.starting_costs.average_working_salary;
         let initial_cash = if start_age >= 18 {
-            match wealth {
-                WealthTier::Poverty => 50.0,
-                WealthTier::WorkingClass => 300.0,
-                WealthTier::MiddleClass => 1200.0,
-                WealthTier::UpperMiddle => 3500.0,
-                WealthTier::Wealthy => 10000.0,
-            }
+            let savings_months = match wealth {
+                WealthTier::Poverty => 0.05,
+                WealthTier::WorkingClass => 0.35,
+                WealthTier::MiddleClass => 1.0,
+                WealthTier::UpperMiddle => 2.5,
+                WealthTier::Wealthy => 8.0,
+            };
+            monthly_income * savings_months
         } else if start_age >= 13 {
-            match wealth {
-                WealthTier::Poverty => 5.0,
-                WealthTier::WorkingClass => 20.0,
-                WealthTier::MiddleClass => 60.0,
-                WealthTier::UpperMiddle => 150.0,
-                WealthTier::Wealthy => 400.0,
-            }
+            let allowance_share = match wealth {
+                WealthTier::Poverty => 0.002,
+                WealthTier::WorkingClass => 0.008,
+                WealthTier::MiddleClass => 0.025,
+                WealthTier::UpperMiddle => 0.06,
+                WealthTier::Wealthy => 0.18,
+            };
+            monthly_income * allowance_share
         } else {
-            0.0 // Age 0-12 starts with 0 cash!
+            0.0
         };
 
         let mut skills = HashMap::new();
@@ -486,10 +498,11 @@ impl SimulationEngine {
 
         // 7. Initial Events Ledger
         let mut events_ledger = Vec::new();
+        let birth_time = TimeState::new(birth_year, birth_month, birth_day);
         events_ledger.push(EventRecord {
             id: "event:genesis".to_string(),
-            timestamp: time.literary_date(),
-            day_total: time.total_days,
+            timestamp: birth_time.literary_date(),
+            day_total: birth_time.total_days,
             event_type: "BIRTH".to_string(),
             actor_id: player_id.clone(),
             location_id: home_id.clone(),
@@ -498,6 +511,23 @@ impl SimulationEngine {
             causality_note: format!("Rooted authentically in the {} regional rule pack.", rule_pack.country_name),
             success: true,
         });
+        if start_age > 0 {
+            events_ledger.push(EventRecord {
+                id: "event:life_start".to_string(),
+                timestamp: time.literary_date(),
+                day_total: time.total_days,
+                event_type: "LIFE_START".to_string(),
+                actor_id: player_id.clone(),
+                location_id: home_id.clone(),
+                headline: format!("Your Story Resumes at Age {}", start_age),
+                narrative: format!(
+                    "You begin this playable chapter as a {}-year-old in {}, carrying an existing family, education, finances, relationships, and personal history into every decision ahead.",
+                    start_age, rule_pack.city_name
+                ),
+                causality_note: "An adult-start life preserves a prior history instead of treating the character as a newborn.".to_string(),
+                success: true,
+            });
+        }
 
         let initial_message_timestamp = time.literary_date();
 
@@ -965,6 +995,62 @@ impl SimulationEngine {
     // =========================================================================
     // EXPLICIT TIME OPERATIONS (No keyword guesswork!)
     // =========================================================================
+
+    pub fn age_up_one_year(&mut self) -> StepResolutionDTO {
+        let previous_age = self.get_player_age();
+        let previous_stage = LifeStage::from_age(previous_age);
+        self.time.year += 1;
+        self.time.total_days += 365;
+        let current_days = self.time.total_days;
+        for npc in self.npcs.values_mut() {
+            npc.last_active_day = current_days;
+        }
+
+        let new_age = self.get_player_age();
+        let new_stage = LifeStage::from_age(new_age);
+        let player = self.get_player_mut();
+        player.biology.energy_level = 90.0;
+        player.psychology.stress_level = (player.psychology.stress_level * 0.8 + 4.0).clamp(0.0, 100.0);
+        player.psychology.confidence = (player.psychology.confidence + 0.01).clamp(0.0, 1.0);
+        if new_age > 50 {
+            player.biology.health_overall = (player.biology.health_overall - 0.35).clamp(0.0, 100.0);
+        }
+
+        let mut progressed = Vec::new();
+        for process in &mut self.active_processes {
+            if process.status != "COMPLETED" && process.current_step < process.total_steps {
+                process.current_step += 1;
+                process.progress_percent = process.current_step * 100 / process.total_steps.max(1);
+                if process.current_step >= process.total_steps {
+                    process.status = "COMPLETED".to_string();
+                }
+                progressed.push(process.title.clone());
+            }
+        }
+
+        let headline = format!("Age {} — A New Chapter", new_age);
+        let narrative = if previous_stage != new_stage {
+            format!("A full year passed in {}. You turned {} and entered the {:?} stage of life; new responsibilities, relationships, and opportunities are now available.", self.rule_pack.city_name, new_age, new_stage)
+        } else if progressed.is_empty() {
+            format!("A full year passed in {}. You turned {}, carrying your relationships, health, money, education, and choices into the next chapter.", self.rule_pack.city_name, new_age)
+        } else {
+            format!("You turned {} in {}. Time advanced your ongoing commitments: {}.", new_age, self.rule_pack.city_name, progressed.join(", "))
+        };
+        let milestone = if previous_stage != new_stage { Some(format!("Entered {:?}", new_stage)) } else { None };
+        self.record_event("AGE_UP", &headline, &narrative, "Advanced exactly one calendar year and progressed every active life process once.", true);
+
+        StepResolutionDTO {
+            success: true,
+            days_advanced: 365,
+            hours_advanced: 0,
+            headline,
+            narrative,
+            causality_note: "One year passed; persistent stats, processes, relationships, and resources were retained.".to_string(),
+            milestone_achieved: milestone,
+            world_consequences: progressed.into_iter().map(|title| format!("Progressed: {}", title)).collect(),
+            financial_delta: 0.0,
+        }
+    }
 
     pub fn advance_hours(&mut self, hours: u32) -> StepResolutionDTO {
         self.time.advance_hours(hours as u8);
@@ -1452,6 +1538,45 @@ impl SimulationEngine {
         }
     }
 
+    fn mobility_profile(&self) -> MobilityProfile {
+        match self.rule_pack.currency_code.as_str() {
+            "NGN" => MobilityProfile { transit_boarding: 400.0, transit_per_km: 80.0, taxi_boarding: 800.0, taxi_per_km: 350.0, rounding_increment: 50.0 },
+            "GBP" => MobilityProfile { transit_boarding: 2.0, transit_per_km: 0.16, taxi_boarding: 3.8, taxi_per_km: 2.2, rounding_increment: 0.05 },
+            _ => MobilityProfile { transit_boarding: if self.rule_pack.city_name == "Houston" { 1.25 } else { 2.50 }, transit_per_km: 0.06, taxi_boarding: 4.0, taxi_per_km: 2.35, rounding_increment: 0.05 },
+        }
+    }
+
+    fn round_local_money(value: f64, increment: f64) -> f64 {
+        (value / increment).round() * increment
+    }
+
+    fn local_journey_quote(&self, destination_id: &str, transport_mode: &str) -> (f64, u32, f64) {
+        let (origin_x, origin_y, _, _, _, _, _) = Self::place_map_profile(&self.current_place_id);
+        let (destination_x, destination_y, _, _, _, _, _) = Self::place_map_profile(destination_id);
+        let map_distance = (((destination_x - origin_x).powi(2) + (destination_y - origin_y).powi(2)) as f64).sqrt();
+        let distance_km = if destination_id == self.current_place_id { 0.0 } else { (map_distance * 0.18 * 1.18).max(0.8) };
+        let economy = self.mobility_profile();
+        match transport_mode.to_lowercase().as_str() {
+            "walk" => (distance_km, ((distance_km / 4.8) * 60.0).ceil().max(5.0) as u32, 0.0),
+            "taxi" => {
+                let fare = Self::round_local_money(economy.taxi_boarding + economy.taxi_per_km * distance_km, economy.rounding_increment);
+                (distance_km, (5.0 + distance_km / 28.0 * 60.0).ceil() as u32, fare)
+            }
+            _ => {
+                let fare = Self::round_local_money(economy.transit_boarding + economy.transit_per_km * distance_km, economy.rounding_increment);
+                (distance_km, (8.0 + distance_km / 22.0 * 60.0).ceil() as u32, fare)
+            }
+        }
+    }
+
+    fn format_local_money(&self, amount: f64) -> String {
+        if self.rule_pack.currency_code == "NGN" {
+            format!("{}{:.0} {}", self.rule_pack.currency_symbol, amount, self.rule_pack.currency_code)
+        } else {
+            format!("{}{:.2} {}", self.rule_pack.currency_symbol, amount, self.rule_pack.currency_code)
+        }
+    }
+
     fn npc_activity_at<'a>(&self, npc: &'a AutonomousNPC) -> (String, String) {
         if let Some(activity) = npc.daily_routine.iter().find(|activity| {
             self.time.hour >= activity.start_hour && self.time.hour < activity.end_hour
@@ -1466,7 +1591,10 @@ impl SimulationEngine {
         let mut map: Vec<WorldMapPlaceDTO> = self.places.values()
             .filter(|place| age >= place.required_min_age)
             .map(|place| {
-                let (map_x, map_y, travel_minutes, travel_cost, description, open_hour, close_hour) = Self::place_map_profile(&place.id);
+                let (map_x, map_y, _, _, description, open_hour, close_hour) = Self::place_map_profile(&place.id);
+                let (distance_km, walk_minutes, _) = self.local_journey_quote(&place.id, "Walk");
+                let (_, public_transit_minutes, public_transit_cost) = self.local_journey_quote(&place.id, "Public Transit");
+                let (_, taxi_minutes, taxi_cost) = self.local_journey_quote(&place.id, "Taxi");
                 let present_people_count = self.npcs.values()
                     .filter(|npc| self.npc_activity_at(npc).0 == place.id)
                     .count();
@@ -1478,8 +1606,14 @@ impl SimulationEngine {
                     description: description.to_string(),
                     map_x,
                     map_y,
-                    travel_minutes,
-                    travel_cost,
+                    travel_minutes: public_transit_minutes,
+                    travel_cost: public_transit_cost,
+                    distance_km,
+                    walk_minutes,
+                    public_transit_minutes,
+                    public_transit_cost,
+                    taxi_minutes,
+                    taxi_cost,
                     is_current: self.current_place_id == place.id,
                     is_open: open_hour == 0 && close_hour == 24 || self.time.hour >= open_hour && self.time.hour < close_hour,
                     present_people_count,
@@ -1532,19 +1666,14 @@ impl SimulationEngine {
             };
         }
 
-        let (_, _, base_minutes, base_cost, _, _, _) = Self::place_map_profile(place_id);
-        let (minutes, cost) = match transport_mode.to_lowercase().as_str() {
-            "walk" => (base_minutes.saturating_mul(2).max(8), 0.0),
-            "taxi" => ((base_minutes / 2).max(6), base_cost * 3.0),
-            _ => (base_minutes.max(10), base_cost),
-        };
+        let (distance_km, minutes, cost) = self.local_journey_quote(place_id, transport_mode);
         if self.get_player().resources.cash < cost {
             return StepResolutionDTO {
                 success: false,
                 days_advanced: 0,
                 hours_advanced: 0,
                 headline: "Journey Payment Declined".to_string(),
-                narrative: format!("You need {}{:.2} for this journey.", self.rule_pack.currency_symbol, cost),
+                narrative: format!("You need {} for this journey.", self.format_local_money(cost)),
                 causality_note: "The route cannot overdraw local funds.".to_string(),
                 milestone_achieved: None,
                 world_consequences: vec![],
@@ -1556,7 +1685,8 @@ impl SimulationEngine {
         self.time.advance_hours(hours);
         self.current_place_id = place.id.clone();
         let headline = format!("Arrived at {}", place.name);
-        let narrative = format!("You travelled through {} by {}. The journey took about {} minutes; the people and actions around you now reflect this location and time.", self.rule_pack.city_name, transport_mode, minutes);
+        let fare_description = if cost == 0.0 { "free".to_string() } else { self.format_local_money(cost) };
+        let narrative = format!("You travelled {:.1} km through {} by {}. The journey took about {} minutes and cost {}; the people and actions around you now reflect this location and time.", distance_km, self.rule_pack.city_name, transport_mode, minutes, fare_description);
         self.record_event("LOCAL_TRAVEL", &headline, &narrative, &format!("Moved to {} and advanced local time.", place.id), true);
         StepResolutionDTO {
             success: true,
@@ -2036,7 +2166,7 @@ impl SimulationEngine {
     }
 
     pub fn travel_to_location(&mut self, destination_city_id: &str, transport_mode: &str, stay_days: u32) -> StepResolutionDTO {
-        let base_fare = Self::base_travel_fare(transport_mode);
+        let base_fare = self.base_travel_fare(destination_city_id, transport_mode);
         self.travel_to_location_detailed(
             destination_city_id,
             transport_mode,
@@ -2051,13 +2181,21 @@ impl SimulationEngine {
         )
     }
 
-    fn base_travel_fare(transport_mode: &str) -> f64 {
-        match transport_mode.to_lowercase().as_str() {
-            "flight" => 180.0,
-            "train" => 90.0,
-            "private car" => 120.0,
-            _ => 80.0,
-        }
+    fn currency_units_per_usd(currency_code: &str) -> f64 {
+        match currency_code { "NGN" => 1500.0, "GBP" => 0.77, _ => 1.0 }
+    }
+
+    fn base_travel_fare(&self, destination_city_id: &str, transport_mode: &str) -> f64 {
+        let destination = Self::resolve_rule_pack(destination_city_id, &self.rule_pack.country_id);
+        let international = destination.country_id != self.rule_pack.country_id;
+        let usd_fare = if international {
+            match transport_mode.to_lowercase().as_str() { "flight" => 900.0, _ => 1200.0 }
+        } else {
+            match transport_mode.to_lowercase().as_str() { "flight" => 120.0, "train" => 55.0, "private car" => 75.0, _ => 25.0 }
+        };
+        let raw = usd_fare * Self::currency_units_per_usd(&self.rule_pack.currency_code);
+        let increment = if self.rule_pack.currency_code == "NGN" { 1000.0 } else { 1.0 };
+        Self::round_local_money(raw, increment)
     }
 
     pub fn travel_to_location_detailed(
@@ -2074,6 +2212,8 @@ impl SimulationEngine {
         immigration_pathway: &str,
     ) -> StepResolutionDTO {
         let old_country_id = self.rule_pack.country_id.clone();
+        let old_currency_code = self.rule_pack.currency_code.clone();
+        let old_currency_symbol = self.rule_pack.currency_symbol.clone();
         let new_rule_pack = Self::resolve_rule_pack(destination_city_id, &self.rule_pack.country_id);
         let is_international = new_rule_pack.country_id != old_country_id;
         let old_city = self.rule_pack.city_name.clone();
@@ -2097,7 +2237,16 @@ impl SimulationEngine {
             "private car" => 8,
             _ => 10,
         };
-        let base_fare = Self::base_travel_fare(transport_mode);
+        if is_international && transport_mode.to_lowercase() != "flight" {
+            return StepResolutionDTO {
+                success: false, days_advanced: 0, hours_advanced: 0,
+                headline: "Transport Does Not Serve This International Route".to_string(),
+                narrative: "Choose a flight for this cross-border route; local buses, trains, and private-car itineraries cannot complete it in the current travel network.".to_string(),
+                causality_note: "International route and transport compatibility enforced.".to_string(),
+                milestone_achieved: None, world_consequences: vec![], financial_delta: 0.0,
+            };
+        }
+        let base_fare = self.base_travel_fare(destination_city_id, transport_mode);
         let fare = if quoted_fare.is_finite() && quoted_fare >= base_fare && quoted_fare <= base_fare * 2.0 {
             quoted_fare
         } else {
@@ -2118,8 +2267,16 @@ impl SimulationEngine {
         }
 
         self.get_player_mut().resources.cash -= fare;
+        let remaining_origin_balance = self.get_player().resources.cash;
         self.time.advance_hours(journey_hours);
         self.rule_pack = new_rule_pack;
+        if old_currency_code != self.rule_pack.currency_code {
+            let usd_value = remaining_origin_balance / Self::currency_units_per_usd(&old_currency_code);
+            let converted = usd_value * Self::currency_units_per_usd(&self.rule_pack.currency_code);
+            self.get_player_mut().resources.cash = if self.rule_pack.currency_code == "NGN" {
+                Self::round_local_money(converted, 1.0)
+            } else { Self::round_local_money(converted, 0.01) };
+        }
         let household_name = self.get_player().identity.last_name.clone();
         self.places = Self::build_city_places(&self.rule_pack, &household_name);
         self.current_place_id = "place:transport_terminal".to_string();
@@ -2137,7 +2294,9 @@ impl SimulationEngine {
         fields.insert("Departure".to_string(), departure_timing.to_string());
         fields.insert("Journey Purpose".to_string(), journey_type.to_string());
         fields.insert("Immigration Pathway".to_string(), immigration_pathway.to_string());
-        fields.insert("Fare Paid".to_string(), format!("{}{:.2}", self.rule_pack.currency_symbol, fare));
+        fields.insert("Fare Paid".to_string(), if old_currency_code == "NGN" {
+            format!("{}{:.0} {}", old_currency_symbol, fare, old_currency_code)
+        } else { format!("{}{:.2} {}", old_currency_symbol, fare, old_currency_code) });
         fields.insert("Accommodation".to_string(), if stay_days > 0 {
             if accommodation == "Accommodation reserved" {
                 format!("{} night(s) reserved", stay_days)
@@ -2202,7 +2361,10 @@ impl SimulationEngine {
         }
 
         let headline = format!("Arrived in {}", self.rule_pack.city_name);
-        let narrative = format!("You completed your {} journey from {} to {} via {}. You arrived at the transport terminal; any residence or visa pathway remains an ongoing legal process rather than an instant reward.", journey_type.to_lowercase(), old_city, self.rule_pack.city_name, transport_mode);
+        let exchange_note = if old_currency_code != self.rule_pack.currency_code {
+            format!(" Your remaining account balance was converted from {} to {} using the simulation's regional exchange table.", old_currency_code, self.rule_pack.currency_code)
+        } else { String::new() };
+        let narrative = format!("You completed your {} journey from {} to {} via {}. You arrived at the transport terminal; any residence or visa pathway remains an ongoing legal process rather than an instant reward.{}", journey_type.to_lowercase(), old_city, self.rule_pack.city_name, transport_mode, exchange_note);
 
         self.record_event("TRAVEL", &headline, &narrative, &format!("Relocated to {}.", self.rule_pack.city_name), true);
 
@@ -2255,10 +2417,14 @@ impl SimulationEngine {
             weather_description: weather.description,
             cash: player.resources.cash,
             currency_symbol: self.rule_pack.currency_symbol.clone(),
+            currency_code: self.rule_pack.currency_code.clone(),
             household_tier: format!("{:?}", player.resources.household_wealth_tier),
+            health_level: player.biology.health_overall,
             energy_level: player.biology.energy_level,
             stress_level: player.psychology.stress_level,
             fitness: player.biology.fitness,
+            confidence_level: player.psychology.confidence * 100.0,
+            relationships_count: player.relationships.len(),
             occupation: player.occupation.clone().unwrap_or_else(|| {
                 if age < 4 { "Infancy & Growth".to_string() }
                 else if age < 13 { "Primary School Student".to_string() }
@@ -2470,6 +2636,22 @@ impl SimulationEngine {
             total_steps: p.total_steps,
             progress_percent: p.progress_percent,
             status: p.status.clone(),
+        }).collect()
+    }
+
+    pub fn get_life_chronicle(&self, limit: usize) -> Vec<ChronicleEntryDTO> {
+        let current_age = self.get_player_age();
+        self.events_ledger.iter().rev().take(limit).map(|event| {
+            let years_ago = ((self.time.total_days - event.day_total).max(0) / 365) as u32;
+            ChronicleEntryDTO {
+                id: event.id.clone(),
+                age: current_age.saturating_sub(years_ago),
+                date: event.timestamp.clone(),
+                event_type: event.event_type.clone(),
+                headline: event.headline.clone(),
+                narrative: event.narrative.clone(),
+                success: event.success,
+            }
         }).collect()
     }
 

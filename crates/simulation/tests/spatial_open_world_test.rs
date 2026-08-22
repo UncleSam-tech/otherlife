@@ -142,13 +142,14 @@ fn incorporated_company_has_location_bound_ongoing_operations() {
 #[test]
 fn international_relocation_creates_residency_work_instead_of_ending_at_arrival() {
     let mut engine = adult_lagos_life(205);
+    engine.get_player_mut().resources.cash = 3_000_000.0;
     let result = engine.travel_to_location_detailed(
         "city:real:london",
         "Flight",
         0,
         "Atlantic Air",
         "Economy",
-        210.0,
+        1_350_000.0,
         "Temporary serviced apartment",
         "Tomorrow at 09:00",
         "Permanent relocation",
@@ -156,6 +157,8 @@ fn international_relocation_creates_residency_work_instead_of_ending_at_arrival(
     );
 
     assert!(result.success);
+    assert_eq!(engine.get_living_state().currency_code, "GBP");
+    assert!(engine.get_player().resources.cash > 800.0 && engine.get_player().resources.cash < 900.0);
     assert_eq!(engine.get_living_state().current_place_id, "place:transport_terminal");
     assert!(engine.active_processes.iter().any(|process| {
         process.process_type == ProcessType::ResidencyApplication

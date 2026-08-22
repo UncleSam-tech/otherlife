@@ -13,10 +13,14 @@ export interface LivingStateDTO {
   weather_description?: string;
   cash: number;
   currency_symbol: string;
+  currency_code: string;
   household_tier: string;
+  health_level: number;
   energy_level: number;
   stress_level: number;
   fitness: number;
+  confidence_level: number;
+  relationships_count: number;
   occupation: string;
   active_processes_count: number;
   surrounding_npcs_count: number;

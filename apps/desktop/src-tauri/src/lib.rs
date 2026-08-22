@@ -1,6 +1,6 @@
 use otherlife_simulation::SimulationEngine;
 use otherlife_world::{
-    ContextNpcDTO, ContextProcessDTO, DocumentDTO, LivingStateDTO, LivingStepResultDTO,
+    ChronicleEntryDTO, ContextNpcDTO, ContextProcessDTO, DocumentDTO, LivingStateDTO, LivingStepResultDTO,
     NewLifeConfig, TodaySceneDTO, WorldMapPlaceDTO,
 };
 use serde::{Deserialize, Serialize};
@@ -239,6 +239,23 @@ pub mod commands {
     pub fn get_biography(state: State<'_, AppState>) -> String {
         let engine = state.engine.lock().unwrap();
         engine.get_biography()
+    }
+
+    #[tauri::command]
+    pub fn get_life_chronicle(state: State<'_, AppState>) -> Vec<ChronicleEntryDTO> {
+        let engine = state.engine.lock().unwrap();
+        engine.get_life_chronicle(80)
+    }
+
+    #[tauri::command]
+    pub fn age_up_one_year(
+        app: AppHandle,
+        state: State<'_, AppState>,
+    ) -> (LivingStateDTO, LivingStepResultDTO, TodaySceneDTO, Vec<ContextNpcDTO>, Vec<ContextProcessDTO>) {
+        let mut engine = state.engine.lock().unwrap();
+        let step_res = engine.age_up_one_year();
+        autosave_engine(&app, &engine);
+        (engine.get_living_state(), step_res, engine.generate_today_scene(), engine.get_surrounding_npcs(), engine.get_active_processes())
     }
 
     #[tauri::command]
@@ -551,6 +568,8 @@ pub fn run() {
             commands::get_living_state,
             commands::get_today_scene,
             commands::get_biography,
+            commands::get_life_chronicle,
+            commands::age_up_one_year,
             commands::get_documents,
             commands::get_letters_inbox,
             commands::get_phone_messages,

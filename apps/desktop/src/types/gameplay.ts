@@ -28,9 +28,25 @@ export interface WorldMapPlaceDTO {
   map_y: number;
   travel_minutes: number;
   travel_cost: number;
+  distance_km: number;
+  walk_minutes: number;
+  public_transit_minutes: number;
+  public_transit_cost: number;
+  taxi_minutes: number;
+  taxi_cost: number;
   is_current: boolean;
   is_open: boolean;
   present_people_count: number;
+}
+
+export interface ChronicleEntryDTO {
+  id: string;
+  age: number;
+  date: string;
+  event_type: string;
+  headline: string;
+  narrative: string;
+  success: boolean;
 }
 
 export type StructuredGameplayAction =

@@ -6,6 +6,7 @@ interface TravelPlannerModalProps {
   currentLocation: string;
   playerName: string;
   currencySymbol: string;
+  currencyCode: string;
   isLoading: boolean;
   onClose: () => void;
   onStructuredAction: (action: StructuredGameplayAction) => Promise<boolean>;
@@ -34,7 +35,8 @@ const destinations = [
   { id: 'city:real:houston', name: 'Houston, United States' },
 ];
 
-const baseFares: Record<string, number> = { 'Intercity Bus': 80, Train: 90, 'Private Car': 120, Flight: 180 };
+const domesticFareUsd: Record<string, number> = { 'Intercity Bus': 25, Train: 55, 'Private Car': 75, Flight: 120 };
+const currencyUnitsPerUsd: Record<string, number> = { NGN: 1500, GBP: 0.77, USD: 1 };
 const departureChoices = ['Today', 'Tomorrow morning', 'In three days'];
 const accommodationChoices = ['No accommodation reservation', 'Central City Lodge', 'Business District Suites', 'Serviced Apartment'];
 const stayChoices = [
@@ -56,8 +58,19 @@ const immigrationPathways: Record<string, string> = {
   'Permanent relocation': 'Permanent residence pathway',
 };
 
-const routeOptionsFor = (transportMode: string): RouteOption[] => {
-  const base = baseFares[transportMode];
+const countryForCity = (cityId: string) => cityId.includes('london') || cityId.includes('glasgow') || cityId.includes('edinburgh')
+  ? 'GBP'
+  : cityId.includes('new_york') || cityId.includes('san_francisco') || cityId.includes('houston')
+    ? 'USD'
+    : 'NGN';
+
+const baseFareFor = (transportMode: string, currencyCode: string, international: boolean) => {
+  const usdFare = international ? 900 : domesticFareUsd[transportMode];
+  const raw = usdFare * (currencyUnitsPerUsd[currencyCode] || 1);
+  return currencyCode === 'NGN' ? Math.round(raw / 1000) * 1000 : Math.round(raw);
+};
+
+const routeOptionsFor = (transportMode: string, base: number): RouteOption[] => {
   const operators = transportMode === 'Flight'
     ? ['Unity Air', 'Coastal Wings']
     : transportMode === 'Train'
@@ -75,6 +88,7 @@ export const TravelPlannerModal: React.FC<TravelPlannerModalProps> = ({
   currentLocation,
   playerName,
   currencySymbol,
+  currencyCode,
   isLoading,
   onClose,
   onStructuredAction,
@@ -89,6 +103,14 @@ export const TravelPlannerModal: React.FC<TravelPlannerModalProps> = ({
   const [journeyType, setJourneyType] = useState('Visit');
   const destination = destinations.find((item) => item.id === destinationCityId) ?? destinations[1];
   const sameCity = currentLocation.toLowerCase().startsWith(destination.name.split(',')[0].toLowerCase());
+  const international = countryForCity(destinationCityId) !== currencyCode;
+  const availableModes = international ? ['Flight'] : Object.keys(domesticFareUsd);
+  const baseFare = baseFareFor(transportMode, currencyCode, international);
+  const formatMoney = (amount: number) => new Intl.NumberFormat(undefined, {
+    style: 'currency',
+    currency: currencyCode,
+    maximumFractionDigits: currencyCode === 'NGN' ? 0 : 2,
+  }).format(amount);
 
   const confirmJourney = async () => {
     if (!selectedRoute) return;
@@ -124,8 +146,8 @@ export const TravelPlannerModal: React.FC<TravelPlannerModalProps> = ({
           {step === 0 ? (
             <div className="space-y-5">
               <div className="rounded-2xl border border-[#20283c] bg-[#121622] p-4 text-xs"><p className="text-slate-500">Origin</p><p className="mt-1 flex items-center gap-2 font-serif text-slate-100"><MapPin className="h-4 w-4 text-amber-400" />{currentLocation}</p></div>
-              <fieldset className="space-y-2"><legend className="text-xs text-slate-300">Destination</legend><div className="grid grid-cols-2 gap-2 sm:grid-cols-3">{destinations.map((item) => <button key={item.id} type="button" onClick={() => { setDestinationCityId(item.id); setSelectedRoute(null); }} aria-pressed={destinationCityId === item.id} className={`rounded-xl border px-3 py-2.5 text-left text-[11px] transition ${destinationCityId === item.id ? 'border-cyan-400 bg-cyan-400/10 text-cyan-100' : 'border-[#27304a] bg-[#121622] text-slate-300 hover:border-cyan-400/45'}`}>{item.name}</button>)}</div></fieldset>
-              <div className="grid gap-4 sm:grid-cols-2"><fieldset className="space-y-2"><legend className="text-xs text-slate-300">Transport</legend><div className="grid grid-cols-2 gap-2">{Object.keys(baseFares).map((mode) => <button key={mode} type="button" onClick={() => { setTransportMode(mode); setSelectedRoute(null); }} aria-pressed={transportMode === mode} className={`rounded-xl border px-3 py-2.5 text-[11px] transition ${transportMode === mode ? 'border-cyan-400 bg-cyan-400/10 text-cyan-100' : 'border-[#27304a] bg-[#121622] text-slate-300 hover:border-cyan-400/45'}`}>{mode}</button>)}</div></fieldset><fieldset className="space-y-2"><legend className="text-xs text-slate-300">Departure</legend><div className="space-y-2">{departureChoices.map((choice) => <button key={choice} type="button" onClick={() => setDepartureTiming(choice)} aria-pressed={departureTiming === choice} className={`w-full rounded-xl border px-3 py-2 text-left text-[11px] transition ${departureTiming === choice ? 'border-cyan-400 bg-cyan-400/10 text-cyan-100' : 'border-[#27304a] bg-[#121622] text-slate-300 hover:border-cyan-400/45'}`}>{choice}</button>)}</div></fieldset></div>
+              <fieldset className="space-y-2"><legend className="text-xs text-slate-300">Destination</legend><div className="grid grid-cols-2 gap-2 sm:grid-cols-3">{destinations.map((item) => <button key={item.id} type="button" onClick={() => { setDestinationCityId(item.id); setSelectedRoute(null); if (countryForCity(item.id) !== currencyCode) setTransportMode('Flight'); }} aria-pressed={destinationCityId === item.id} className={`rounded-xl border px-3 py-2.5 text-left text-[11px] transition ${destinationCityId === item.id ? 'border-cyan-400 bg-cyan-400/10 text-cyan-100' : 'border-[#27304a] bg-[#121622] text-slate-300 hover:border-cyan-400/45'}`}>{item.name}</button>)}</div></fieldset>
+              <div className="grid gap-4 sm:grid-cols-2"><fieldset className="space-y-2"><legend className="text-xs text-slate-300">Transport {international ? '· international route' : ''}</legend><div className="grid grid-cols-2 gap-2">{availableModes.map((mode) => <button key={mode} type="button" onClick={() => { setTransportMode(mode); setSelectedRoute(null); }} aria-pressed={transportMode === mode} className={`rounded-xl border px-3 py-2.5 text-[11px] transition ${transportMode === mode ? 'border-cyan-400 bg-cyan-400/10 text-cyan-100' : 'border-[#27304a] bg-[#121622] text-slate-300 hover:border-cyan-400/45'}`}>{mode}</button>)}</div></fieldset><fieldset className="space-y-2"><legend className="text-xs text-slate-300">Departure</legend><div className="space-y-2">{departureChoices.map((choice) => <button key={choice} type="button" onClick={() => setDepartureTiming(choice)} aria-pressed={departureTiming === choice} className={`w-full rounded-xl border px-3 py-2 text-left text-[11px] transition ${departureTiming === choice ? 'border-cyan-400 bg-cyan-400/10 text-cyan-100' : 'border-[#27304a] bg-[#121622] text-slate-300 hover:border-cyan-400/45'}`}>{choice}</button>)}</div></fieldset></div>
               {sameCity ? <p className="rounded-xl border border-red-400/25 bg-red-400/5 p-3 text-xs text-red-200">Choose a destination outside your current city.</p> : null}
               <button type="button" onClick={() => setStep(1)} disabled={sameCity} className="flex w-full items-center justify-center gap-2 rounded-xl bg-cyan-500 py-3 text-xs font-bold text-slate-950 disabled:opacity-40"><Search className="h-4 w-4" />Search available routes</button>
             </div>
@@ -134,9 +156,9 @@ export const TravelPlannerModal: React.FC<TravelPlannerModalProps> = ({
           {step === 1 ? (
             <div className="space-y-4">
               <div><p className="text-[10px] font-mono uppercase text-cyan-300">Available services</p><h4 className="mt-1 font-serif text-lg font-bold">{currentLocation.split(',')[0]} → {destination.name.split(',')[0]}</h4><p className="text-xs text-slate-500">{departureTiming} · {transportMode}</p></div>
-              {routeOptionsFor(transportMode).map((route) => (
+              {routeOptionsFor(transportMode, baseFare).map((route) => (
                 <button key={route.id} type="button" onClick={() => setSelectedRoute(route)} className={`w-full rounded-2xl border p-4 text-left transition ${selectedRoute?.id === route.id ? 'border-cyan-400 bg-cyan-400/10' : 'border-[#27304a] bg-[#111622] hover:border-cyan-400/50'}`}>
-                  <div className="flex items-start justify-between"><div><p className="font-serif text-sm font-bold">{route.operator}</p><p className="mt-1 text-[11px] text-slate-400">{route.service}</p></div><p className="font-mono text-sm text-cyan-300">{currencySymbol}{route.price.toLocaleString()}</p></div>
+                  <div className="flex items-start justify-between"><div><p className="font-serif text-sm font-bold">{route.operator}</p><p className="mt-1 text-[11px] text-slate-400">{route.service}</p></div><p className="font-mono text-sm text-cyan-300">{formatMoney(route.price)}</p></div>
                   <div className="mt-4 flex items-center gap-3 text-xs text-slate-300"><span>{route.departure}</span><div className="h-px flex-1 bg-[#33405a]" /><BusFront className="h-4 w-4 text-slate-500" /><div className="h-px flex-1 bg-[#33405a]" /><span>{route.arrival}</span></div>
                 </button>
               ))}
@@ -158,7 +180,7 @@ export const TravelPlannerModal: React.FC<TravelPlannerModalProps> = ({
             <div className="space-y-5">
               <div className="flex items-center gap-2 text-cyan-300"><CheckCircle2 className="h-5 w-5" /><h4 className="font-serif text-base font-bold">Review before purchase</h4></div>
               <dl className="grid grid-cols-2 gap-3 text-xs"><div><dt className="text-slate-500">Passenger</dt><dd className="mt-1 text-slate-200">{playerName}</dd></div><div><dt className="text-slate-500">Route</dt><dd className="mt-1 text-slate-200">{currentLocation.split(',')[0]} → {destination.name.split(',')[0]}</dd></div><div><dt className="text-slate-500">Purpose</dt><dd className="mt-1 text-slate-200">{journeyType}</dd></div><div><dt className="text-slate-500">Immigration route</dt><dd className="mt-1 text-slate-200">{immigrationPathways[journeyType]}</dd></div><div><dt className="text-slate-500">Operator</dt><dd className="mt-1 text-slate-200">{selectedRoute?.operator}</dd></div><div><dt className="text-slate-500">Service</dt><dd className="mt-1 text-slate-200">{selectedRoute?.service}</dd></div><div><dt className="text-slate-500">Departure</dt><dd className="mt-1 text-slate-200">{departureTiming} at {selectedRoute?.departure}</dd></div><div><dt className="text-slate-500">Accommodation</dt><dd className="mt-1 text-slate-200">{accommodation === 'No accommodation reservation' ? accommodation : `${accommodation} · ${stayDays === 0 ? 'open-ended' : `${stayDays} night(s)`}`}</dd></div></dl>
-              <div className="flex items-center justify-between rounded-2xl border border-cyan-400/25 bg-cyan-400/5 p-4"><div><p className="text-[10px] text-slate-500">Transport total</p><p className="mt-1 text-xs text-slate-300">Payment will be deducted from your in-game account.</p></div><p className="font-mono text-lg text-cyan-300">{currencySymbol}{selectedRoute?.price.toLocaleString()}</p></div>
+              <div className="flex items-center justify-between rounded-2xl border border-cyan-400/25 bg-cyan-400/5 p-4"><div><p className="text-[10px] text-slate-500">Transport total · charged in {currencyCode}</p><p className="mt-1 text-xs text-slate-300">Payment is deducted before any destination-currency conversion.</p></div><p className="font-mono text-lg text-cyan-300">{selectedRoute ? formatMoney(selectedRoute.price) : currencySymbol}</p></div>
               <p className="rounded-xl border border-amber-400/20 bg-amber-400/5 p-3 text-[11px] text-amber-100">Confirming creates a ticket and itinerary, deducts the fare, advances the journey duration, and moves your life to {destination.name}.</p>
               <div className="flex gap-3"><button type="button" onClick={() => setStep(2)} className="flex items-center gap-2 rounded-xl border border-[#27304a] px-4 py-3 text-xs text-slate-300"><ArrowLeft className="h-4 w-4" />Edit</button><button type="button" onClick={confirmJourney} disabled={isLoading} className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-cyan-500 py-3 text-xs font-bold text-slate-950 disabled:opacity-40"><TicketCheck className="h-4 w-4" />Confirm purchase and depart</button></div>
             </div>

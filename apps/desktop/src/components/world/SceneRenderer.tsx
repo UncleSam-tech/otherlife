@@ -22,6 +22,7 @@ export interface TodaySceneDTO {
 
 export interface LastStepResultDTO {
   success: boolean;
+  headline?: string;
   narrative: string;
   causality_note: string;
   days_advanced: number;

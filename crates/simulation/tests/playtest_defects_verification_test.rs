@@ -332,14 +332,14 @@ fn test_detailed_booking_charges_selected_fare_and_persists_the_itinerary() {
         7,
         "ABC Intercity",
         "Comfort priority",
-        96.0,
+        45_600.0,
         "Business District Suites",
         "Tomorrow morning at 12:15",
         "Visit",
         "Visitor / tourist entry",
     );
     assert!(result.success);
-    assert_eq!(engine.get_player().resources.cash, initial_cash - 96.0);
+    assert_eq!(engine.get_player().resources.cash, initial_cash - 45_600.0);
     let itinerary = engine.get_documents().into_iter()
         .find(|document| document.document_type == "TRAVEL_TICKET")
         .unwrap();

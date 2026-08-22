@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { PersistentWorldBar } from './PersistentWorldBar';
 import { ExpandableNavigation } from '../navigation/ExpandableNavigation';
 import { NavLens } from '../navigation/LifeNavigation';
-import { SceneWorkspace } from '../world/SceneWorkspace';
+import { LifeChronicle } from '../life/LifeChronicle';
 import { DismissibleContextDrawer, ContextDrawerItem } from '../context/DismissibleContextDrawer';
 import { ConversationModal } from '../characters/ConversationModal';
 import { CalendarModal } from '../calendar/CalendarModal';
@@ -18,7 +18,7 @@ import { TodaySceneDTO, LastStepResultDTO } from '../world/SceneRenderer';
 import { ContextNpcDTO } from '../characters/NPCDisplay';
 import { ContextProcessDTO } from '../context/ProcessTracker';
 import { LivingStateDTO } from '../context/ContextPanel';
-import { LetterNotificationDTO, PhoneMessageDTO, StructuredGameplayAction, WorldMapPlaceDTO } from '../../types/gameplay';
+import { ChronicleEntryDTO, LetterNotificationDTO, PhoneMessageDTO, StructuredGameplayAction, WorldMapPlaceDTO } from '../../types/gameplay';
 import { Feather, Mail, Globe, FileText } from 'lucide-react';
 
 interface GameShellProps {
@@ -31,6 +31,7 @@ interface GameShellProps {
   phoneContacts: ContextNpcDTO[];
   letters: LetterNotificationDTO[];
   worldMapPlaces: WorldMapPlaceDTO[];
+  chronicleEntries: ChronicleEntryDTO[];
   processes?: ContextProcessDTO[];
   biographyText: string;
   activeLens: NavLens;
@@ -38,6 +39,7 @@ interface GameShellProps {
   onSubmitIntent: (intentText: string) => void;
   onStructuredAction: (action: StructuredGameplayAction) => Promise<boolean>;
   onAdvanceExplicit?: (actionType: 'HOURS' | 'DAYS' | 'SLEEP' | 'ROUTINE', amount?: number) => void;
+  onAgeUp: () => void;
   isLoading: boolean;
   onReturnToMainMenu: () => void;
   devMode?: boolean;
@@ -54,6 +56,7 @@ export const GameShell: React.FC<GameShellProps> = ({
   phoneContacts,
   letters,
   worldMapPlaces,
+  chronicleEntries,
   processes = [],
   biographyText,
   activeLens,
@@ -61,6 +64,7 @@ export const GameShell: React.FC<GameShellProps> = ({
   onSubmitIntent,
   onStructuredAction,
   onAdvanceExplicit,
+  onAgeUp,
   isLoading,
   onReturnToMainMenu,
   devMode: _devMode,
@@ -79,40 +83,6 @@ export const GameShell: React.FC<GameShellProps> = ({
   const [isTravelOpen, setIsTravelOpen] = useState(false);
   const [isUniversityOpen, setIsUniversityOpen] = useState(false);
   const [activeDeviceType, setActiveDeviceType] = useState<'phone' | 'computer' | 'wallet' | 'documents' | 'mail' | null>(null);
-
-  const handleSelectObject = (objName: string) => {
-    const lower = objName.toLowerCase();
-    if (lower.includes('phone') || lower.includes('mobile') || lower.includes('smartphone')) {
-      setIsPhoneOpen(true);
-    } else if (lower.includes('computer') || lower.includes('laptop') || lower.includes('pc') || lower.includes('desktop') || lower.includes('workstation')) {
-      setIsComputerOpen(true);
-    } else if (lower.includes('admissions') || lower.includes('course catalogue')) {
-      setIsUniversityOpen(true);
-    } else if (lower.includes('ticket counter') || lower.includes('departure board')) {
-      setIsTravelOpen(true);
-    } else if (lower.includes('registry') || lower.includes('immigration desk') || lower.includes('document kiosk')) {
-      setIsComputerOpen(true);
-    } else if (lower.includes('certificate') || lower.includes('record') || lower.includes('document')) {
-      setIsDocumentsOpen(true);
-    } else {
-      setDrawerItem({
-        type: 'object',
-        data: {
-          name: objName,
-          description: `An environmental object in the room: ${objName}.`,
-          possibleActions: lower.includes('meeting room')
-            ? ['I reserve the meeting room and prepare an agenda.', 'I invite the relevant people and begin the meeting.']
-            : lower.includes('library')
-              ? ['I search the catalogue for material relevant to my goals.', 'I sit down for a focused study session.']
-              : lower.includes('consultation room')
-                ? ['I request a medical consultation and describe my concern.', 'I review the available appointment times.']
-                : lower.includes('training') || lower.includes('playing field')
-                  ? ['I join the next appropriate training session.', 'I speak with a coach about assessment and progression.']
-                  : [`I inspect and examine the ${objName} closely.`, `I use the ${objName} for its intended purpose.`],
-        },
-      });
-    }
-  };
 
   return (
     <div className="flex flex-col h-screen w-screen bg-[#07090e] text-slate-100 overflow-hidden font-sans select-none">
@@ -142,26 +112,24 @@ export const GameShell: React.FC<GameShellProps> = ({
 
         {/* Central Workspace */}
         {activeLens === 'life' && (
-          <SceneWorkspace
+          <LifeChronicle
+            state={livingState!}
             scene={todayScene}
             lastStepResult={lastStepResult}
-            presentNpcs={npcs}
-            playerAge={playerAge}
-            weatherName={livingState?.weather_name || 'Seasonal Weather'}
-            onSelectNpc={(npc) => setDrawerItem({ type: 'npc', data: npc })}
-            onSelectObject={handleSelectObject}
-            onSubmitIntent={onSubmitIntent}
-            onOpenDevice={(dev) => {
-              if (dev === 'phone') setIsPhoneOpen(true);
-              else if (dev === 'computer') setIsComputerOpen(true);
-              else if (dev === 'documents') setIsDocumentsOpen(true);
-              else setActiveDeviceType(dev);
-            }}
-            onOpenTravel={() => setIsTravelOpen(true)}
-            currentPlaceId={livingState?.current_place_id || 'place:home'}
-            currentPlaceName={livingState?.current_place_name || 'Current place'}
-            onOpenUniversity={() => setIsUniversityOpen(true)}
+            entries={chronicleEntries}
+            npcs={npcs}
+            processes={processes}
             isLoading={isLoading}
+            onAgeUp={onAgeUp}
+            onOpenPeople={() => onSelectLens('people')}
+            onOpenPlaces={() => onSelectLens('places')}
+            onOpenBiography={() => onSelectLens('biography')}
+            onOpenComputer={() => setIsComputerOpen(true)}
+            onOpenDocuments={() => setIsDocumentsOpen(true)}
+            onOpenTravel={() => setIsTravelOpen(true)}
+            onOpenUniversity={() => setIsUniversityOpen(true)}
+            onOpenPhone={() => setIsPhoneOpen(true)}
+            onSelectNpc={(npc) => setDrawerItem({ type: 'npc', data: npc })}
           />
         )}
 
@@ -204,6 +172,7 @@ export const GameShell: React.FC<GameShellProps> = ({
           <CityMap
             cityName={livingState?.location_formatted || 'Living city'}
             currencySymbol={livingState?.currency_symbol || '₦'}
+            currencyCode={livingState?.currency_code || 'NGN'}
             places={worldMapPlaces}
             isLoading={isLoading}
             onCommute={(placeId, transportMode) => onStructuredAction({ type: 'COMMUTE', placeId, transportMode })}
@@ -418,6 +387,7 @@ export const GameShell: React.FC<GameShellProps> = ({
           currentLocation={livingState?.location_formatted || 'Current location'}
           playerName={livingState?.player_name || 'Living Person'}
           currencySymbol={livingState?.currency_symbol || '₦'}
+          currencyCode={livingState?.currency_code || 'NGN'}
           isLoading={isLoading}
           onClose={() => setIsTravelOpen(false)}
           onStructuredAction={onStructuredAction}
