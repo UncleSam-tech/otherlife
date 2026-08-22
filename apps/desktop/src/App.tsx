@@ -9,6 +9,7 @@ import { ContextProcessDTO } from './components/context/ProcessTracker';
 import { DocumentDTO } from './components/documents/DocumentViewerModal';
 import { NavLens } from './components/navigation/LifeNavigation';
 import { NewLifeCreatorConfig } from './components/creation/LifeCreator';
+import { ChronicleEntryDTO, LetterNotificationDTO, PhoneMessageDTO, StructuredGameplayAction, WorldMapPlaceDTO } from './types/gameplay';
 import './styles/globals.css';
 
 export type AppMode = 'BOOTING' | 'MAIN_MENU' | 'PLAYING';
@@ -35,8 +36,13 @@ export const App: React.FC = () => {
   const [npcs, setNpcs] = useState<ContextNpcDTO[]>([]);
   const [processes, setProcesses] = useState<ContextProcessDTO[]>([]);
   const [documents, setDocuments] = useState<DocumentDTO[]>([]);
+  const [phoneMessages, setPhoneMessages] = useState<PhoneMessageDTO[]>([]);
+  const [phoneContacts, setPhoneContacts] = useState<ContextNpcDTO[]>([]);
+  const [letters, setLetters] = useState<LetterNotificationDTO[]>([]);
   const [lastStepResult, setLastStepResult] = useState<LastStepResultDTO | null>(null);
   const [biographyText, setBiographyText] = useState<string>('');
+  const [worldMapPlaces, setWorldMapPlaces] = useState<WorldMapPlaceDTO[]>([]);
+  const [chronicleEntries, setChronicleEntries] = useState<ChronicleEntryDTO[]>([]);
 
   const refreshSavesList = async () => {
     const saves = await callTauriCommand<SaveMetadata[]>('list_saves');
@@ -51,6 +57,44 @@ export const App: React.FC = () => {
   const refreshDocuments = async () => {
     const docs = await callTauriCommand<DocumentDTO[]>('get_documents');
     if (docs) setDocuments(docs);
+  };
+
+  const refreshPhoneMessages = async () => {
+    const messages = await callTauriCommand<PhoneMessageDTO[]>('get_phone_messages');
+    if (messages) setPhoneMessages(messages);
+  };
+
+  const refreshPhoneContacts = async () => {
+    const contacts = await callTauriCommand<ContextNpcDTO[]>('get_phone_contacts');
+    if (contacts) setPhoneContacts(contacts);
+  };
+
+  const refreshLetters = async () => {
+    const inbox = await callTauriCommand<LetterNotificationDTO[]>('get_letters_inbox');
+    if (inbox) setLetters(inbox);
+  };
+
+  const refreshWorldMap = async () => {
+    const places = await callTauriCommand<WorldMapPlaceDTO[]>('get_world_map');
+    if (places) setWorldMapPlaces(places);
+  };
+
+  const refreshChronicle = async () => {
+    const entries = await callTauriCommand<ChronicleEntryDTO[]>('get_life_chronicle');
+    if (entries) setChronicleEntries(entries);
+  };
+
+  const applyTurnResult = async (
+    res: [LivingStateDTO, LastStepResultDTO, TodaySceneDTO, ContextNpcDTO[], ContextProcessDTO[]] | null
+  ) => {
+    if (!res) return false;
+    setLivingState(res[0]);
+    setLastStepResult(res[1]);
+    setTodayScene(res[2]);
+    setNpcs(res[3]);
+    setProcesses(res[4]);
+    await Promise.all([refreshBiography(), refreshDocuments(), refreshPhoneMessages(), refreshPhoneContacts(), refreshLetters(), refreshWorldMap(), refreshChronicle(), refreshSavesList()]);
+    return res[1].success;
   };
 
   useEffect(() => {
@@ -90,9 +134,7 @@ export const App: React.FC = () => {
       setNpcs(res[2]);
       setProcesses(res[3]);
       setLastStepResult(null);
-      await refreshBiography();
-      await refreshDocuments();
-      await refreshSavesList();
+      await Promise.all([refreshBiography(), refreshDocuments(), refreshPhoneMessages(), refreshPhoneContacts(), refreshLetters(), refreshWorldMap(), refreshChronicle(), refreshSavesList()]);
       setAppMode('PLAYING');
       setActiveLens('life');
     }
@@ -111,8 +153,7 @@ export const App: React.FC = () => {
       setNpcs(res[2]);
       setProcesses(res[3]);
       setLastStepResult(null);
-      await refreshBiography();
-      await refreshDocuments();
+      await Promise.all([refreshBiography(), refreshDocuments(), refreshPhoneMessages(), refreshPhoneContacts(), refreshLetters(), refreshWorldMap(), refreshChronicle()]);
       setAppMode('PLAYING');
       setActiveLens('life');
     } else {
@@ -135,8 +176,7 @@ export const App: React.FC = () => {
       setNpcs(res[2]);
       setProcesses(res[3]);
       setLastStepResult(null);
-      await refreshBiography();
-      await refreshDocuments();
+      await Promise.all([refreshBiography(), refreshDocuments(), refreshPhoneMessages(), refreshPhoneContacts(), refreshLetters(), refreshWorldMap(), refreshChronicle()]);
       setAppMode('PLAYING');
       setActiveLens('life');
     }
@@ -160,6 +200,9 @@ export const App: React.FC = () => {
       setProcesses(res[4]);
       await refreshBiography();
       await refreshDocuments();
+      await refreshPhoneContacts();
+      await refreshWorldMap();
+      await refreshChronicle();
       await refreshSavesList();
     }
     setIsLoading(false);
@@ -182,9 +225,105 @@ export const App: React.FC = () => {
       setProcesses(res[4]);
       await refreshBiography();
       await refreshDocuments();
+      await refreshPhoneContacts();
+      await refreshWorldMap();
+      await refreshChronicle();
       await refreshSavesList();
     }
     setIsLoading(false);
+  };
+
+  const handleAgeUp = async () => {
+    if (isLoading) return;
+    setIsLoading(true);
+    const res = await callTauriCommand<[LivingStateDTO, LastStepResultDTO, TodaySceneDTO, ContextNpcDTO[], ContextProcessDTO[]]>('age_up_one_year');
+    await applyTurnResult(res);
+    setIsLoading(false);
+  };
+
+  const handleStructuredAction = async (action: StructuredGameplayAction): Promise<boolean> => {
+    if (isLoading) return false;
+    setIsLoading(true);
+
+    let command = '';
+    let args: Record<string, unknown> = {};
+    switch (action.type) {
+      case 'SEND_MESSAGE':
+        command = 'send_phone_message';
+        args = { recipientId: action.recipientId, text: action.text };
+        break;
+      case 'COMMUTE':
+        command = 'commute_to_place';
+        args = { placeId: action.placeId, transportMode: action.transportMode };
+        break;
+      case 'CONVERSE':
+        command = 'converse_with_npc';
+        args = { npcId: action.npcId, dialogue: action.dialogue };
+        break;
+      case 'BUSINESS_OPERATION':
+        command = 'advance_company_operation';
+        args = { companyName: action.companyName, operation: action.operation, plan: action.plan };
+        break;
+      case 'UNIVERSITY_APPLICATION':
+        command = 'apply_to_university';
+        args = {
+          institution: action.institution,
+          degreeProgram: action.degreeProgram,
+          primaryCourse: action.primaryCourse,
+          studyMode: action.studyMode,
+          fundingPlan: action.fundingPlan,
+        };
+        break;
+      case 'APPLY_FOR_JOB':
+        command = 'apply_for_job';
+        args = {
+          jobId: action.jobId,
+          companyId: action.companyId,
+          title: action.title,
+          companyName: action.companyName,
+          resumeSummary: action.resumeSummary,
+          coverLetter: action.coverLetter,
+          availability: action.availability,
+        };
+        break;
+      case 'REGISTER_COMPANY':
+        command = 'register_company';
+        args = {
+          name: action.name,
+          structure: action.structure,
+          partners: action.partners,
+          authorizedCapital: action.authorizedCapital,
+          businessActivity: action.businessActivity,
+          registeredAddress: action.registeredAddress,
+        };
+        break;
+      case 'TRAVEL':
+        command = 'travel_to_location';
+        args = {
+          destinationCityId: action.destinationCityId,
+          transportMode: action.transportMode,
+          stayDays: action.stayDays,
+          operatorName: action.operatorName,
+          serviceClass: action.serviceClass,
+          fare: action.fare,
+          accommodation: action.accommodation,
+          departureTiming: action.departureTiming,
+          journeyType: action.journeyType,
+          immigrationPathway: action.immigrationPathway,
+        };
+        break;
+    }
+
+    const res = await callTauriCommand<[
+      LivingStateDTO,
+      LastStepResultDTO,
+      TodaySceneDTO,
+      ContextNpcDTO[],
+      ContextProcessDTO[],
+    ]>(command, args);
+    const success = await applyTurnResult(res);
+    setIsLoading(false);
+    return success;
   };
 
   if (appMode === 'BOOTING') {
@@ -219,12 +358,19 @@ export const App: React.FC = () => {
         lastStepResult={lastStepResult}
         npcs={npcs}
         documents={documents}
+        phoneMessages={phoneMessages}
+        phoneContacts={phoneContacts}
+        letters={letters}
+        worldMapPlaces={worldMapPlaces}
+        chronicleEntries={chronicleEntries}
         processes={processes}
         biographyText={biographyText}
         activeLens={activeLens}
         onSelectLens={setActiveLens}
         onSubmitIntent={handleSubmitIntent}
+        onStructuredAction={handleStructuredAction}
         onAdvanceExplicit={handleAdvanceExplicit}
+        onAgeUp={handleAgeUp}
         isLoading={isLoading}
         onReturnToMainMenu={async () => {
           await refreshSavesList();

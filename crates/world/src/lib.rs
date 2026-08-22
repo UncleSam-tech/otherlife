@@ -321,6 +321,8 @@ pub enum ProcessType {
     JobApplication,
     MedicalTreatment,
     TravelJourney,
+    ResidencyApplication,
+    BusinessOperations,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -788,13 +790,52 @@ pub struct LivingStateDTO {
     pub weather_description: String,
     pub cash: f64,
     pub currency_symbol: String,
+    pub currency_code: String,
     pub household_tier: String,
+    pub health_level: f32,
     pub energy_level: f32,
     pub stress_level: f32,
     pub fitness: f32,
+    pub confidence_level: f32,
+    pub relationships_count: usize,
     pub occupation: String,
     pub active_processes_count: usize,
     pub surrounding_npcs_count: usize,
+    pub current_place_id: String,
+    pub current_place_name: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WorldMapPlaceDTO {
+    pub id: String,
+    pub name: String,
+    pub category: String,
+    pub district_name: String,
+    pub description: String,
+    pub map_x: f32,
+    pub map_y: f32,
+    pub travel_minutes: u32,
+    pub travel_cost: f64,
+    pub distance_km: f64,
+    pub walk_minutes: u32,
+    pub public_transit_minutes: u32,
+    pub public_transit_cost: f64,
+    pub taxi_minutes: u32,
+    pub taxi_cost: f64,
+    pub is_current: bool,
+    pub is_open: bool,
+    pub present_people_count: usize,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ChronicleEntryDTO {
+    pub id: String,
+    pub age: u32,
+    pub date: String,
+    pub event_type: String,
+    pub headline: String,
+    pub narrative: String,
+    pub success: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -846,6 +887,8 @@ pub struct ContextNpcDTO {
     pub relationship_type: String,
     pub trust_description: String,
     pub current_activity: String,
+    pub location_id: String,
+    pub is_new_acquaintance: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
