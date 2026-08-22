@@ -7,6 +7,8 @@ export interface ContextNpcDTO {
   relationship_type: string;
   trust_description: string;
   current_activity: string;
+  location_id: string;
+  is_new_acquaintance: boolean;
 }
 
 interface NPCDisplayProps {

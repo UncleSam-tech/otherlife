@@ -20,6 +20,8 @@ export interface LivingStateDTO {
   occupation: string;
   active_processes_count: number;
   surrounding_npcs_count: number;
+  current_place_id: string;
+  current_place_name: string;
 }
 
 interface ContextPanelProps {

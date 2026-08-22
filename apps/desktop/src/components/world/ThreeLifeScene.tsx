@@ -6,6 +6,7 @@ import { ContextNpcDTO } from '../characters/NPCDisplay';
 interface ThreeLifeSceneProps {
   age: number;
   location: string;
+  placeId: string;
   weatherName: string;
   npcs: ContextNpcDTO[];
   onOpenPhone: () => void;
@@ -28,6 +29,7 @@ const actionButtons = [
 export const ThreeLifeScene: React.FC<ThreeLifeSceneProps> = ({
   age,
   location,
+  placeId,
   weatherName,
   npcs,
   onOpenPhone,
@@ -40,11 +42,15 @@ export const ThreeLifeScene: React.FC<ThreeLifeSceneProps> = ({
   const callbacksRef = useRef({ onOpenPhone, onOpenComputer, onOpenDocuments, onOpenTravel, onSelectNpc });
   const npcsRef = useRef(npcs);
   const navigateRef = useRef<(direction: NavigationDirection) => void>(() => undefined);
-  const [hoveredLabel, setHoveredLabel] = useState('Move through the room and select an object');
+  const [hoveredLabel, setHoveredLabel] = useState('Explore this location and select an object');
   const [renderError, setRenderError] = useState(false);
 
   callbacksRef.current = { onOpenPhone, onOpenComputer, onOpenDocuments, onOpenTravel, onSelectNpc };
   npcsRef.current = npcs;
+
+  useEffect(() => {
+    setHoveredLabel('Explore this location and select an object');
+  }, [placeId]);
 
   const activate = (interactionId: InteractionId) => {
     if (interactionId === 'phone') callbacksRef.current.onOpenPhone();
@@ -74,7 +80,16 @@ export const ThreeLifeScene: React.FC<ThreeLifeSceneProps> = ({
         if (cancelled) return;
 
         scene = new THREE.Scene();
-        scene.background = new THREE.Color(0x08111d);
+        const placePalette: Record<string, number> = {
+          'place:home': 0x08111d,
+          'place:office': 0x071522,
+          'place:university': 0x120d24,
+          'place:cafe': 0x21130d,
+          'place:civic_center': 0x180d20,
+          'place:park': 0x071b12,
+          'place:transport_terminal': 0x151820,
+        };
+        scene.background = new THREE.Color(placePalette[placeId] ?? 0x08111d);
         scene.fog = new THREE.Fog(0x08111d, 12, 28);
 
         const camera = new THREE.PerspectiveCamera(46, 1, 0.1, 80);
@@ -87,7 +102,7 @@ export const ThreeLifeScene: React.FC<ThreeLifeSceneProps> = ({
         renderer.shadowMap.enabled = true;
         renderer.shadowMap.type = THREE.PCFSoftShadowMap;
         renderer.outputColorSpace = THREE.SRGBColorSpace;
-        renderer.domElement.setAttribute('aria-label', `Interactive three-dimensional room in ${location}`);
+        renderer.domElement.setAttribute('aria-label', `Interactive three-dimensional scene at ${location}`);
         renderer.domElement.setAttribute('role', 'application');
         renderer.domElement.setAttribute('tabindex', '0');
         renderer.domElement.style.width = '100%';
@@ -264,7 +279,7 @@ export const ThreeLifeScene: React.FC<ThreeLifeSceneProps> = ({
             mesh.material.emissive.setHex(0x6a4514);
           }
           renderer!.domElement.style.cursor = mesh ? 'pointer' : 'grab';
-          setHoveredLabel(mesh?.userData.label || 'Move through the room and select an object');
+          setHoveredLabel(mesh?.userData.label || 'Explore this location and select an object');
         };
 
         const cast = (event: PointerEvent) => {
@@ -382,14 +397,14 @@ export const ThreeLifeScene: React.FC<ThreeLifeSceneProps> = ({
       navigateRef.current = () => undefined;
       if (renderer?.domElement.parentElement === mount) mount.removeChild(renderer.domElement);
     };
-  }, [age, location, weatherName]);
+  }, [age, location, placeId, weatherName]);
 
   return (
     <section className="relative min-h-[480px] overflow-hidden rounded-2xl border border-[#26344a] bg-[#08111d] shadow-2xl md:min-h-[560px]" aria-label="Interactive 3D life scene">
       <div ref={mountRef} className="absolute inset-0" aria-hidden={renderError} />
       <div className="pointer-events-none absolute inset-x-0 top-0 flex items-start justify-between bg-gradient-to-b from-black/70 to-transparent p-4">
         <div>
-          <p className="text-[10px] font-mono uppercase tracking-[0.18em] text-cyan-300">Live Three.js Environment</p>
+          <p className="text-[10px] font-mono uppercase tracking-[0.18em] text-cyan-300">Live Three.js Location · {placeId.replace('place:', '').replace('_', ' ')}</p>
           <p className="mt-1 font-serif text-sm text-white">{location}</p>
         </div>
         <p className="rounded-full border border-white/15 bg-black/35 px-3 py-1 text-[10px] text-slate-200">{weatherName}</p>

@@ -11,14 +11,15 @@ import { SimulatedComputerModal } from '../devices/SimulatedComputerModal';
 import { DocumentViewerModal, DocumentDTO } from '../documents/DocumentViewerModal';
 import { DiegeticDeviceModal } from '../devices/DiegeticDeviceModal';
 import { TravelPlannerModal } from '../travel/TravelPlannerModal';
+import { UniversityApplicationModal } from '../education/UniversityApplicationModal';
+import { CityMap } from '../world/CityMap';
 import { MemoryTimeline } from '../context/MemoryTimeline';
 import { TodaySceneDTO, LastStepResultDTO } from '../world/SceneRenderer';
 import { ContextNpcDTO } from '../characters/NPCDisplay';
 import { ContextProcessDTO } from '../context/ProcessTracker';
-import { PlaceLocationDTO } from '../world/PlaceInteractionModal';
 import { LivingStateDTO } from '../context/ContextPanel';
-import { LetterNotificationDTO, PhoneMessageDTO, StructuredGameplayAction } from '../../types/gameplay';
-import { Feather, Mail, Globe, Send, FileText } from 'lucide-react';
+import { LetterNotificationDTO, PhoneMessageDTO, StructuredGameplayAction, WorldMapPlaceDTO } from '../../types/gameplay';
+import { Feather, Mail, Globe, FileText } from 'lucide-react';
 
 interface GameShellProps {
   livingState: LivingStateDTO | null;
@@ -27,7 +28,9 @@ interface GameShellProps {
   npcs: ContextNpcDTO[];
   documents: DocumentDTO[];
   phoneMessages: PhoneMessageDTO[];
+  phoneContacts: ContextNpcDTO[];
   letters: LetterNotificationDTO[];
+  worldMapPlaces: WorldMapPlaceDTO[];
   processes?: ContextProcessDTO[];
   biographyText: string;
   activeLens: NavLens;
@@ -48,7 +51,9 @@ export const GameShell: React.FC<GameShellProps> = ({
   npcs,
   documents,
   phoneMessages,
+  phoneContacts,
   letters,
+  worldMapPlaces,
   processes = [],
   biographyText,
   activeLens,
@@ -62,6 +67,7 @@ export const GameShell: React.FC<GameShellProps> = ({
   onToggleDevMode: _onToggleDevMode,
 }) => {
   const playerAge = livingState?.age || 0;
+  const ownedCompanyName = documents.find((document) => document.document_type === 'COMPANY_INCORPORATION')?.fields['Company Name'];
 
   // Modals & Drawers State
   const [drawerItem, setDrawerItem] = useState<ContextDrawerItem>(null);
@@ -71,116 +77,20 @@ export const GameShell: React.FC<GameShellProps> = ({
   const [isComputerOpen, setIsComputerOpen] = useState(false);
   const [isDocumentsOpen, setIsDocumentsOpen] = useState(false);
   const [isTravelOpen, setIsTravelOpen] = useState(false);
+  const [isUniversityOpen, setIsUniversityOpen] = useState(false);
   const [activeDeviceType, setActiveDeviceType] = useState<'phone' | 'computer' | 'wallet' | 'documents' | 'mail' | null>(null);
-
-  const getPlacesForAge = (): PlaceLocationDTO[] => {
-    if (playerAge < 4) {
-      return [
-        {
-          id: 'place_home',
-          name: 'Family Home & Nursery',
-          category: 'Home Living',
-          desc: 'Your peaceful nursery and family living room with your crib, toys, and parents.',
-          actions: [
-            { id: 'home_rest', title: 'Rest in Crib', desc: 'Sleep and restore your energy peacefully.', intent: 'I rest in my crib and take a peaceful nap.' },
-            { id: 'home_play', title: 'Play on the Living Room Rug', desc: 'Explore wooden blocks and toys.', intent: 'I play with toys on the living room rug near my family.' },
-          ],
-        },
-        {
-          id: 'place_clinic',
-          name: 'Neighborhood Clinic & Pediatric Center',
-          category: 'Health & Care',
-          desc: 'Local clinic for child growth monitoring and vaccinations.',
-          actions: [
-            { id: 'clinic_check', title: 'Get Pediatric Health Checkup', desc: 'Visit with mother for health measurements.', intent: 'I visit the neighborhood clinic with my mother for routine health checkups and vaccination.' },
-          ],
-        },
-      ];
-    } else if (playerAge < 13) {
-      return [
-        {
-          id: 'place_school',
-          name: 'District Primary School',
-          category: 'Primary Education',
-          desc: 'Classrooms where foundational arithmetic, reading, and science are taught.',
-          actions: [
-            { id: 'school_study', title: 'Attend Arithmetic & Reading Classes', desc: 'Work through problem sets with the class.', intent: 'I spend the afternoon doing arithmetic exercises and reading my schoolbooks carefully.' },
-            { id: 'school_club', title: 'Participate in Science & Debate Club', desc: 'Engage with fellow curious students.', intent: 'I attend the school Science and Debate Club to learn with fellow curious students.' },
-          ],
-        },
-        {
-          id: 'place_courtyard',
-          name: 'Neighborhood Sports Courtyard',
-          category: 'Athletics & Recreation',
-          desc: 'Open grass grounds where children play street football and athletic games.',
-          actions: [
-            { id: 'court_football', title: 'Join Football Drills', desc: 'Practice passing, ball control, and scrimmages.', intent: 'I join the youth football training session on the community field and practice ball control.' },
-          ],
-        },
-      ];
-    } else if (playerAge < 18) {
-      return [
-        {
-          id: 'place_secondary',
-          name: 'Senior Secondary & Exam Academy',
-          category: 'Secondary Education',
-          desc: 'Academic halls hosting national examination revisions (WAEC / JAMB / GCSE) and science labs.',
-          actions: [
-            { id: 'exam_revision', title: 'Study for National Certificate Examinations', desc: 'Revise chemistry, physics, and advanced mathematics question papers.', intent: 'I dedicate intensive evening study sessions to past examination papers in preparation for national certification.' },
-            { id: 'library_session', title: 'Study in the Quiet Central Library', desc: 'Spend uninterrupted hours mastering curriculum topics.', intent: 'I spend Saturday mornings in the central library revising advanced curriculum subjects.' },
-          ],
-        },
-        {
-          id: 'place_sports_academy',
-          name: 'Youth Sports Academy & Scouting Grounds',
-          category: 'Athletics & Scouting',
-          desc: 'Floodlit athletic fields where tactical training drills are contested under talent scouts.',
-          actions: [
-            { id: 'attend_trials', title: 'Attend Scouting Selection Trials', desc: 'Compete in scrimmages before talent scouts.', intent: 'I lace up my boots and attend competitive youth football trials before academy scouts.' },
-          ],
-        },
-      ];
-    } else {
-      return [
-        {
-          id: 'place_university',
-          name: 'University & Higher Institute',
-          category: 'Higher Education',
-          desc: 'Lecture auditoriums and faculties offering degree programs, research papers, and alumni networks.',
-          actions: [
-            { id: 'uni_classes', title: 'Attend University Lectures & Seminars', desc: 'Advance toward degree graduation and honors.', intent: 'I attend university lectures and seminars with full academic diligence.' },
-          ],
-        },
-        {
-          id: 'place_cbd',
-          name: 'Commercial Central Business District',
-          category: 'Finance & Enterprise',
-          desc: 'Corporate offices, commercial banks, and company registration registries.',
-          actions: [
-            { id: 'register_business', title: 'Register a New Company / LLC', desc: 'Incorporate your business entity with commercial authorities.', intent: 'I formally incorporate a new limited liability company with commercial authorities.' },
-            { id: 'apply_jobs', title: 'Apply for Professional Career Listings', desc: 'Submit CV for corporate and engineering roles.', intent: 'I submit formal applications for open professional positions aligned with my qualifications.' },
-          ],
-        },
-        {
-          id: 'place_travel',
-          name: 'Transport Terminal & Travel Desk',
-          category: 'Travel & Accommodation',
-          desc: 'Compare transport, pay a fare, reserve a stay, receive an itinerary, and move to another city.',
-          actions: [
-            { id: 'book_travel', title: 'Plan a Journey', desc: 'Choose a city, transport, and length of stay.', intent: 'Open the structured travel planner.' },
-          ],
-        },
-      ];
-    }
-  };
-
-  const currentPlaces = getPlacesForAge();
 
   const handleSelectObject = (objName: string) => {
     const lower = objName.toLowerCase();
     if (lower.includes('phone') || lower.includes('mobile') || lower.includes('smartphone')) {
       setIsPhoneOpen(true);
-    } else if (lower.includes('computer') || lower.includes('laptop') || lower.includes('pc') || lower.includes('desktop')) {
+    } else if (lower.includes('computer') || lower.includes('laptop') || lower.includes('pc') || lower.includes('desktop') || lower.includes('workstation')) {
+      setIsComputerOpen(true);
+    } else if (lower.includes('admissions') || lower.includes('course catalogue')) {
+      setIsUniversityOpen(true);
+    } else if (lower.includes('ticket counter') || lower.includes('departure board')) {
+      setIsTravelOpen(true);
+    } else if (lower.includes('registry') || lower.includes('immigration desk') || lower.includes('document kiosk')) {
       setIsComputerOpen(true);
     } else if (lower.includes('certificate') || lower.includes('record') || lower.includes('document')) {
       setIsDocumentsOpen(true);
@@ -190,10 +100,15 @@ export const GameShell: React.FC<GameShellProps> = ({
         data: {
           name: objName,
           description: `An environmental object in the room: ${objName}.`,
-          possibleActions: [
-            `I inspect and examine the ${objName} closely.`,
-            `I tidy up and arrange the ${objName} carefully.`,
-          ],
+          possibleActions: lower.includes('meeting room')
+            ? ['I reserve the meeting room and prepare an agenda.', 'I invite the relevant people and begin the meeting.']
+            : lower.includes('library')
+              ? ['I search the catalogue for material relevant to my goals.', 'I sit down for a focused study session.']
+              : lower.includes('consultation room')
+                ? ['I request a medical consultation and describe my concern.', 'I review the available appointment times.']
+                : lower.includes('training') || lower.includes('playing field')
+                  ? ['I join the next appropriate training session.', 'I speak with a coach about assessment and progression.']
+                  : [`I inspect and examine the ${objName} closely.`, `I use the ${objName} for its intended purpose.`],
         },
       });
     }
@@ -205,7 +120,7 @@ export const GameShell: React.FC<GameShellProps> = ({
       <PersistentWorldBar
         characterName={livingState?.player_name || 'Living Person'}
         dateTimeFormatted={livingState?.time_formatted || ''}
-        locationFormatted={livingState?.location_formatted || 'Living World'}
+        locationFormatted={livingState ? `${livingState.current_place_name} · ${livingState.location_formatted}` : 'Living World'}
         weatherName={livingState?.weather_name || 'Seasonal Weather'}
         unreadNotificationsCount={0}
         playerAge={playerAge}
@@ -243,6 +158,9 @@ export const GameShell: React.FC<GameShellProps> = ({
               else setActiveDeviceType(dev);
             }}
             onOpenTravel={() => setIsTravelOpen(true)}
+            currentPlaceId={livingState?.current_place_id || 'place:home'}
+            currentPlaceName={livingState?.current_place_name || 'Current place'}
+            onOpenUniversity={() => setIsUniversityOpen(true)}
             isLoading={isLoading}
           />
         )}
@@ -283,38 +201,14 @@ export const GameShell: React.FC<GameShellProps> = ({
         )}
 
         {activeLens === 'places' && (
-          <main className="flex-1 overflow-y-auto bg-[#07090e] p-8 max-w-4xl mx-auto space-y-6 select-text">
-            <div className="flex items-center justify-between border-b border-[#1c2130] pb-4">
-              <div>
-                <h2 className="text-2xl font-serif font-bold text-slate-100">Places & Horizon</h2>
-                <p className="text-xs font-serif italic text-amber-300/80">Click any location to inspect opportunities and actions</p>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {currentPlaces.map((pl) => (
-                <button
-                  type="button"
-                  key={pl.id}
-                  onClick={() => {
-                    if (pl.id === 'place_travel') setIsTravelOpen(true);
-                    else setDrawerItem({ type: 'place', data: pl });
-                  }}
-                  className="w-full bg-[#0d1017] hover:bg-[#131722] border border-[#1b2234] hover:border-amber-500/50 p-5 rounded-2xl cursor-pointer space-y-2.5 text-left transition-all shadow-sm group"
-                >
-                  <div className="flex items-center justify-between">
-                    <h3 className="font-serif font-bold text-slate-100 text-base group-hover:text-amber-200">{pl.name}</h3>
-                    <Send className="w-3.5 h-3.5 text-slate-600 group-hover:text-amber-400 group-hover:translate-x-0.5 transition-all" />
-                  </div>
-                  <p className="text-[10px] text-amber-300/80 font-mono uppercase">{pl.category}</p>
-                  <p className="text-xs text-slate-300 font-serif leading-relaxed">{pl.desc}</p>
-                  <div className="pt-2 border-t border-[#1c2234] text-[11px] text-amber-400/80 font-serif italic">
-                    Click to visit ({pl.actions.length} actions available)
-                  </div>
-                </button>
-              ))}
-            </div>
-          </main>
+          <CityMap
+            cityName={livingState?.location_formatted || 'Living city'}
+            currencySymbol={livingState?.currency_symbol || '₦'}
+            places={worldMapPlaces}
+            isLoading={isLoading}
+            onCommute={(placeId, transportMode) => onStructuredAction({ type: 'COMMUTE', placeId, transportMode })}
+            onArrive={() => onSelectLens('life')}
+          />
         )}
 
         {activeLens === 'journal' && (
@@ -466,7 +360,7 @@ export const GameShell: React.FC<GameShellProps> = ({
         <ConversationModal
           npc={conversationNpc}
           onClose={() => setConversationNpc(null)}
-          onSendMessage={onSubmitIntent}
+          onSendMessage={(dialogue) => onStructuredAction({ type: 'CONVERSE', npcId: conversationNpc.id, dialogue })}
           isLoading={isLoading}
         />
       )}
@@ -490,7 +384,7 @@ export const GameShell: React.FC<GameShellProps> = ({
           playerAge={playerAge}
           cash={livingState?.cash || 0}
           currencySymbol={livingState?.currency_symbol || '₦'}
-          npcs={npcs}
+          contacts={phoneContacts}
           messages={phoneMessages}
           onExecuteAction={onSubmitIntent}
           onStructuredAction={onStructuredAction}
@@ -507,6 +401,7 @@ export const GameShell: React.FC<GameShellProps> = ({
           onExecuteAction={onSubmitIntent}
           onStructuredAction={onStructuredAction}
           isLoading={isLoading}
+          ownedCompanyName={ownedCompanyName}
         />
       )}
 
@@ -525,6 +420,16 @@ export const GameShell: React.FC<GameShellProps> = ({
           currencySymbol={livingState?.currency_symbol || '₦'}
           isLoading={isLoading}
           onClose={() => setIsTravelOpen(false)}
+          onStructuredAction={onStructuredAction}
+        />
+      )}
+
+      {isUniversityOpen && (
+        <UniversityApplicationModal
+          institution={livingState?.current_place_name || 'Metropolitan University'}
+          currencySymbol={livingState?.currency_symbol || '₦'}
+          isLoading={isLoading}
+          onClose={() => setIsUniversityOpen(false)}
           onStructuredAction={onStructuredAction}
         />
       )}

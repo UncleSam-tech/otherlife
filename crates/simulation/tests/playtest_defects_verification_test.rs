@@ -335,6 +335,8 @@ fn test_detailed_booking_charges_selected_fare_and_persists_the_itinerary() {
         96.0,
         "Business District Suites",
         "Tomorrow morning at 12:15",
+        "Visit",
+        "Visitor / tourist entry",
     );
     assert!(result.success);
     assert_eq!(engine.get_player().resources.cash, initial_cash - 96.0);

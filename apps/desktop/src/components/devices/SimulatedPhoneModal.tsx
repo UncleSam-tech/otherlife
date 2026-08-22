@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { MessageSquare, PhoneCall, CreditCard, Send, ArrowLeft, ArrowRight, PhoneOff } from 'lucide-react';
 import { ContextNpcDTO } from '../characters/NPCDisplay';
 import { PhoneMessageDTO, StructuredGameplayAction } from '../../types/gameplay';
@@ -8,7 +8,7 @@ interface SimulatedPhoneModalProps {
   playerAge?: number;
   cash: number;
   currencySymbol: string;
-  npcs: ContextNpcDTO[];
+  contacts: ContextNpcDTO[];
   messages: PhoneMessageDTO[];
   onExecuteAction: (intent: string) => void;
   onStructuredAction: (action: StructuredGameplayAction) => Promise<boolean>;
@@ -19,7 +19,7 @@ export const SimulatedPhoneModal: React.FC<SimulatedPhoneModalProps> = ({
   onClose,
   cash,
   currencySymbol,
-  npcs,
+  contacts,
   messages,
   onExecuteAction,
   onStructuredAction,
@@ -34,13 +34,19 @@ export const SimulatedPhoneModal: React.FC<SimulatedPhoneModalProps> = ({
   const [callStatus, setCallStatus] = useState<'RINGING' | 'CONNECTED' | null>(null);
   const [callLog, setCallLog] = useState<string[]>([]);
   const [callInput, setCallInput] = useState('');
+  const connectionTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => () => {
+    if (connectionTimer.current) clearTimeout(connectionTimer.current);
+  }, []);
 
   const handleStartCall = (contact: ContextNpcDTO) => {
     setCallingContact(contact);
     setCallStatus('RINGING');
     setCallLog([`Calling ${contact.name}...`]);
 
-    setTimeout(() => {
+    if (connectionTimer.current) clearTimeout(connectionTimer.current);
+    connectionTimer.current = setTimeout(() => {
       setCallStatus('CONNECTED');
       setCallLog((prev) => [
         ...prev,
@@ -52,10 +58,18 @@ export const SimulatedPhoneModal: React.FC<SimulatedPhoneModalProps> = ({
   const handleSendCallDialogue = () => {
     if (!callInput.trim() || !callingContact || isLoading) return;
     const text = callInput.trim();
+    const lower = text.toLowerCase();
+    const response = lower.includes('work') || lower.includes('business')
+      ? `Work is busy, but I can talk. Tell me the decision you are trying to make and what is blocking it.`
+      : lower.includes('university') || lower.includes('course')
+        ? `I would compare the course content, cost, and the people already studying there before you commit.`
+        : lower.includes('where') || lower.includes('doing')
+          ? `I am ${callingContact.current_activity.toLowerCase()} right now, but I have a few minutes. What is going on?`
+          : `I hear you. Give me the concrete situation, and I will tell you honestly how I see it.`;
     setCallLog((prev) => [
       ...prev,
       `You: "${text}"`,
-      `${callingContact.name}: "I hear you clearly. Let's make sure we stay disciplined and focused on the goal."`,
+      `${callingContact.name}: "${response}"`,
     ]);
     setCallInput('');
     onExecuteAction(`I speak with ${callingContact.name} over the phone: "${text}"`);
@@ -65,6 +79,10 @@ export const SimulatedPhoneModal: React.FC<SimulatedPhoneModalProps> = ({
     setCallStatus(null);
     setCallingContact(null);
     setCallLog([]);
+    if (connectionTimer.current) {
+      clearTimeout(connectionTimer.current);
+      connectionTimer.current = null;
+    }
   };
 
   const handleSendMessage = async () => {
@@ -150,7 +168,7 @@ export const SimulatedPhoneModal: React.FC<SimulatedPhoneModalProps> = ({
                 <div className="grid grid-cols-3 gap-3 text-center">
                   <button
                     type="button"
-                    aria-label={selectedContact ? 'Back to message threads' : 'Back to phone home'}
+                    aria-label="Open Messages"
                     onClick={() => setActiveApp('messages')}
                     className="flex flex-col items-center gap-1.5 p-3 rounded-2xl bg-[#141926] hover:bg-[#1d2438] border border-[#222c42] transition-colors cursor-pointer"
                   >
@@ -253,7 +271,7 @@ export const SimulatedPhoneModal: React.FC<SimulatedPhoneModalProps> = ({
                   </div>
                 ) : (
                   <div className="space-y-2">
-                    {npcs.map((npc) => (
+                    {contacts.map((npc) => (
                       <button
                         type="button"
                         key={npc.id}
@@ -267,6 +285,11 @@ export const SimulatedPhoneModal: React.FC<SimulatedPhoneModalProps> = ({
                         <ArrowRight className="w-3.5 h-3.5 text-slate-500" />
                       </button>
                     ))}
+                    {contacts.length === 0 && (
+                      <p className="rounded-xl border border-dashed border-[#2a344d] p-4 text-center text-xs text-slate-400">
+                        Meet people in the world before they become phone contacts.
+                      </p>
+                    )}
                   </div>
                 )}
               </div>
@@ -307,7 +330,7 @@ export const SimulatedPhoneModal: React.FC<SimulatedPhoneModalProps> = ({
                   <h4 className="font-serif font-bold text-xs">Contacts to Call</h4>
                 </div>
                 <div className="space-y-2">
-                  {npcs.map((npc) => (
+                  {contacts.map((npc) => (
                     <button
                       type="button"
                       key={npc.id}
@@ -321,6 +344,11 @@ export const SimulatedPhoneModal: React.FC<SimulatedPhoneModalProps> = ({
                       <PhoneCall className="w-3.5 h-3.5 text-emerald-400 group-hover:scale-110 transition-transform" />
                     </button>
                   ))}
+                  {contacts.length === 0 && (
+                    <p className="rounded-xl border border-dashed border-[#2a344d] p-4 text-center text-xs text-slate-400">
+                      No saved contacts yet.
+                    </p>
+                  )}
                 </div>
               </div>
             )}

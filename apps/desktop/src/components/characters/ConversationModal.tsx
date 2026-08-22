@@ -1,11 +1,11 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { ContextNpcDTO } from './NPCDisplay';
 import { Send, X, CornerDownRight } from 'lucide-react';
 
 interface ConversationModalProps {
   npc: ContextNpcDTO | null;
   onClose: () => void;
-  onSendMessage: (messageText: string) => void;
+  onSendMessage: (messageText: string) => Promise<boolean>;
   isLoading: boolean;
 }
 
@@ -15,32 +15,38 @@ export const ConversationModal: React.FC<ConversationModalProps> = ({
   onSendMessage,
   isLoading,
 }) => {
+  const [inputMessage, setInputMessage] = useState('');
+  const [messages, setMessages] = useState<Array<{ sender: 'player' | 'npc'; text: string; reaction?: string }>>([]);
+  const [hasMet, setHasMet] = useState(false);
+
+  useEffect(() => {
+    if (!npc) return;
+    const greeting = npc.is_new_acquaintance
+      ? `Hi. I don't think we've met before—I'm ${npc.name}.`
+      : `Good to see you. What is on your mind?`;
+    setMessages([{ sender: 'npc', text: greeting, reaction: `Pauses ${npc.current_activity.toLowerCase()} and turns toward you.` }]);
+    setHasMet(!npc.is_new_acquaintance);
+  }, [npc]);
+
   if (!npc) return null;
 
-  const [inputMessage, setInputMessage] = useState('');
-  const [messages, setMessages] = useState<Array<{ sender: 'player' | 'npc'; text: string; reaction?: string }>>([
-    {
-      sender: 'npc',
-      text: `Hello there. How are you holding up today?`,
-      reaction: 'Smiles gently and pauses what they were doing to give you their full attention.',
-    },
-  ]);
-
-  const handleSend = (textToSend: string) => {
+  const handleSend = async (textToSend: string) => {
     if (!textToSend.trim() || isLoading) return;
-
-    // Add player response to history
-    setMessages((prev) => [
-      ...prev,
-      { sender: 'player', text: textToSend.trim() },
-      {
-        sender: 'npc',
-        text: `I understand where you are coming from. Let us take it one step at a time.`,
-        reaction: 'Nods thoughtfully, considering your words with sincere care.',
-      },
-    ]);
-
-    onSendMessage(`I say to ${npc.name}: "${textToSend.trim()}"`);
+    const spoken = textToSend.trim();
+    setMessages((previous) => [...previous, { sender: 'player', text: spoken }]);
+    const success = await onSendMessage(spoken);
+    if (success) {
+      setHasMet(true);
+      const lower = spoken.toLowerCase();
+      const response = lower.includes('work') || lower.includes('career')
+        ? `Work has been demanding, but I have learned that the people around a job matter as much as the title. What kind of work are you trying to build toward?`
+        : lower.includes('university') || lower.includes('course')
+          ? `Choosing the programme carefully matters. I would compare the actual modules, cost, and where graduates end up before accepting an offer.`
+          : lower.includes('name') || lower.includes('meet')
+            ? `It is good to meet you properly. I am usually here around this time, so we may run into each other again.`
+            : `That makes sense. From where I stand, I would take one concrete step and see what it changes before committing to the next.`;
+      setMessages((previous) => [...previous, { sender: 'npc', text: response, reaction: 'Responds after considering what you actually said.' }]);
+    }
     setInputMessage('');
   };
 
@@ -65,7 +71,7 @@ export const ConversationModal: React.FC<ConversationModalProps> = ({
             <div>
               <h3 className="font-serif font-bold text-base text-slate-100">{npc.name}</h3>
               <p className="text-xs text-amber-300/80 font-serif italic">
-                {npc.relationship_type} · {npc.trust_description}
+                {hasMet ? 'Acquaintance · Conversation remembered' : `${npc.relationship_type} · ${npc.trust_description}`}
               </p>
             </div>
           </div>

@@ -9,7 +9,7 @@ import { ContextProcessDTO } from './components/context/ProcessTracker';
 import { DocumentDTO } from './components/documents/DocumentViewerModal';
 import { NavLens } from './components/navigation/LifeNavigation';
 import { NewLifeCreatorConfig } from './components/creation/LifeCreator';
-import { LetterNotificationDTO, PhoneMessageDTO, StructuredGameplayAction } from './types/gameplay';
+import { LetterNotificationDTO, PhoneMessageDTO, StructuredGameplayAction, WorldMapPlaceDTO } from './types/gameplay';
 import './styles/globals.css';
 
 export type AppMode = 'BOOTING' | 'MAIN_MENU' | 'PLAYING';
@@ -37,9 +37,11 @@ export const App: React.FC = () => {
   const [processes, setProcesses] = useState<ContextProcessDTO[]>([]);
   const [documents, setDocuments] = useState<DocumentDTO[]>([]);
   const [phoneMessages, setPhoneMessages] = useState<PhoneMessageDTO[]>([]);
+  const [phoneContacts, setPhoneContacts] = useState<ContextNpcDTO[]>([]);
   const [letters, setLetters] = useState<LetterNotificationDTO[]>([]);
   const [lastStepResult, setLastStepResult] = useState<LastStepResultDTO | null>(null);
   const [biographyText, setBiographyText] = useState<string>('');
+  const [worldMapPlaces, setWorldMapPlaces] = useState<WorldMapPlaceDTO[]>([]);
 
   const refreshSavesList = async () => {
     const saves = await callTauriCommand<SaveMetadata[]>('list_saves');
@@ -61,9 +63,19 @@ export const App: React.FC = () => {
     if (messages) setPhoneMessages(messages);
   };
 
+  const refreshPhoneContacts = async () => {
+    const contacts = await callTauriCommand<ContextNpcDTO[]>('get_phone_contacts');
+    if (contacts) setPhoneContacts(contacts);
+  };
+
   const refreshLetters = async () => {
     const inbox = await callTauriCommand<LetterNotificationDTO[]>('get_letters_inbox');
     if (inbox) setLetters(inbox);
+  };
+
+  const refreshWorldMap = async () => {
+    const places = await callTauriCommand<WorldMapPlaceDTO[]>('get_world_map');
+    if (places) setWorldMapPlaces(places);
   };
 
   const applyTurnResult = async (
@@ -75,7 +87,7 @@ export const App: React.FC = () => {
     setTodayScene(res[2]);
     setNpcs(res[3]);
     setProcesses(res[4]);
-    await Promise.all([refreshBiography(), refreshDocuments(), refreshPhoneMessages(), refreshLetters(), refreshSavesList()]);
+    await Promise.all([refreshBiography(), refreshDocuments(), refreshPhoneMessages(), refreshPhoneContacts(), refreshLetters(), refreshWorldMap(), refreshSavesList()]);
     return res[1].success;
   };
 
@@ -116,11 +128,7 @@ export const App: React.FC = () => {
       setNpcs(res[2]);
       setProcesses(res[3]);
       setLastStepResult(null);
-      await refreshBiography();
-      await refreshDocuments();
-      await refreshPhoneMessages();
-      await refreshLetters();
-      await refreshSavesList();
+      await Promise.all([refreshBiography(), refreshDocuments(), refreshPhoneMessages(), refreshPhoneContacts(), refreshLetters(), refreshWorldMap(), refreshSavesList()]);
       setAppMode('PLAYING');
       setActiveLens('life');
     }
@@ -139,10 +147,7 @@ export const App: React.FC = () => {
       setNpcs(res[2]);
       setProcesses(res[3]);
       setLastStepResult(null);
-      await refreshBiography();
-      await refreshDocuments();
-      await refreshPhoneMessages();
-      await refreshLetters();
+      await Promise.all([refreshBiography(), refreshDocuments(), refreshPhoneMessages(), refreshPhoneContacts(), refreshLetters(), refreshWorldMap()]);
       setAppMode('PLAYING');
       setActiveLens('life');
     } else {
@@ -165,10 +170,7 @@ export const App: React.FC = () => {
       setNpcs(res[2]);
       setProcesses(res[3]);
       setLastStepResult(null);
-      await refreshBiography();
-      await refreshDocuments();
-      await refreshPhoneMessages();
-      await refreshLetters();
+      await Promise.all([refreshBiography(), refreshDocuments(), refreshPhoneMessages(), refreshPhoneContacts(), refreshLetters(), refreshWorldMap()]);
       setAppMode('PLAYING');
       setActiveLens('life');
     }
@@ -192,6 +194,8 @@ export const App: React.FC = () => {
       setProcesses(res[4]);
       await refreshBiography();
       await refreshDocuments();
+      await refreshPhoneContacts();
+      await refreshWorldMap();
       await refreshSavesList();
     }
     setIsLoading(false);
@@ -214,6 +218,8 @@ export const App: React.FC = () => {
       setProcesses(res[4]);
       await refreshBiography();
       await refreshDocuments();
+      await refreshPhoneContacts();
+      await refreshWorldMap();
       await refreshSavesList();
     }
     setIsLoading(false);
@@ -229,6 +235,28 @@ export const App: React.FC = () => {
       case 'SEND_MESSAGE':
         command = 'send_phone_message';
         args = { recipientId: action.recipientId, text: action.text };
+        break;
+      case 'COMMUTE':
+        command = 'commute_to_place';
+        args = { placeId: action.placeId, transportMode: action.transportMode };
+        break;
+      case 'CONVERSE':
+        command = 'converse_with_npc';
+        args = { npcId: action.npcId, dialogue: action.dialogue };
+        break;
+      case 'BUSINESS_OPERATION':
+        command = 'advance_company_operation';
+        args = { companyName: action.companyName, operation: action.operation, plan: action.plan };
+        break;
+      case 'UNIVERSITY_APPLICATION':
+        command = 'apply_to_university';
+        args = {
+          institution: action.institution,
+          degreeProgram: action.degreeProgram,
+          primaryCourse: action.primaryCourse,
+          studyMode: action.studyMode,
+          fundingPlan: action.fundingPlan,
+        };
         break;
       case 'APPLY_FOR_JOB':
         command = 'apply_for_job';
@@ -264,6 +292,8 @@ export const App: React.FC = () => {
           fare: action.fare,
           accommodation: action.accommodation,
           departureTiming: action.departureTiming,
+          journeyType: action.journeyType,
+          immigrationPathway: action.immigrationPathway,
         };
         break;
     }
@@ -313,7 +343,9 @@ export const App: React.FC = () => {
         npcs={npcs}
         documents={documents}
         phoneMessages={phoneMessages}
+        phoneContacts={phoneContacts}
         letters={letters}
+        worldMapPlaces={worldMapPlaces}
         processes={processes}
         biographyText={biographyText}
         activeLens={activeLens}

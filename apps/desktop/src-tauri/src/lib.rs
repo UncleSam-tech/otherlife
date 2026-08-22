@@ -1,7 +1,7 @@
 use otherlife_simulation::SimulationEngine;
 use otherlife_world::{
     ContextNpcDTO, ContextProcessDTO, DocumentDTO, LivingStateDTO, LivingStepResultDTO,
-    NewLifeConfig, TodaySceneDTO,
+    NewLifeConfig, TodaySceneDTO, WorldMapPlaceDTO,
 };
 use serde::{Deserialize, Serialize};
 use std::fs;
@@ -260,6 +260,74 @@ pub mod commands {
     }
 
     #[tauri::command]
+    pub fn get_phone_contacts(state: State<'_, AppState>) -> Vec<ContextNpcDTO> {
+        let engine = state.engine.lock().unwrap();
+        engine.get_phone_contacts()
+    }
+
+    #[tauri::command]
+    pub fn get_world_map(state: State<'_, AppState>) -> Vec<WorldMapPlaceDTO> {
+        let engine = state.engine.lock().unwrap();
+        engine.get_world_map()
+    }
+
+    #[tauri::command]
+    pub fn commute_to_place(
+        app: AppHandle,
+        state: State<'_, AppState>,
+        place_id: String,
+        transport_mode: String,
+    ) -> (LivingStateDTO, LivingStepResultDTO, TodaySceneDTO, Vec<ContextNpcDTO>, Vec<ContextProcessDTO>) {
+        let mut engine = state.engine.lock().unwrap();
+        let step_res = engine.commute_to_place(&place_id, &transport_mode);
+        autosave_engine(&app, &engine);
+        (engine.get_living_state(), step_res, engine.generate_today_scene(), engine.get_surrounding_npcs(), engine.get_active_processes())
+    }
+
+    #[tauri::command]
+    pub fn apply_to_university(
+        app: AppHandle,
+        state: State<'_, AppState>,
+        institution: String,
+        degree_program: String,
+        primary_course: String,
+        study_mode: String,
+        funding_plan: String,
+    ) -> (LivingStateDTO, LivingStepResultDTO, TodaySceneDTO, Vec<ContextNpcDTO>, Vec<ContextProcessDTO>) {
+        let mut engine = state.engine.lock().unwrap();
+        let step_res = engine.apply_to_university(&institution, &degree_program, &primary_course, &study_mode, &funding_plan);
+        autosave_engine(&app, &engine);
+        (engine.get_living_state(), step_res, engine.generate_today_scene(), engine.get_surrounding_npcs(), engine.get_active_processes())
+    }
+
+    #[tauri::command]
+    pub fn advance_company_operation(
+        app: AppHandle,
+        state: State<'_, AppState>,
+        company_name: String,
+        operation: String,
+        plan: String,
+    ) -> (LivingStateDTO, LivingStepResultDTO, TodaySceneDTO, Vec<ContextNpcDTO>, Vec<ContextProcessDTO>) {
+        let mut engine = state.engine.lock().unwrap();
+        let step_res = engine.advance_company_operation(&company_name, &operation, &plan);
+        autosave_engine(&app, &engine);
+        (engine.get_living_state(), step_res, engine.generate_today_scene(), engine.get_surrounding_npcs(), engine.get_active_processes())
+    }
+
+    #[tauri::command]
+    pub fn converse_with_npc(
+        app: AppHandle,
+        state: State<'_, AppState>,
+        npc_id: String,
+        dialogue: String,
+    ) -> (LivingStateDTO, LivingStepResultDTO, TodaySceneDTO, Vec<ContextNpcDTO>, Vec<ContextProcessDTO>) {
+        let mut engine = state.engine.lock().unwrap();
+        let step_res = engine.converse_with_npc(&npc_id, &dialogue);
+        autosave_engine(&app, &engine);
+        (engine.get_living_state(), step_res, engine.generate_today_scene(), engine.get_surrounding_npcs(), engine.get_active_processes())
+    }
+
+    #[tauri::command]
     pub fn send_phone_message(
         app: AppHandle,
         state: State<'_, AppState>,
@@ -334,6 +402,8 @@ pub mod commands {
         fare: f64,
         accommodation: String,
         departure_timing: String,
+        journey_type: String,
+        immigration_pathway: String,
     ) -> (LivingStateDTO, LivingStepResultDTO, TodaySceneDTO, Vec<ContextNpcDTO>, Vec<ContextProcessDTO>) {
         let mut engine = state.engine.lock().unwrap();
         let step_res = engine.travel_to_location_detailed(
@@ -345,6 +415,8 @@ pub mod commands {
             fare,
             &accommodation,
             &departure_timing,
+            &journey_type,
+            &immigration_pathway,
         );
         autosave_engine(&app, &engine);
         (engine.get_living_state(), step_res, engine.generate_today_scene(), engine.get_surrounding_npcs(), engine.get_active_processes())
@@ -482,6 +554,12 @@ pub fn run() {
             commands::get_documents,
             commands::get_letters_inbox,
             commands::get_phone_messages,
+            commands::get_phone_contacts,
+            commands::get_world_map,
+            commands::commute_to_place,
+            commands::apply_to_university,
+            commands::advance_company_operation,
+            commands::converse_with_npc,
             commands::send_phone_message,
             commands::apply_for_job,
             commands::register_company,

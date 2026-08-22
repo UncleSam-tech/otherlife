@@ -23,6 +23,7 @@ interface SimulatedComputerModalProps {
   onExecuteAction: (intent: string) => void;
   onStructuredAction: (action: StructuredGameplayAction) => Promise<boolean>;
   isLoading: boolean;
+  ownedCompanyName?: string;
 }
 
 interface JobListing {
@@ -69,6 +70,13 @@ const jobListings: JobListing[] = [
   },
 ];
 
+const businessOperations = [
+  { id: 'Recruit a team member', prompt: 'Define the role, salary range, interview questions, and what evidence would make you hire the candidate.' },
+  { id: 'Pitch an investor', prompt: 'State the customer problem, evidence of demand, amount requested, proposed terms, and how you would answer “Why you?”' },
+  { id: 'Develop a product', prompt: 'Define the customer, problem, product or service, price, delivery plan, and first measurable milestone.' },
+  { id: 'Win a customer', prompt: 'Describe the prospect, their need, your offer, price, negotiation boundary, and follow-up plan.' },
+];
+
 const StepDots: React.FC<{ current: number; labels: string[] }> = ({ current, labels }) => (
   <ol className="grid grid-cols-3 gap-2" aria-label="Application progress">
     {labels.map((label, index) => (
@@ -86,8 +94,9 @@ export const SimulatedComputerModal: React.FC<SimulatedComputerModalProps> = ({
   onExecuteAction,
   onStructuredAction,
   isLoading,
+  ownedCompanyName,
 }) => {
-  const [activeWindow, setActiveWindow] = useState<'desktop' | 'jobs' | 'incorporation' | 'code' | 'research'>('desktop');
+  const [activeWindow, setActiveWindow] = useState<'desktop' | 'jobs' | 'incorporation' | 'business' | 'code' | 'research'>('desktop');
   const [selectedJob, setSelectedJob] = useState<JobListing | null>(null);
   const [jobStep, setJobStep] = useState(0);
   const [resumeSummary, setResumeSummary] = useState('');
@@ -105,6 +114,9 @@ export const SimulatedComputerModal: React.FC<SimulatedComputerModalProps> = ({
   const [codeDraft, setCodeDraft] = useState('// Write a small program or technical note here.\n');
   const [researchQuery, setResearchQuery] = useState('');
   const [researchSubmitted, setResearchSubmitted] = useState(false);
+  const [businessStep, setBusinessStep] = useState(0);
+  const [selectedOperation, setSelectedOperation] = useState(businessOperations[0]);
+  const [operationPlan, setOperationPlan] = useState('');
 
   const resetJobs = () => {
     setSelectedJob(null);
@@ -144,6 +156,13 @@ export const SimulatedComputerModal: React.FC<SimulatedComputerModalProps> = ({
     setActiveWindow('desktop');
     resetJobs();
     setCompanyStep(0);
+    setBusinessStep(0);
+  };
+
+  const submitBusinessOperation = async () => {
+    if (!ownedCompanyName || !operationPlan.trim()) return;
+    const success = await onStructuredAction({ type: 'BUSINESS_OPERATION', companyName: ownedCompanyName, operation: selectedOperation.id, plan: operationPlan.trim() });
+    if (success) onClose();
   };
 
   return (
@@ -172,6 +191,7 @@ export const SimulatedComputerModal: React.FC<SimulatedComputerModalProps> = ({
                 {[
                   { window: 'jobs' as const, label: 'Job Portals', detail: 'Search, inspect, prepare, review', Icon: Briefcase, color: 'text-emerald-400' },
                   { window: 'incorporation' as const, label: 'Company Registry', detail: 'Identity, ownership, filing review', Icon: Building2, color: 'text-amber-400' },
+                  ...(ownedCompanyName ? [{ window: 'business' as const, label: ownedCompanyName, detail: 'Team, investors, products, customers', Icon: ClipboardCheck, color: 'text-cyan-400' }] : []),
                   { window: 'code' as const, label: 'Code Editor', detail: 'Write before starting a session', Icon: Terminal, color: 'text-indigo-400' },
                   { window: 'research' as const, label: 'Research Browser', detail: 'Search and select reading', Icon: Globe, color: 'text-blue-400' },
                 ].map(({ window, label, detail, Icon, color }) => (
@@ -272,6 +292,16 @@ export const SimulatedComputerModal: React.FC<SimulatedComputerModalProps> = ({
                   <div className="flex gap-3"><button type="button" onClick={() => setCompanyStep(1)} className="rounded-xl border border-[#2a3550] px-4 py-2.5 text-xs text-slate-300">Edit</button><button type="button" onClick={submitCompanyRegistration} disabled={isLoading} className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-amber-500 py-2.5 text-xs font-bold text-slate-950 disabled:opacity-40"><CheckCircle className="h-4 w-4" />Submit filing and pay fee</button></div>
                 </div>
               ) : null}
+            </section>
+          ) : null}
+
+          {activeWindow === 'business' && ownedCompanyName ? (
+            <section className="space-y-4">
+              <div className="flex items-center gap-2 border-b border-[#1c2234] pb-3"><button type="button" onClick={backToDesktop} aria-label="Go back" className="p-1 text-slate-400 hover:text-white"><ArrowLeft className="h-4 w-4" /></button><div><h4 className="font-serif text-sm font-bold">Operating {ownedCompanyName}</h4><p className="text-[10px] text-slate-500">Incorporation was only the beginning.</p></div></div>
+              <StepDots current={businessStep} labels={['Operation', 'Plan', 'Review']} />
+              {businessStep === 0 ? <div className="grid grid-cols-2 gap-3">{businessOperations.map((operation) => <button key={operation.id} type="button" onClick={() => { setSelectedOperation(operation); setBusinessStep(1); }} className="rounded-2xl border border-[#263049] bg-[#111622] p-4 text-left hover:border-cyan-400/50"><ClipboardCheck className="h-5 w-5 text-cyan-300" /><p className="mt-3 font-serif text-sm font-bold">{operation.id}</p><p className="mt-2 text-[11px] leading-relaxed text-slate-500">{operation.prompt}</p></button>)}</div> : null}
+              {businessStep === 1 ? <div className="space-y-4 rounded-2xl border border-[#263049] bg-[#111622] p-5"><div><p className="text-[10px] font-mono uppercase text-cyan-300">{selectedOperation.id}</p><p className="mt-2 text-xs leading-relaxed text-slate-300">{selectedOperation.prompt}</p></div><label className="block text-xs text-slate-300">Your operating plan or response<textarea value={operationPlan} onChange={(event) => setOperationPlan(event.target.value)} rows={9} placeholder="Write the actual plan, pitch response, interview design, or commercial terms..." className="mt-2 w-full resize-none rounded-xl border border-[#2a3550] bg-[#0b0f18] p-3 text-xs leading-relaxed text-white outline-none focus:border-cyan-400" /></label><div className="flex gap-3"><button type="button" onClick={() => setBusinessStep(0)} className="rounded-xl border border-[#2a3550] px-4 text-xs">Back</button><button type="button" onClick={() => setBusinessStep(2)} disabled={!operationPlan.trim()} className="flex-1 rounded-xl bg-cyan-400 py-3 text-xs font-bold text-slate-950 disabled:opacity-40">Review operation</button></div></div> : null}
+              {businessStep === 2 ? <div className="space-y-4 rounded-2xl border border-cyan-400/25 bg-cyan-400/5 p-5"><div className="flex items-center gap-2 text-cyan-200"><CheckCircle className="h-5 w-5" /><h5 className="font-serif font-bold">Review before the meeting or work session</h5></div><dl className="space-y-3 text-xs"><div><dt className="text-slate-500">Company</dt><dd className="mt-1">{ownedCompanyName}</dd></div><div><dt className="text-slate-500">Operation</dt><dd className="mt-1">{selectedOperation.id}</dd></div><div><dt className="text-slate-500">Plan / response</dt><dd className="mt-1 whitespace-pre-wrap leading-relaxed">{operationPlan}</dd></div></dl><p className="rounded-xl border border-amber-300/20 bg-amber-300/5 p-3 text-[11px] text-amber-100">This advances an operating process and records your plan. It does not automatically produce a hire, investment, customer, or successful product.</p><div className="flex gap-3"><button type="button" onClick={() => setBusinessStep(1)} className="rounded-xl border border-[#2a3550] px-4 text-xs">Edit</button><button type="button" onClick={submitBusinessOperation} disabled={isLoading} className="flex-1 rounded-xl bg-cyan-400 py-3 text-xs font-bold text-slate-950 disabled:opacity-40">Begin this operation</button></div></div> : null}
             </section>
           ) : null}
 

@@ -20,12 +20,18 @@ pub struct SimulationEngine {
     pub active_call: Option<PhoneCallState>,
     pub events_ledger: Vec<EventRecord>,
     pub rule_pack: RegionalRulePack,
+    #[serde(default = "default_current_place_id")]
+    pub current_place_id: String,
     #[serde(skip, default = "default_ai_bridge")]
     pub ai_bridge: AIBridge,
 }
 
 fn default_ai_bridge() -> AIBridge {
     AIBridge::new(AIBridgeConfig::default())
+}
+
+fn default_current_place_id() -> String {
+    "place:home".to_string()
 }
 
 impl SimulationEngine {
@@ -392,18 +398,48 @@ impl SimulationEngine {
             });
         }
 
-        // 5. World Places Creation
-        let mut places = HashMap::new();
+        if start_age >= 13 {
+            let public_people = if rule_pack.country_id.contains("nigeria") {
+                vec![
+                    ("person:city:student", "Adaeze", "Nwosu", "Undergraduate Student", "place:university", "Studying in the campus commons"),
+                    ("person:city:coworker", "Zainab", "Musa", "Operations Associate", "place:office", "Preparing a team briefing"),
+                    ("person:city:regular", "Malik", "Bello", "Freelance Designer", "place:cafe", "Working over coffee"),
+                    ("person:city:runner", "Tomi", "Adebayo", "Fitness Coach", "place:park", "Leading an evening running group"),
+                ]
+            } else if rule_pack.country_id.contains("united_kingdom") {
+                vec![
+                    ("person:city:student", "Isla", "Campbell", "Undergraduate Student", "place:university", "Studying in the campus commons"),
+                    ("person:city:coworker", "Amelia", "Clarke", "Operations Associate", "place:office", "Preparing a team briefing"),
+                    ("person:city:regular", "Noah", "Bennett", "Freelance Designer", "place:cafe", "Working over coffee"),
+                    ("person:city:runner", "Oliver", "Reid", "Fitness Coach", "place:park", "Leading an evening running group"),
+                ]
+            } else {
+                vec![
+                    ("person:city:student", "Maya", "Chen", "Undergraduate Student", "place:university", "Studying in the campus commons"),
+                    ("person:city:coworker", "Jordan", "Brooks", "Operations Associate", "place:office", "Preparing a team briefing"),
+                    ("person:city:regular", "Elias", "Rivera", "Freelance Designer", "place:cafe", "Working over coffee"),
+                    ("person:city:runner", "Avery", "Morgan", "Fitness Coach", "place:park", "Leading an evening running group"),
+                ]
+            };
+            for (id, first, last, occupation, location, activity) in public_people {
+                let npc = Self::make_city_npc(
+                    id,
+                    first,
+                    last,
+                    occupation,
+                    location,
+                    activity,
+                    &rule_pack,
+                    current_year,
+                    time.total_days,
+                );
+                npcs.insert(id.to_string(), npc);
+            }
+        }
+
+        // 5. Persistent city places used by the map, schedules, and local scenes.
+        let places = Self::build_city_places(&rule_pack, &last_name);
         let home_id = "place:home".to_string();
-        places.insert(home_id.clone(), WorldPlace {
-            id: home_id.clone(),
-            name: format!("{} Family Home", last_name),
-            place_type: PlaceType::Residence,
-            city_id: rule_pack.city_id.clone(),
-            district_name: "Residential District".to_string(),
-            required_min_age: 0,
-            affords_activities: vec!["REST".to_string(), "FAMILY_BONDING".to_string(), "QUIET_STUDY".to_string()],
-        });
 
         // 6. Documents Generator: Authentic Birth Certificate
         let mut documents = HashMap::new();
@@ -501,7 +537,151 @@ impl SimulationEngine {
             active_call: None,
             events_ledger,
             rule_pack,
+            current_place_id: home_id,
             ai_bridge: AIBridge::new(AIBridgeConfig::default()),
+        }
+    }
+
+    fn build_city_places(rule_pack: &RegionalRulePack, household_name: &str) -> HashMap<String, WorldPlace> {
+        let city_id = rule_pack.city_id.clone();
+        let city = rule_pack.city_name.clone();
+        let specs = vec![
+            ("place:home", format!("{} Family Home", household_name), PlaceType::Residence, "Residential District", 0, vec!["REST", "FAMILY_BONDING", "USE_DEVICES"]),
+            ("place:office", format!("{} Business District", city), PlaceType::Workplace, "Central Business District", 18, vec!["WORK_SHIFT", "JOB_INTERVIEW", "BUSINESS_MEETING"]),
+            ("place:university", format!("{} Metropolitan University", city), PlaceType::Education, "University Quarter", 16, vec!["PROGRAM_APPLICATION", "LECTURE", "MEET_STUDENTS"]),
+            ("place:cafe", "Junction Café & Social House".to_string(), PlaceType::CommercialVenue, "Cultural Quarter", 13, vec!["ORDER_MEAL", "SOCIALIZE", "INFORMAL_MEETING"]),
+            ("place:civic_center", format!("{} Civic & Immigration Centre", city), PlaceType::CivicCenter, "Government Quarter", 18, vec!["COMPANY_FILING", "VISA_APPOINTMENT", "RESIDENCY_APPLICATION"]),
+            ("place:clinic", format!("{} Community Hospital", city), PlaceType::MedicalClinic, "Health District", 0, vec!["CHECKUP", "TREATMENT", "VISIT_PERSON"]),
+            ("place:park", "Unity Park & Recreation Grounds".to_string(), PlaceType::AthleticField, "Riverside District", 0, vec!["EXERCISE", "SOCIALIZE", "FOOTBALL"]),
+            ("place:transport_terminal", format!("{} Transport Terminal", city), PlaceType::TrainStation, "Transit District", 0, vec!["CITY_TRAVEL", "INTERCITY_BOOKING", "ARRIVAL"]),
+            ("place:school", format!("{} District School", city), PlaceType::Education, "School District", 4, vec!["ATTEND_CLASS", "STUDY", "MEET_STUDENTS"]),
+            ("place:sports_academy", format!("{} Sports Academy", city), PlaceType::AthleticField, "Stadium District", 8, vec!["TRAIN", "TRIAL", "MATCH"]),
+        ];
+
+        specs.into_iter().map(|(id, name, place_type, district, min_age, actions)| {
+            let id = id.to_string();
+            (id.clone(), WorldPlace {
+                id,
+                name,
+                place_type,
+                city_id: city_id.clone(),
+                district_name: district.to_string(),
+                required_min_age: min_age,
+                affords_activities: actions.into_iter().map(str::to_string).collect(),
+            })
+        }).collect()
+    }
+
+    fn make_city_npc(
+        id: &str,
+        first_name: &str,
+        last_name: &str,
+        occupation: &str,
+        location_id: &str,
+        activity: &str,
+        rule_pack: &RegionalRulePack,
+        current_year: i32,
+        current_day: i64,
+    ) -> AutonomousNPC {
+        AutonomousNPC {
+            base: HumanEntity {
+                id: id.to_string(),
+                identity: IdentityProfile {
+                    first_name: first_name.to_string(),
+                    last_name: last_name.to_string(),
+                    birth_year: current_year - 24,
+                    birth_month: 5,
+                    birth_day: 18,
+                    sex: "Unspecified".to_string(),
+                    birthplace_id: rule_pack.city_id.clone(),
+                    nationality: rule_pack.country_name.clone(),
+                    culture: rule_pack.region_name.clone(),
+                    primary_language: rule_pack.primary_language.clone(),
+                },
+                biology: BiologicalProfile::default(),
+                psychology: PsychologicalProfile::default(),
+                reputation: ReputationProfile::default(),
+                skills: HashMap::new(),
+                resources: HumanResources {
+                    cash: 1400.0,
+                    household_wealth_tier: WealthTier::MiddleClass,
+                    living_arrangement: "CITY_APARTMENT".to_string(),
+                    tools_available: vec!["SMARTPHONE".to_string()],
+                },
+                relationships: HashMap::new(),
+                occupation: Some(occupation.to_string()),
+                is_player: false,
+            },
+            daily_routine: vec![ScheduledActivity {
+                start_hour: 7,
+                end_hour: 23,
+                location_id: location_id.to_string(),
+                activity_name: activity.to_string(),
+                description: format!("{} is currently at this location.", first_name),
+            }],
+            communication_style: CommunicationStyle::Supportive,
+            personality: NpcPersonality {
+                communication_style: CommunicationStyle::Supportive,
+                strictness: 0.35,
+            },
+            current_goal: format!("Build a meaningful life in {}", rule_pack.city_name),
+            last_active_day: current_day,
+        }
+    }
+
+    fn ensure_world_places(&mut self) {
+        let household_name = self.get_player().identity.last_name.clone();
+        let canonical = Self::build_city_places(&self.rule_pack, &household_name);
+        for (id, place) in canonical {
+            self.places.entry(id).or_insert(place);
+        }
+        if !self.places.contains_key(&self.current_place_id) {
+            self.current_place_id = default_current_place_id();
+        }
+    }
+
+    fn ensure_city_people(&mut self) {
+        if self.get_player_age() < 13 {
+            return;
+        }
+        let specs = if self.rule_pack.country_id.contains("nigeria") {
+            vec![
+                ("person:city:student", "Adaeze", "Nwosu", "Undergraduate Student", "place:university", "Studying in the campus commons"),
+                ("person:city:coworker", "Zainab", "Musa", "Operations Associate", "place:office", "Preparing a team briefing"),
+                ("person:city:regular", "Malik", "Bello", "Freelance Designer", "place:cafe", "Working over coffee"),
+                ("person:city:runner", "Tomi", "Adebayo", "Fitness Coach", "place:park", "Leading an evening running group"),
+            ]
+        } else if self.rule_pack.country_id.contains("united_kingdom") {
+            vec![
+                ("person:city:student", "Isla", "Campbell", "Undergraduate Student", "place:university", "Studying in the campus commons"),
+                ("person:city:coworker", "Amelia", "Clarke", "Operations Associate", "place:office", "Preparing a team briefing"),
+                ("person:city:regular", "Noah", "Bennett", "Freelance Designer", "place:cafe", "Working over coffee"),
+                ("person:city:runner", "Oliver", "Reid", "Fitness Coach", "place:park", "Leading an evening running group"),
+            ]
+        } else {
+            vec![
+                ("person:city:student", "Maya", "Chen", "Undergraduate Student", "place:university", "Studying in the campus commons"),
+                ("person:city:coworker", "Jordan", "Brooks", "Operations Associate", "place:office", "Preparing a team briefing"),
+                ("person:city:regular", "Elias", "Rivera", "Freelance Designer", "place:cafe", "Working over coffee"),
+                ("person:city:runner", "Avery", "Morgan", "Fitness Coach", "place:park", "Leading an evening running group"),
+            ]
+        };
+        for (id, first, last, occupation, location, activity) in specs {
+            if self.npcs.contains_key(id) {
+                continue;
+            }
+            let npc = Self::make_city_npc(
+                id,
+                first,
+                last,
+                occupation,
+                location,
+                activity,
+                &self.rule_pack,
+                self.time.year,
+                self.time.total_days,
+            );
+            self.npcs.insert(id.to_string(), npc);
         }
     }
 
@@ -1256,6 +1436,317 @@ impl SimulationEngine {
         }
     }
 
+    fn place_map_profile(place_id: &str) -> (f32, f32, u32, f64, &'static str, u8, u8) {
+        match place_id {
+            "place:home" => (16.0, 72.0, 0, 0.0, "Your household, personal devices, documents, and family routines.", 0, 24),
+            "place:office" => (62.0, 28.0, 34, 4.0, "Offices, employers, meeting rooms, and the commercial life of the city.", 7, 20),
+            "place:university" => (32.0, 24.0, 29, 3.0, "Faculties, admissions, lecture rooms, libraries, and student life.", 7, 21),
+            "place:cafe" => (51.0, 54.0, 18, 2.0, "A social venue for meals, chance encounters, informal work, and conversation.", 7, 23),
+            "place:civic_center" => (79.0, 50.0, 41, 5.0, "Government counters for registration, immigration, residence, and civic records.", 8, 17),
+            "place:clinic" => (23.0, 47.0, 22, 3.0, "Medical consultation, treatment, hospital work, and visiting hours.", 0, 24),
+            "place:park" => (48.0, 78.0, 16, 1.5, "Public green space for exercise, sport, leisure, and meeting people.", 5, 22),
+            "place:transport_terminal" => (86.0, 78.0, 46, 6.0, "Local connections, intercity departures, arrivals, and travel services.", 0, 24),
+            "place:school" => (19.0, 24.0, 24, 2.5, "Classrooms, teachers, examinations, and school activities.", 7, 17),
+            "place:sports_academy" => (68.0, 76.0, 31, 3.0, "Training grounds, team sessions, competitive trials, and matches.", 6, 22),
+            _ => (50.0, 50.0, 20, 2.0, "A place within the living city.", 0, 24),
+        }
+    }
+
+    fn npc_activity_at<'a>(&self, npc: &'a AutonomousNPC) -> (String, String) {
+        if let Some(activity) = npc.daily_routine.iter().find(|activity| {
+            self.time.hour >= activity.start_hour && self.time.hour < activity.end_hour
+        }) {
+            return (activity.location_id.clone(), activity.activity_name.clone());
+        }
+        ("place:home".to_string(), "Off schedule / at home".to_string())
+    }
+
+    pub fn get_world_map(&self) -> Vec<WorldMapPlaceDTO> {
+        let age = self.get_player_age();
+        let mut map: Vec<WorldMapPlaceDTO> = self.places.values()
+            .filter(|place| age >= place.required_min_age)
+            .map(|place| {
+                let (map_x, map_y, travel_minutes, travel_cost, description, open_hour, close_hour) = Self::place_map_profile(&place.id);
+                let present_people_count = self.npcs.values()
+                    .filter(|npc| self.npc_activity_at(npc).0 == place.id)
+                    .count();
+                WorldMapPlaceDTO {
+                    id: place.id.clone(),
+                    name: place.name.clone(),
+                    category: format!("{:?}", place.place_type),
+                    district_name: place.district_name.clone(),
+                    description: description.to_string(),
+                    map_x,
+                    map_y,
+                    travel_minutes,
+                    travel_cost,
+                    is_current: self.current_place_id == place.id,
+                    is_open: open_hour == 0 && close_hour == 24 || self.time.hour >= open_hour && self.time.hour < close_hour,
+                    present_people_count,
+                }
+            })
+            .collect();
+        map.sort_by(|a, b| a.id.cmp(&b.id));
+        map
+    }
+
+    pub fn commute_to_place(&mut self, place_id: &str, transport_mode: &str) -> StepResolutionDTO {
+        self.ensure_world_places();
+        let Some(place) = self.places.get(place_id).cloned() else {
+            return StepResolutionDTO {
+                success: false,
+                days_advanced: 0,
+                hours_advanced: 0,
+                headline: "Destination Unavailable".to_string(),
+                narrative: "That destination is not part of the current city map.".to_string(),
+                causality_note: "Movement was rejected because the place does not exist.".to_string(),
+                milestone_achieved: None,
+                world_consequences: vec![],
+                financial_delta: 0.0,
+            };
+        };
+        if place.id == self.current_place_id {
+            return StepResolutionDTO {
+                success: false,
+                days_advanced: 0,
+                hours_advanced: 0,
+                headline: "Already Here".to_string(),
+                narrative: format!("You are already at {}.", place.name),
+                causality_note: "No travel time or money was spent.".to_string(),
+                milestone_achieved: None,
+                world_consequences: vec![],
+                financial_delta: 0.0,
+            };
+        }
+        if self.get_player_age() < place.required_min_age {
+            return StepResolutionDTO {
+                success: false,
+                days_advanced: 0,
+                hours_advanced: 0,
+                headline: "Cannot Travel Alone".to_string(),
+                narrative: "This destination requires an accompanying adult at your current age.".to_string(),
+                causality_note: "Age-appropriate movement rule enforced.".to_string(),
+                milestone_achieved: None,
+                world_consequences: vec![],
+                financial_delta: 0.0,
+            };
+        }
+
+        let (_, _, base_minutes, base_cost, _, _, _) = Self::place_map_profile(place_id);
+        let (minutes, cost) = match transport_mode.to_lowercase().as_str() {
+            "walk" => (base_minutes.saturating_mul(2).max(8), 0.0),
+            "taxi" => ((base_minutes / 2).max(6), base_cost * 3.0),
+            _ => (base_minutes.max(10), base_cost),
+        };
+        if self.get_player().resources.cash < cost {
+            return StepResolutionDTO {
+                success: false,
+                days_advanced: 0,
+                hours_advanced: 0,
+                headline: "Journey Payment Declined".to_string(),
+                narrative: format!("You need {}{:.2} for this journey.", self.rule_pack.currency_symbol, cost),
+                causality_note: "The route cannot overdraw local funds.".to_string(),
+                milestone_achieved: None,
+                world_consequences: vec![],
+                financial_delta: 0.0,
+            };
+        }
+        self.get_player_mut().resources.cash -= cost;
+        let hours = ((minutes + 59) / 60).clamp(1, 12) as u8;
+        self.time.advance_hours(hours);
+        self.current_place_id = place.id.clone();
+        let headline = format!("Arrived at {}", place.name);
+        let narrative = format!("You travelled through {} by {}. The journey took about {} minutes; the people and actions around you now reflect this location and time.", self.rule_pack.city_name, transport_mode, minutes);
+        self.record_event("LOCAL_TRAVEL", &headline, &narrative, &format!("Moved to {} and advanced local time.", place.id), true);
+        StepResolutionDTO {
+            success: true,
+            days_advanced: 0,
+            hours_advanced: hours,
+            headline,
+            narrative,
+            causality_note: format!("Current physical place is now {}.", place.name),
+            milestone_achieved: None,
+            world_consequences: vec![format!("Entered {}", place.district_name)],
+            financial_delta: -cost,
+        }
+    }
+
+    pub fn apply_to_university(
+        &mut self,
+        institution: &str,
+        degree_program: &str,
+        primary_course: &str,
+        study_mode: &str,
+        funding_plan: &str,
+    ) -> StepResolutionDTO {
+        if self.current_place_id != "place:university" {
+            return StepResolutionDTO {
+                success: false,
+                days_advanced: 0,
+                hours_advanced: 0,
+                headline: "Visit the University First".to_string(),
+                narrative: "Admissions cannot be completed from the current location. Travel to the university campus or use its admissions portal.".to_string(),
+                causality_note: "Institutional action requires physical or device context.".to_string(),
+                milestone_achieved: None,
+                world_consequences: vec![],
+                financial_delta: 0.0,
+            };
+        }
+        if self.get_player_age() < 16 {
+            return StepResolutionDTO {
+                success: false,
+                days_advanced: 0,
+                hours_advanced: 0,
+                headline: "Admission Stage Not Yet Available".to_string(),
+                narrative: "You have not yet reached the minimum stage for this higher-education application.".to_string(),
+                causality_note: "Age and education-stage requirements enforced.".to_string(),
+                milestone_achieved: None,
+                world_consequences: vec![],
+                financial_delta: 0.0,
+            };
+        }
+        let fee = 25.0;
+        if self.get_player().resources.cash < fee {
+            return StepResolutionDTO {
+                success: false,
+                days_advanced: 0,
+                hours_advanced: 0,
+                headline: "Application Fee Unavailable".to_string(),
+                narrative: format!("The application costs {}{:.2}.", self.rule_pack.currency_symbol, fee),
+                causality_note: "Application payment is required before submission.".to_string(),
+                milestone_achieved: None,
+                world_consequences: vec![],
+                financial_delta: 0.0,
+            };
+        }
+        let process_id = format!("proc:university:{}", degree_program.to_lowercase().replace(' ', "_"));
+        if self.active_processes.iter().any(|process| process.id == process_id) {
+            return StepResolutionDTO {
+                success: false,
+                days_advanced: 0,
+                hours_advanced: 0,
+                headline: "Application Already Active".to_string(),
+                narrative: format!("Your {} application is already being tracked.", degree_program),
+                causality_note: "Duplicate programme applications are prevented.".to_string(),
+                milestone_achieved: None,
+                world_consequences: vec![],
+                financial_delta: 0.0,
+            };
+        }
+        self.get_player_mut().resources.cash -= fee;
+        self.time.advance_hours(2);
+        self.active_processes.push(LifeProcess {
+            id: process_id,
+            process_type: ProcessType::UniversityAdmission,
+            title: format!("{} — {}", degree_program, institution),
+            target_institution_id: Some("place:university".to_string()),
+            current_step: 1,
+            total_steps: 6,
+            progress_percent: 16,
+            status: "APPLICATION_SUBMITTED".to_string(),
+            missing_requirements: vec!["Academic records review".to_string(), "Admissions decision".to_string(), "Offer acceptance".to_string()],
+            next_appointment_day: Some(self.time.total_days + 7),
+        });
+        let reference = format!("UNI-{:06}", self.rng.gen_range_u32(100000, 999999));
+        let mut fields = HashMap::new();
+        fields.insert("Institution".to_string(), institution.to_string());
+        fields.insert("Degree Programme".to_string(), degree_program.to_string());
+        fields.insert("Primary Course".to_string(), primary_course.to_string());
+        fields.insert("Study Mode".to_string(), study_mode.to_string());
+        fields.insert("Funding Plan".to_string(), funding_plan.to_string());
+        fields.insert("Status".to_string(), "APPLICATION_SUBMITTED".to_string());
+        self.documents.insert(format!("doc:{}", reference), DocumentRecord {
+            id: format!("doc:{}", reference),
+            title: format!("University Application — {}", degree_program),
+            document_type: "UNIVERSITY_APPLICATION".to_string(),
+            issue_date: self.time.literary_date(),
+            issuing_authority: institution.to_string(),
+            registration_number: reference,
+            fields,
+            is_verified: true,
+        });
+        let headline = format!("Application Submitted: {}", degree_program);
+        let narrative = format!("You chose {} as your primary course within {} at {}. Your application now proceeds through records review, decision, offer, enrollment, and the academic timetable.", primary_course, degree_program, institution);
+        self.record_event("UNIVERSITY_APPLICATION", &headline, &narrative, "Created a course-specific six-stage admissions process.", true);
+        StepResolutionDTO {
+            success: true,
+            days_advanced: 0,
+            hours_advanced: 2,
+            headline,
+            narrative,
+            causality_note: "Programme, course, study mode, funding plan, fee, and admissions status persisted.".to_string(),
+            milestone_achieved: Some("Entered university admissions".to_string()),
+            world_consequences: vec!["Admissions review scheduled".to_string()],
+            financial_delta: -fee,
+        }
+    }
+
+    pub fn converse_with_npc(&mut self, npc_id: &str, dialogue: &str) -> StepResolutionDTO {
+        let Some(npc) = self.npcs.get(npc_id).cloned() else {
+            return StepResolutionDTO {
+                success: false,
+                days_advanced: 0,
+                hours_advanced: 0,
+                headline: "Person Not Found".to_string(),
+                narrative: "That person is not currently part of this world.".to_string(),
+                causality_note: "Conversation target validation failed.".to_string(),
+                milestone_achieved: None,
+                world_consequences: vec![],
+                financial_delta: 0.0,
+            };
+        };
+        let (npc_location, activity) = self.npc_activity_at(&npc);
+        if npc_location != self.current_place_id {
+            return StepResolutionDTO {
+                success: false,
+                days_advanced: 0,
+                hours_advanced: 0,
+                headline: format!("{} Is Elsewhere", npc.base.identity.first_name),
+                narrative: format!("You cannot begin an in-person conversation because {} is currently {}.", npc.base.identity.full_name(), activity),
+                causality_note: "NPC schedules and physical presence are enforced.".to_string(),
+                milestone_achieved: None,
+                world_consequences: vec![],
+                financial_delta: 0.0,
+            };
+        }
+        let npc_name = npc.base.identity.full_name();
+        let was_new = !self.get_player().relationships.contains_key(npc_id);
+        let memory = EpisodicMemoryRecord {
+            day_occurred: self.time.total_days,
+            headline: format!("Conversation at {}", self.places.get(&self.current_place_id).map(|place| place.name.as_str()).unwrap_or("the current place")),
+            description: dialogue.to_string(),
+            emotional_valence: 0.25,
+            importance: 0.35,
+        };
+        let relationship = self.get_player_mut().relationships.entry(npc_id.to_string()).or_insert(RelationshipEdge {
+            target_entity_id: npc_id.to_string(),
+            target_name: npc_name.clone(),
+            relationship_type: "Acquaintance".to_string(),
+            affinity: 0.15,
+            trust: 0.10,
+            respect: 0.15,
+            memories: vec![],
+        });
+        relationship.affinity = (relationship.affinity + 0.03).min(1.0);
+        relationship.trust = (relationship.trust + 0.02).min(1.0);
+        relationship.memories.push(memory);
+        self.time.advance_hours(1);
+        let headline = if was_new { format!("Met {}", npc_name) } else { format!("Spoke with {}", npc_name) };
+        let narrative = format!("You spoke with {} while they were {}. The conversation became part of your shared relationship memory.", npc_name, activity.to_lowercase());
+        self.record_event("IN_PERSON_CONVERSATION", &headline, &narrative, "Updated relationship affinity, trust, and episodic memory.", true);
+        StepResolutionDTO {
+            success: true,
+            days_advanced: 0,
+            hours_advanced: 1,
+            headline,
+            narrative,
+            causality_note: "Conversation and relationship state persisted locally.".to_string(),
+            milestone_achieved: if was_new { Some(format!("Met {}", npc_name)) } else { None },
+            world_consequences: vec![format!("Relationship with {} developed", npc_name)],
+            financial_delta: 0.0,
+        }
+    }
+
     pub fn apply_for_job(&mut self, job_id: &str, company_id: &str, title: &str, company_name: &str) -> StepResolutionDTO {
         self.apply_for_job_detailed(
             job_id,
@@ -1460,6 +1951,90 @@ impl SimulationEngine {
         }
     }
 
+    pub fn advance_company_operation(&mut self, company_name: &str, operation: &str, plan: &str) -> StepResolutionDTO {
+        let owns_company = self.documents.values().any(|document| {
+            document.document_type == "COMPANY_INCORPORATION"
+                && document.fields.get("Company Name").map(String::as_str) == Some(company_name)
+        });
+        if !owns_company {
+            return StepResolutionDTO {
+                success: false,
+                days_advanced: 0,
+                hours_advanced: 0,
+                headline: "No Operating Company".to_string(),
+                narrative: "Incorporate or acquire a company before attempting business operations.".to_string(),
+                causality_note: "Business ownership validation failed.".to_string(),
+                milestone_achieved: None,
+                world_consequences: vec![],
+                financial_delta: 0.0,
+            };
+        }
+        if self.current_place_id != "place:office" {
+            return StepResolutionDTO {
+                success: false,
+                days_advanced: 0,
+                hours_advanced: 0,
+                headline: "Go to the Business District".to_string(),
+                narrative: "This operational meeting requires you to be at the office and business district.".to_string(),
+                causality_note: "Physical workplace context enforced.".to_string(),
+                milestone_achieved: None,
+                world_consequences: vec![],
+                financial_delta: 0.0,
+            };
+        }
+        self.time.advance_hours(2);
+        let process_id = format!("proc:business_operations:{}", company_name.to_lowercase().replace(' ', "_"));
+        if let Some(process) = self.active_processes.iter_mut().find(|process| process.id == process_id) {
+            process.current_step = (process.current_step + 1).min(process.total_steps);
+            process.progress_percent = process.current_step * 100 / process.total_steps;
+            process.status = format!("{}_IN_PROGRESS", operation.to_uppercase().replace(' ', "_"));
+            process.next_appointment_day = Some(self.time.total_days + 2);
+        } else {
+            self.active_processes.push(LifeProcess {
+                id: process_id,
+                process_type: ProcessType::BusinessOperations,
+                title: format!("Operating {}", company_name),
+                target_institution_id: Some("place:office".to_string()),
+                current_step: 1,
+                total_steps: 8,
+                progress_percent: 12,
+                status: format!("{}_IN_PROGRESS", operation.to_uppercase().replace(' ', "_")),
+                missing_requirements: vec!["Build a team".to_string(), "Win customers".to_string(), "Manage cash flow".to_string(), "Deliver products or services".to_string()],
+                next_appointment_day: Some(self.time.total_days + 2),
+            });
+        }
+        let reference = format!("BIZ-{:06}", self.rng.gen_range_u32(100000, 999999));
+        let mut fields = HashMap::new();
+        fields.insert("Company".to_string(), company_name.to_string());
+        fields.insert("Operation".to_string(), operation.to_string());
+        fields.insert("Plan / Response".to_string(), plan.to_string());
+        fields.insert("Status".to_string(), "IN_PROGRESS".to_string());
+        self.documents.insert(format!("doc:{}", reference), DocumentRecord {
+            id: format!("doc:{}", reference),
+            title: format!("Business Activity — {}", operation),
+            document_type: "BUSINESS_OPERATION_RECORD".to_string(),
+            issue_date: self.time.literary_date(),
+            issuing_authority: company_name.to_string(),
+            registration_number: reference,
+            fields,
+            is_verified: true,
+        });
+        let headline = format!("{}: {}", company_name, operation);
+        let narrative = format!("You spent two hours on {}. This moved the company's operating process forward but did not guarantee a hire, investment, customer, or successful product.", operation.to_lowercase());
+        self.record_event("BUSINESS_OPERATION", &headline, &narrative, "Business plan response and ongoing operational process persisted.", true);
+        StepResolutionDTO {
+            success: true,
+            days_advanced: 0,
+            hours_advanced: 2,
+            headline,
+            narrative,
+            causality_note: "Incorporation now leads into an ongoing company operating cycle.".to_string(),
+            milestone_achieved: None,
+            world_consequences: vec![format!("{} operations advanced", company_name)],
+            financial_delta: 0.0,
+        }
+    }
+
     pub fn travel_to_location(&mut self, destination_city_id: &str, transport_mode: &str, stay_days: u32) -> StepResolutionDTO {
         let base_fare = Self::base_travel_fare(transport_mode);
         self.travel_to_location_detailed(
@@ -1471,6 +2046,8 @@ impl SimulationEngine {
             base_fare,
             if stay_days > 0 { "Accommodation reserved" } else { "No accommodation reservation" },
             "Next available departure",
+            "Visit",
+            "Visitor / tourist entry",
         )
     }
 
@@ -1493,8 +2070,12 @@ impl SimulationEngine {
         quoted_fare: f64,
         accommodation: &str,
         departure_timing: &str,
+        journey_type: &str,
+        immigration_pathway: &str,
     ) -> StepResolutionDTO {
+        let old_country_id = self.rule_pack.country_id.clone();
         let new_rule_pack = Self::resolve_rule_pack(destination_city_id, &self.rule_pack.country_id);
+        let is_international = new_rule_pack.country_id != old_country_id;
         let old_city = self.rule_pack.city_name.clone();
         if new_rule_pack.city_id == self.rule_pack.city_id {
             return StepResolutionDTO {
@@ -1539,6 +2120,10 @@ impl SimulationEngine {
         self.get_player_mut().resources.cash -= fare;
         self.time.advance_hours(journey_hours);
         self.rule_pack = new_rule_pack;
+        let household_name = self.get_player().identity.last_name.clone();
+        self.places = Self::build_city_places(&self.rule_pack, &household_name);
+        self.current_place_id = "place:transport_terminal".to_string();
+        self.ensure_city_people();
 
         let ticket_id = format!("doc:travel_ticket_{}", self.documents.len() + 1);
         let booking_reference = format!("OL-{:06}", self.rng.gen_range_u32(100000, 999999));
@@ -1550,6 +2135,8 @@ impl SimulationEngine {
         fields.insert("Operator".to_string(), operator_name.to_string());
         fields.insert("Service".to_string(), service_class.to_string());
         fields.insert("Departure".to_string(), departure_timing.to_string());
+        fields.insert("Journey Purpose".to_string(), journey_type.to_string());
+        fields.insert("Immigration Pathway".to_string(), immigration_pathway.to_string());
         fields.insert("Fare Paid".to_string(), format!("{}{:.2}", self.rule_pack.currency_symbol, fare));
         fields.insert("Accommodation".to_string(), if stay_days > 0 {
             if accommodation == "Accommodation reserved" {
@@ -1557,8 +2144,10 @@ impl SimulationEngine {
             } else {
                 format!("{} · {} night(s)", accommodation, stay_days)
             }
-        } else {
+        } else if accommodation == "No accommodation reservation" {
             "No accommodation reservation".to_string()
+        } else {
+            format!("{} · Open-ended stay", accommodation)
         });
         fields.insert("Booking Reference".to_string(), booking_reference.clone());
         fields.insert("Status".to_string(), "ARRIVED".to_string());
@@ -1584,9 +2173,36 @@ impl SimulationEngine {
             missing_requirements: vec![],
             next_appointment_day: if stay_days > 0 { Some(self.time.total_days + stay_days as i64) } else { None },
         });
+        if is_international && journey_type != "Visit" {
+            self.active_processes.push(LifeProcess {
+                id: format!("proc:residency:{}", self.active_processes.len() + 1),
+                process_type: ProcessType::ResidencyApplication,
+                title: format!("{} — {}", immigration_pathway, self.rule_pack.country_name),
+                target_institution_id: Some("place:civic_center".to_string()),
+                current_step: 1,
+                total_steps: 5,
+                progress_percent: 20,
+                status: "ENTRY_STATUS_REVIEW_REQUIRED".to_string(),
+                missing_requirements: vec![
+                    "Verify passport and entry permission".to_string(),
+                    "Register a local address".to_string(),
+                    "Complete eligibility period".to_string(),
+                    "Attend residence appointment".to_string(),
+                ],
+                next_appointment_day: Some(self.time.total_days + 14),
+            });
+            self.letters_inbox.push(LetterNotification {
+                id: format!("letter:residency:{}", self.time.total_days),
+                sender: format!("{} Immigration Service", self.rule_pack.country_name),
+                subject: format!("Next steps for {}", immigration_pathway),
+                body: format!("Arrival does not grant permanent status. Visit the civic and immigration centre to verify entry permission, register your address, and continue the {} process.", immigration_pathway),
+                is_read: false,
+                date_received: self.time.literary_date(),
+            });
+        }
 
         let headline = format!("Arrived in {}", self.rule_pack.city_name);
-        let narrative = format!("You completed your journey from {} to {} via {}. The local environment and opportunities have updated.", old_city, self.rule_pack.city_name, transport_mode);
+        let narrative = format!("You completed your {} journey from {} to {} via {}. You arrived at the transport terminal; any residence or visa pathway remains an ongoing legal process rather than an instant reward.", journey_type.to_lowercase(), old_city, self.rule_pack.city_name, transport_mode);
 
         self.record_event("TRAVEL", &headline, &narrative, &format!("Relocated to {}.", self.rule_pack.city_name), true);
 
@@ -1650,7 +2266,11 @@ impl SimulationEngine {
                 else { "Independent Citizen".to_string() }
             }),
             active_processes_count: self.active_processes.len(),
-            surrounding_npcs_count: self.npcs.len(),
+            surrounding_npcs_count: self.get_surrounding_npcs().len(),
+            current_place_id: self.current_place_id.clone(),
+            current_place_name: self.places.get(&self.current_place_id)
+                .map(|place| place.name.clone())
+                .unwrap_or_else(|| "Current Place".to_string()),
         }
     }
 
@@ -1658,7 +2278,22 @@ impl SimulationEngine {
         let age = self.get_player_age();
         let weather = SeasonalWeather::for_region_and_month(&self.rule_pack.climate_type, self.time.month);
 
-        let headline = if age < 4 {
+        let place_name = self.places.get(&self.current_place_id)
+            .map(|place| place.name.clone())
+            .unwrap_or_else(|| format!("Family Home · {}", self.rule_pack.city_name));
+        let headline = if self.current_place_id == "place:office" {
+            format!("Working Day in {}", self.rule_pack.city_name)
+        } else if self.current_place_id == "place:university" {
+            format!("Campus Life at {}", place_name)
+        } else if self.current_place_id == "place:cafe" {
+            format!("Conversations at {}", place_name)
+        } else if self.current_place_id == "place:civic_center" {
+            format!("Civic Affairs in {}", self.rule_pack.city_name)
+        } else if self.current_place_id == "place:park" {
+            format!("Public Life at {}", place_name)
+        } else if self.current_place_id == "place:transport_terminal" {
+            format!("Departures from {}", self.rule_pack.city_name)
+        } else if age < 4 {
             format!("Morning in the Nursery — {}", self.rule_pack.city_name)
         } else if age < 13 {
             format!("School Term Morning in {}", self.rule_pack.city_name)
@@ -1668,7 +2303,19 @@ impl SimulationEngine {
             format!("Civic Life in {}", self.rule_pack.city_name)
         };
 
-        let narrative = if age < 4 {
+        let narrative = if self.current_place_id == "place:office" {
+            "Workstations, meeting rooms, and teams fill the business district. Your occupation, active applications, and company responsibilities determine what can happen here.".to_string()
+        } else if self.current_place_id == "place:university" {
+            "Students cross between admissions, faculty offices, lecture halls, and the library. Programmes must be chosen before an application can begin.".to_string()
+        } else if self.current_place_id == "place:cafe" {
+            "Tables hold quiet meetings, first encounters, and unfinished work. People here can become acquaintances through actual conversation.".to_string()
+        } else if self.current_place_id == "place:civic_center" {
+            "Numbered counters handle company records, passports, visas, and residency matters. Each application has requirements and waiting stages.".to_string()
+        } else if self.current_place_id == "place:park" {
+            "Footpaths, playing fields, and benches create a public space for exercise, recreation, and chance meetings.".to_string()
+        } else if self.current_place_id == "place:transport_terminal" {
+            "Departure boards, ticket desks, and arriving passengers connect this city to other places and possible futures.".to_string()
+        } else if age < 4 {
             format!("Morning sunshine warms the living room rug in {}. Your mother and father are close by, attending to breakfast and household rhythms.", self.rule_pack.city_name)
         } else if age < 13 {
             format!("The morning bell sounds across the neighborhood in {}. Textbooks and notebooks rest on your desk ready for the day's lessons.", self.rule_pack.city_name)
@@ -1676,8 +2323,26 @@ impl SimulationEngine {
             format!("The city avenues of {} are active with morning commerce, university students, and professionals commuting to work.", self.rule_pack.city_name)
         };
 
-        let present_people: Vec<String> = self.npcs.values().map(|npc| npc.base.identity.full_name()).collect();
-        let environmental_objects = if age < 4 {
+        let present_people: Vec<String> = self.get_surrounding_npcs().iter().map(|npc| npc.name.clone()).collect();
+        let environmental_objects = if self.current_place_id == "place:office" {
+            vec!["Workstation".to_string(), "Meeting Room".to_string(), "Reception Desk".to_string(), "Project Board".to_string()]
+        } else if self.current_place_id == "place:university" {
+            vec!["Admissions Counter".to_string(), "Course Catalogue".to_string(), "Lecture Theatre".to_string(), "Campus Library".to_string()]
+        } else if self.current_place_id == "place:cafe" {
+            vec!["Café Counter".to_string(), "Shared Table".to_string(), "Community Noticeboard".to_string()]
+        } else if self.current_place_id == "place:civic_center" {
+            vec!["Company Registry Counter".to_string(), "Immigration Desk".to_string(), "Document Kiosk".to_string()]
+        } else if self.current_place_id == "place:clinic" {
+            vec!["Reception Desk".to_string(), "Consultation Room".to_string(), "Pharmacy Counter".to_string()]
+        } else if self.current_place_id == "place:park" {
+            vec!["Walking Path".to_string(), "Playing Field".to_string(), "Public Bench".to_string(), "Exercise Station".to_string()]
+        } else if self.current_place_id == "place:transport_terminal" {
+            vec!["Departure Board".to_string(), "Ticket Counter".to_string(), "Waiting Area".to_string()]
+        } else if self.current_place_id == "place:school" {
+            vec!["Classroom".to_string(), "School Office".to_string(), "Library".to_string(), "Playground".to_string()]
+        } else if self.current_place_id == "place:sports_academy" {
+            vec!["Training Pitch".to_string(), "Coach's Office".to_string(), "Changing Room".to_string(), "Equipment Store".to_string()]
+        } else if age < 4 {
             vec!["Wooden Blocks".to_string(), "Picture Book".to_string(), "Family Sofa".to_string(), "Warm Blanket".to_string()]
         } else if age < 13 {
             vec!["Arithmetic Exercise Books".to_string(), "Leather Football".to_string(), "Family Desktop".to_string(), "School Bag".to_string()]
@@ -1685,33 +2350,116 @@ impl SimulationEngine {
             vec!["Smartphone".to_string(), "Personal Computer".to_string(), "Study Library".to_string(), "Corporate Registry".to_string()]
         };
 
+        let subtle_details = match self.current_place_id.as_str() {
+            "place:office" => vec!["Muted conversations behind meeting-room glass".to_string(), "Keyboards and printers punctuate the workday".to_string()],
+            "place:university" => vec!["Course notices cover a faculty board".to_string(), "Students compare timetables between lectures".to_string()],
+            "place:cafe" => vec!["Fresh coffee and street rain scent the air".to_string(), "A nearby table is negotiating something quietly".to_string()],
+            "place:civic_center" => vec!["Queue numbers change above the service counters".to_string(), "Applicants check document folders before being called".to_string()],
+            "place:clinic" => vec!["Soft announcements carry through the waiting area".to_string(), "Clinical staff move between consultation rooms".to_string()],
+            "place:park" => vec!["Footsteps and distant conversation cross the open paths".to_string(), "A light breeze moves through the trees".to_string()],
+            "place:transport_terminal" => vec!["A departure board updates above the concourse".to_string(), "Engines, luggage wheels, and announcements overlap".to_string()],
+            "place:school" => vec!["A bell marks the next lesson".to_string(), "Exercise books and voices fill nearby classrooms".to_string()],
+            "place:sports_academy" => vec!["A coach's whistle cuts across the training ground".to_string(), "Players rotate between drills and recovery".to_string()],
+            _ => vec!["Gentle daylight reaches through the curtains".to_string(), "Familiar household sounds continue nearby".to_string()],
+        };
+
         TodaySceneDTO {
             headline,
             narrative,
             weather_name: weather.name,
             weather_description: weather.description,
-            location_name: format!("Family Home · {}", self.rule_pack.city_name),
+            location_name: place_name,
             present_people,
             environmental_objects,
-            subtle_details: vec!["Gentle sunlight through curtains".to_string(), "Faint city morning sounds".to_string()],
+            subtle_details,
             immediate_pressures: vec![],
             location_formatted: Some(format!("{}, {}", self.rule_pack.city_name, self.rule_pack.country_name)),
             life_stage: Some(format!("{:?}", LifeStage::from_age(age))),
             age: Some(age),
-            circumstances: Some(vec!["Peaceful household morning".to_string()]),
+            circumstances: Some(vec![format!("You are physically at {}", self.current_place_id.replace("place:", "").replace('_', " "))]),
         }
     }
 
     pub fn get_surrounding_npcs(&self) -> Vec<ContextNpcDTO> {
-        self.npcs.values().map(|npc| ContextNpcDTO {
-            id: npc.base.id.clone(),
-            name: npc.base.identity.full_name(),
-            relationship_type: if npc.base.id.contains("mother") { "Mother".to_string() }
-                else if npc.base.id.contains("father") { "Father".to_string() }
-                else { "Mentor / Teacher".to_string() },
-            trust_description: "High Trust & Mutual Respect".to_string(),
-            current_activity: npc.daily_routine.first().map(|r| r.activity_name.clone()).unwrap_or_else(|| "At home".to_string()),
+        let player_relationships = &self.get_player().relationships;
+        self.npcs.values().filter_map(|npc| {
+            let (location_id, current_activity) = self.npc_activity_at(npc);
+            if location_id != self.current_place_id {
+                return None;
+            }
+            let existing = player_relationships.get(&npc.base.id);
+            let relationship_type = if let Some(relationship) = existing {
+                relationship.relationship_type.clone()
+            } else if npc.base.id.contains("mother") {
+                "Mother".to_string()
+            } else if npc.base.id.contains("father") {
+                "Father".to_string()
+            } else if npc.base.id.contains("teacher") {
+                "Teacher / Mentor".to_string()
+            } else if npc.base.id.contains("coach") {
+                "Sports Coach".to_string()
+            } else {
+                "Stranger".to_string()
+            };
+            Some(ContextNpcDTO {
+                id: npc.base.id.clone(),
+                name: npc.base.identity.full_name(),
+                relationship_type,
+                trust_description: existing
+                    .map(|relationship| format!("Trust {:.0}% · Affinity {:.0}%", relationship.trust * 100.0, relationship.affinity * 100.0))
+                    .unwrap_or_else(|| "Not yet acquainted".to_string()),
+                current_activity,
+                location_id,
+                is_new_acquaintance: existing.is_none() && npc.base.id.contains("person:city:"),
+            })
         }).collect()
+    }
+
+    pub fn get_phone_contacts(&self) -> Vec<ContextNpcDTO> {
+        let player_relationships = &self.get_player().relationships;
+        let mut contacts: Vec<ContextNpcDTO> = self.npcs.values().filter_map(|npc| {
+            let existing = player_relationships.get(&npc.base.id);
+            let is_established_contact = existing.is_some()
+                || npc.base.id.contains("mother")
+                || npc.base.id.contains("father")
+                || npc.base.id.contains("teacher")
+                || npc.base.id.contains("coach")
+                || self.phone_messages.iter().any(|message| {
+                    message.sender_id == npc.base.id || message.recipient_id == npc.base.id
+                });
+            if !is_established_contact {
+                return None;
+            }
+            let (location_id, current_activity) = self.npc_activity_at(npc);
+            let relationship_type = existing
+                .map(|relationship| relationship.relationship_type.clone())
+                .unwrap_or_else(|| {
+                    if npc.base.id.contains("mother") {
+                        "Mother".to_string()
+                    } else if npc.base.id.contains("father") {
+                        "Father".to_string()
+                    } else if npc.base.id.contains("teacher") {
+                        "Teacher / Mentor".to_string()
+                    } else if npc.base.id.contains("coach") {
+                        "Sports Coach".to_string()
+                    } else {
+                        "Contact".to_string()
+                    }
+                });
+            Some(ContextNpcDTO {
+                id: npc.base.id.clone(),
+                name: npc.base.identity.full_name(),
+                relationship_type,
+                trust_description: existing
+                    .map(|relationship| format!("Trust {:.0}% · Affinity {:.0}%", relationship.trust * 100.0, relationship.affinity * 100.0))
+                    .unwrap_or_else(|| "Saved contact".to_string()),
+                current_activity,
+                location_id,
+                is_new_acquaintance: false,
+            })
+        }).collect();
+        contacts.sort_by(|a, b| a.name.cmp(&b.name));
+        contacts
     }
 
     pub fn get_active_processes(&self) -> Vec<ContextProcessDTO> {
@@ -1761,7 +2509,7 @@ impl SimulationEngine {
             day_total: self.time.total_days,
             event_type: event_type.to_string(),
             actor_id: "person:sim:player".to_string(),
-            location_id: "place:home".to_string(),
+            location_id: self.current_place_id.clone(),
             headline: headline.to_string(),
             narrative: narrative.to_string(),
             causality_note: causality.to_string(),
@@ -1774,6 +2522,9 @@ impl SimulationEngine {
     }
 
     pub fn load_from_string(json_str: &str) -> Result<Self, serde_json::Error> {
-        serde_json::from_str(json_str)
+        let mut engine: Self = serde_json::from_str(json_str)?;
+        engine.ensure_world_places();
+        engine.ensure_city_people();
+        Ok(engine)
     }
 }

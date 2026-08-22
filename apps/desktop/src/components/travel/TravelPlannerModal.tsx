@@ -42,7 +42,19 @@ const stayChoices = [
   { days: 3, label: '3 nights' },
   { days: 7, label: '1 week' },
   { days: 14, label: '2 weeks' },
+  { days: 30, label: '1 month' },
+  { days: 90, label: '3 months' },
+  { days: 365, label: '1 year' },
+  { days: 0, label: 'Open-ended' },
 ];
+const journeyTypes = ['Visit', 'Study', 'Work', 'Family reunification', 'Permanent relocation'];
+const immigrationPathways: Record<string, string> = {
+  Visit: 'Visitor / tourist entry',
+  Study: 'Student visa and residence permit',
+  Work: 'Skilled worker visa and residence permit',
+  'Family reunification': 'Family residence permit',
+  'Permanent relocation': 'Permanent residence pathway',
+};
 
 const routeOptionsFor = (transportMode: string): RouteOption[] => {
   const base = baseFares[transportMode];
@@ -74,6 +86,7 @@ export const TravelPlannerModal: React.FC<TravelPlannerModalProps> = ({
   const [selectedRoute, setSelectedRoute] = useState<RouteOption | null>(null);
   const [stayDays, setStayDays] = useState(7);
   const [accommodation, setAccommodation] = useState('Central City Lodge');
+  const [journeyType, setJourneyType] = useState('Visit');
   const destination = destinations.find((item) => item.id === destinationCityId) ?? destinations[1];
   const sameCity = currentLocation.toLowerCase().startsWith(destination.name.split(',')[0].toLowerCase());
 
@@ -83,12 +96,14 @@ export const TravelPlannerModal: React.FC<TravelPlannerModalProps> = ({
       type: 'TRAVEL',
       destinationCityId,
       transportMode,
-      stayDays: accommodation === 'No accommodation reservation' ? 0 : stayDays,
+      stayDays,
       operatorName: selectedRoute.operator,
       serviceClass: selectedRoute.service,
       fare: selectedRoute.price,
       accommodation,
       departureTiming: `${departureTiming} at ${selectedRoute.departure}`,
+      journeyType,
+      immigrationPathway: immigrationPathways[journeyType],
     });
     if (success) onClose();
   };
@@ -132,8 +147,9 @@ export const TravelPlannerModal: React.FC<TravelPlannerModalProps> = ({
           {step === 2 ? (
             <div className="space-y-5">
               <div className="grid grid-cols-2 gap-3"><div className="rounded-2xl border border-[#27304a] bg-[#111622] p-4"><UserRound className="h-5 w-5 text-cyan-400" /><p className="mt-2 text-[10px] text-slate-500">Passenger</p><p className="mt-1 font-serif text-sm">{playerName}</p></div><div className="rounded-2xl border border-[#27304a] bg-[#111622] p-4"><CalendarDays className="h-5 w-5 text-cyan-400" /><p className="mt-2 text-[10px] text-slate-500">Departure</p><p className="mt-1 font-serif text-sm">{departureTiming} · {selectedRoute?.departure}</p></div></div>
+              <fieldset className="space-y-2"><legend className="text-xs text-slate-300">Purpose and settlement intention</legend><div className="grid grid-cols-2 gap-2 sm:grid-cols-3">{journeyTypes.map((choice) => <button key={choice} type="button" onClick={() => setJourneyType(choice)} aria-pressed={journeyType === choice} className={`rounded-xl border px-3 py-3 text-left text-[11px] transition ${journeyType === choice ? 'border-cyan-400 bg-cyan-400/10 text-cyan-100' : 'border-[#27304a] bg-[#121622] text-slate-300'}`}>{choice}</button>)}</div><p className="rounded-xl bg-[#111622] p-3 text-[11px] text-slate-400">Required route: <span className="text-cyan-200">{immigrationPathways[journeyType]}</span></p></fieldset>
               <fieldset className="space-y-2"><legend className="text-xs text-slate-300">Accommodation</legend><div className="grid grid-cols-2 gap-2">{accommodationChoices.map((choice) => <button key={choice} type="button" onClick={() => setAccommodation(choice)} aria-pressed={accommodation === choice} className={`rounded-xl border px-3 py-3 text-left text-[11px] transition ${accommodation === choice ? 'border-cyan-400 bg-cyan-400/10 text-cyan-100' : 'border-[#27304a] bg-[#121622] text-slate-300 hover:border-cyan-400/45'}`}>{choice}</button>)}</div></fieldset>
-              <fieldset className="space-y-2" disabled={accommodation === 'No accommodation reservation'}><legend className="text-xs text-slate-300">Length of stay</legend><div className="grid grid-cols-4 gap-2">{stayChoices.map((choice) => <button key={choice.days} type="button" onClick={() => setStayDays(choice.days)} aria-pressed={stayDays === choice.days} className={`rounded-xl border px-2 py-2.5 text-[11px] transition disabled:opacity-35 ${stayDays === choice.days ? 'border-cyan-400 bg-cyan-400/10 text-cyan-100' : 'border-[#27304a] bg-[#121622] text-slate-300 hover:border-cyan-400/45'}`}>{choice.label}</button>)}</div></fieldset>
+              <fieldset className="space-y-2"><legend className="text-xs text-slate-300">Length of stay</legend><div className="grid grid-cols-4 gap-2">{stayChoices.map((choice) => <button key={choice.label} type="button" onClick={() => setStayDays(choice.days)} aria-pressed={stayDays === choice.days} className={`rounded-xl border px-2 py-2.5 text-[11px] transition ${stayDays === choice.days ? 'border-cyan-400 bg-cyan-400/10 text-cyan-100' : 'border-[#27304a] bg-[#121622] text-slate-300 hover:border-cyan-400/45'}`}>{choice.label}</button>)}</div></fieldset>
               <div className="flex gap-3"><button type="button" onClick={() => setStep(1)} className="rounded-xl border border-[#27304a] px-4 py-3 text-xs text-slate-300">Back</button><button type="button" onClick={() => setStep(3)} className="flex-1 rounded-xl bg-cyan-500 py-3 text-xs font-bold text-slate-950">Review booking</button></div>
             </div>
           ) : null}
@@ -141,7 +157,7 @@ export const TravelPlannerModal: React.FC<TravelPlannerModalProps> = ({
           {step === 3 ? (
             <div className="space-y-5">
               <div className="flex items-center gap-2 text-cyan-300"><CheckCircle2 className="h-5 w-5" /><h4 className="font-serif text-base font-bold">Review before purchase</h4></div>
-              <dl className="grid grid-cols-2 gap-3 text-xs"><div><dt className="text-slate-500">Passenger</dt><dd className="mt-1 text-slate-200">{playerName}</dd></div><div><dt className="text-slate-500">Route</dt><dd className="mt-1 text-slate-200">{currentLocation.split(',')[0]} → {destination.name.split(',')[0]}</dd></div><div><dt className="text-slate-500">Operator</dt><dd className="mt-1 text-slate-200">{selectedRoute?.operator}</dd></div><div><dt className="text-slate-500">Service</dt><dd className="mt-1 text-slate-200">{selectedRoute?.service}</dd></div><div><dt className="text-slate-500">Departure</dt><dd className="mt-1 text-slate-200">{departureTiming} at {selectedRoute?.departure}</dd></div><div><dt className="text-slate-500">Accommodation</dt><dd className="mt-1 text-slate-200">{accommodation === 'No accommodation reservation' ? accommodation : `${accommodation} · ${stayDays} night(s)`}</dd></div></dl>
+              <dl className="grid grid-cols-2 gap-3 text-xs"><div><dt className="text-slate-500">Passenger</dt><dd className="mt-1 text-slate-200">{playerName}</dd></div><div><dt className="text-slate-500">Route</dt><dd className="mt-1 text-slate-200">{currentLocation.split(',')[0]} → {destination.name.split(',')[0]}</dd></div><div><dt className="text-slate-500">Purpose</dt><dd className="mt-1 text-slate-200">{journeyType}</dd></div><div><dt className="text-slate-500">Immigration route</dt><dd className="mt-1 text-slate-200">{immigrationPathways[journeyType]}</dd></div><div><dt className="text-slate-500">Operator</dt><dd className="mt-1 text-slate-200">{selectedRoute?.operator}</dd></div><div><dt className="text-slate-500">Service</dt><dd className="mt-1 text-slate-200">{selectedRoute?.service}</dd></div><div><dt className="text-slate-500">Departure</dt><dd className="mt-1 text-slate-200">{departureTiming} at {selectedRoute?.departure}</dd></div><div><dt className="text-slate-500">Accommodation</dt><dd className="mt-1 text-slate-200">{accommodation === 'No accommodation reservation' ? accommodation : `${accommodation} · ${stayDays === 0 ? 'open-ended' : `${stayDays} night(s)`}`}</dd></div></dl>
               <div className="flex items-center justify-between rounded-2xl border border-cyan-400/25 bg-cyan-400/5 p-4"><div><p className="text-[10px] text-slate-500">Transport total</p><p className="mt-1 text-xs text-slate-300">Payment will be deducted from your in-game account.</p></div><p className="font-mono text-lg text-cyan-300">{currencySymbol}{selectedRoute?.price.toLocaleString()}</p></div>
               <p className="rounded-xl border border-amber-400/20 bg-amber-400/5 p-3 text-[11px] text-amber-100">Confirming creates a ticket and itinerary, deducts the fare, advances the journey duration, and moves your life to {destination.name}.</p>
               <div className="flex gap-3"><button type="button" onClick={() => setStep(2)} className="flex items-center gap-2 rounded-xl border border-[#27304a] px-4 py-3 text-xs text-slate-300"><ArrowLeft className="h-4 w-4" />Edit</button><button type="button" onClick={confirmJourney} disabled={isLoading} className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-cyan-500 py-3 text-xs font-bold text-slate-950 disabled:opacity-40"><TicketCheck className="h-4 w-4" />Confirm purchase and depart</button></div>
